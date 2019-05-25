@@ -1,0 +1,5 @@
+# The main rlbot framework
+rlbot
+
+# Used to allow python to send commands to java, e.g. start running the bot
+py4j

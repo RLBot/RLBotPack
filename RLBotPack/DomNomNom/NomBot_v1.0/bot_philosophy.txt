@@ -1,0 +1,24 @@
+This project is what I want to do for now; No more zero days: https://www.reddit.com/r/getdisciplined/comments/1q96b5/i_just_dont_care_about_myself/cdah4af/
+
+Iterate fast, build tools to do things properly later.
+
+
+Don't be afraid to implement the interface and get it going with a really bad implementation:
+>>> def predict_ball(ball, duration):
+>>>     # Does basic steps and reflections
+>>>     return ball  # nope.
+
+Just make sure that you have a good measure of success.
+For me, that was mostly looking at traces and seeing if they made sense.
+But in the future I plan on using these metrics to build a ML model that optimizes for these.
+
+It should be fine to have physics that are not totally accurate as long as the strategy planning is stable and reactive.
+
+Try to build things stateless at first (avoid carrying over data between frames).
+That should allow for more simple composition of strategies.
+
+Every now and then, declare tab bankrupcy. Close other editor tabs than the one you need to work on right now.
+
+Before you try make the solution, confirm the problem.
+
+Prefer to measure constants imperically, only after that, check whether they're close to some constant in the physics engine.

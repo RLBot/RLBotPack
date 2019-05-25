@@ -1,0 +1,71 @@
+This file exists to keep Dom motivated about doing good stuff.
+
+
+2018-01-12
+[00:13] DomNomNom: https://gist.github.com/DomNomNom/89796a34bd6939ea8994f3b1718f1774
+[01:34] dtracers (Saltie): Waaaaaaaaa that's amazing
+[01:35] dtracers (Saltie): Do you know how long I've been waiting for that :O
+
+2018-01-12
+[23:37] DomNomNom: I sent a pull request for refreshing Agents when they get updated: https://github.com/drssoccer55/RLBot/pull/28/files#diff-5b35284c18e07166ad9396566dab67a8R78
+[23:40] Skyborg: that's awesome, i've wished for that already
+2018-01-13
+[01:30] Redox (RedoxBot rip): Wow that sounds awesome!
+[01:30] Redox (RedoxBot rip): Great work
+
+2018-01-14
+[01:12] DomNomNom: Success! https://www.reddit.com/r/RocketLeague/comments/7q4rdw/when_everyone_misses_the_ball_just_right/
+[01:14] Redox (RedoxBot rip): Wow nice!
+[01:15] Redox (RedoxBot rip): Perfect loop as well
+
+2018-01-14
+[22:53] DomNomNom: https://youtu.be/2prUSf6nTI0
+[23:37] Redox (RedoxBot rip): Haha this is amazing
+[00:49] Skyborg: new use for bots, studying planet orbits. great work btw, looks awesome
+
+2018-01-19
+[23:55] DomNomNom: https://github.com/drssoccer55/RLBot/pull/30
+2018-01-20
+[00:43] tarehart (ReliefBot): Thanks for contributing again
+
+2018-01-21
+[16:35] DomNomNom: Allright, slowly approaching my planned workflow: https://youtu.be/wQYVbV7IVdU
+[16:48] dtracers (Saltie): wow that is really really nice
+[18:22] tarehart (ReliefBot): Damn that's some good tooling
+[18:22] tarehart (ReliefBot): Respect
+
+2018-01-25
+[22:56] DomNomNom: Success! https://youtu.be/lcLTBPJUMPo
+2018-01-26
+[23:03] hallo_doei: What do you use for plotting? Nice job btw
+[13:56] gourliew: so cool
+
+2018-01-26
+[22:17] DomNomNom: Finally working as intended: https://youtu.be/rJOmhdFZkug
+[22:32] septem: wow, nice
+[23:20] Redox (RedoxBot rip): This is legendary
+[23:26] hallo_doei: Omfg @DomNomNom You are doing an awesome job
+
+2018-02-04
+[12:17] DomNomNom: https://youtu.be/TO1xVPAsBsc
+[12:23] GooseFairy (Muffin Man,TimidPoS): I love the dramatic music
+[12:37] wobackfromtheend: wtf is this video production quality
+[12:37] twobackfromtheend: wtf is with the ridiculously high standard of everything you do in general @DomNomNom  :seismiHUG:
+[21:36] hallo_doei: @DomNomNom how do you make so much progress so incredibly fast?
+[21:36] hallo_doei: It's amazing lol
+
+2018-03-19
+[02:26] DomNomNom (NomBot): We now have an integration test!
+[02:34] dtracers (Saltie): Thank you very much for this!
+
+2018-12-06
+[22:49] Hytak: Quicktracer is awesome btw
+
+2018-12-31
+[10:35] DomNomNom: btw, this is what RLBot training looks like at the moment https://gfycat.com/SplendidJovialFowl
+[10:36] Bakkes: ooh sick
+[10:36] Bakkes: Is it like a framework where you can just plug your bot in?
+[10:36] Bakkes: The testing that is
+[10:36] DomNomNom: yup
+[10:36] Bakkes: noice
+
