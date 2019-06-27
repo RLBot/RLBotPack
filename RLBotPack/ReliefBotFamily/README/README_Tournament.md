@@ -16,6 +16,4 @@ Advanced:
 
 - It's fine to close and restart `ReliefBot.bat` while runner.py is active.
 - You can also run the `.bat` on the command line to see stack traces for debugging purposes.
-- If there is a port conflict, you can create a file called `reliefbot-port.txt`
-in the bin folder with a single number in it to override the port used.
-You must also modify the port.cfg located in this directory.
+- If there is a port conflict, you can modify relief_bot.py's get_port method.
