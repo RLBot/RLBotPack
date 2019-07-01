@@ -5,6 +5,8 @@ from rlutilities.linear_algebra import *
 from rlutilities.mechanics import Aerial, AerialTurn, Dodge, Wavedash, Boostdash
 from rlutilities.simulation import Game, Ball, Car
 
+
+
 GOAL_WIDTH = 1900
 FIELD_LENGTH = 10280
 FIELD_WIDTH = 8240
@@ -103,25 +105,9 @@ class Vector:
 
     def alignTo(self, rot):
         v = Vector([self.data[0], self.data[1], self.data[2]])
-
-        # Apply roll
-
         v = Vector([v[0],math.cos(rot[0]) * v[1] + math.sin(rot[0]) * v[2],math.cos(rot[0]) * v[2] - math.sin(rot[0]) * v[1]])
-        # v.set(v.x, math.cos(rot.roll) * v.y + math.sin(rot.roll) * v.z,
-        #       math.cos(rot.roll) * v.z - math.sin(rot.roll) * v.y)
-
-        # Apply pitch
-
         v = Vector([math.cos(-rot[1]) * v[0] + math.sin(-rot[1]) * v[2], v[1], math.cos(-rot[1]) * v[2] - math.sin(-rot[1]) * v[0]])
-        # v.set(math.cos(-rot.pitch) * v.x + math.sin(-rot.pitch) * v.z, v.y,
-        #       math.cos(-rot.pitch) * v.z - math.sin(-rot.pitch) * v.x)
-
-        # Apply yaw
-
-        v = Vector([math.cos(-rot[2]) * v[0] + math.sin(-rot[2]) * v[1], math.cos(-rot[2]) * v[1] - math.sin(-rot[2]) * v[0],
-              v[2]])
-        # v.set(math.cos(-rot.yaw) * v.x + math.sin(-rot.yaw) * v.y, math.cos(-rot.yaw) * v.y - math.sin(-rot.yaw) * v.x,
-        #         #       v.z)
+        v = Vector([math.cos(-rot[2]) * v[0] + math.sin(-rot[2]) * v[1], math.cos(-rot[2]) * v[1] - math.sin(-rot[2]) * v[0], v[2]])
 
         return v
 
@@ -160,13 +146,10 @@ class Vector:
 
 
     def correction_to(self, ideal):
-        # The in-game axes are left handed, so use -x
         current_in_radians = math.atan2(self[1], -self[0])
         ideal_in_radians = math.atan2(ideal[1], -ideal[0])
 
         correction = ideal_in_radians - current_in_radians
-
-        # Make sure we go the 'short way'
         if abs(correction) > math.pi:
             if correction < 0:
                 correction += 2 * math.pi
@@ -179,6 +162,8 @@ class Vector:
     def toList(self):
         return self.data
 
+def convertStructLocationToVector(struct):
+    return Vector([struct.physics.location.x,struct.physics.location.y,struct.physics.location.z])
 
 def Rotation_Vector(rot):
     pitch = float(rot.pitch)
@@ -203,7 +188,7 @@ def placeVecWithinArena(vec):
     elif vec[0] < -4096:
         vec.data[0] = -4096
 
-    if vec[1] > 5000:
+    if vec[1] > 5120:
         if abs(vec[0]) > 850:
             vec.data[1] = 5120
 
@@ -211,7 +196,7 @@ def placeVecWithinArena(vec):
             if vec[1] > 5300:
                 vec.data[1] = 5300
 
-    elif vec[1] < -5100:
+    elif vec[1] < -5120:
         if abs(vec[0]) > 850:
             vec.data[1] = -5120
 
@@ -223,7 +208,6 @@ def placeVecWithinArena(vec):
 
 
 def demoMagic(agent):
-    #find ideal target
     currentSpd = agent.getCurrentSpd()
     if currentSpd <1900:
         if agent.me.boostLevel <=0:
@@ -240,11 +224,10 @@ def demoMagic(agent):
 
     if best != None:
         if currentSpd <=100:
-            currentSpd = 100 #just to help avoid rediculous predictions
+            currentSpd = 100
 
         currentTimeToTarget = distance / currentSpd
         lead = clamp(agent.deltaTime*60,agent.deltaTime*5,agent.deltaTime*distance/500)
-        #print(f"{agent.deltaTime*60} {agent.deltaTime*5} {agent.deltaTime*distance/500}")
         difference = best.velocity.scale(lead)
         targetPos = e.location + difference
         agent.renderCalls.append(
@@ -255,10 +238,8 @@ def demoMagic(agent):
             angle = math.degrees(math.atan2(targetLocal[1],targetLocal[0]))
             if abs(angle) <= 40:
                 agent.setJumping(0)
-                #print("jumping")
 
         return testMover(agent,targetPos,2300)
-        #return greedyMover(agent,targetPos)
 
 
 
@@ -413,7 +394,7 @@ def saferBoostGrabber(agent):
     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, closestBoost.location.data,
                                         agent.renderer.yellow))
 
-    return efficientMover(agent, closestBoost.location, agent.maxSpd)
+    return efficientMover(agent, closestBoost.location, agent.maxSpd,boostHunt=False)
 
 def boostHungry(agent):
     closestBoost = agent.me
@@ -436,14 +417,15 @@ def boostHungry(agent):
 
     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, closestBoost.location.data,
                                         agent.renderer.yellow))
-    return efficientMover(agent, closestBoost.location, agent.maxSpd)
+    return efficientMover(agent, closestBoost.location, agent.maxSpd,boostHunt=False)
 
 def distance1D(origin,destination,index):
     return abs(getLocation(origin)[index] - getLocation(destination)[index])
 
 
 def defendGoal(agent):
-    return turtleTime(agent)
+    return ShellTime(agent)
+
 
 
 def findOppositeSideVector(agent,objVector,antiTarget, desiredBallDistance):
@@ -466,7 +448,7 @@ def findGoalAngle(agent):
     return math.degrees(angle2(agent.ball, center)) * sign(agent.team)
 
 def determineVelocityToGoal(agent):
-    myGoal = center = Vector([0, 5150 * -sign(agent.team), 200])
+    myGoal = Vector([0, 5150 * -sign(agent.team), 200])
     startingDistance = distance2D(myGoal,agent.ball.location)
     if startingDistance < distance2D(myGoal,agent.ball.location + agent.ball.velocity):
         return True
@@ -474,60 +456,55 @@ def determineVelocityToGoal(agent):
         return False
 
 def backmanDefense(agent):
-    center = Vector([0, 4500 * sign(agent.team), 200])
-    distance = distance2D(center,agent.ball.location)
+    center = Vector([0, 5120 * sign(agent.team), 200])
+    rendevouz = Vector([0, 4900 * sign(agent.team), 200])
+    ballToGoaldistance = distance2D(center,agent.ball.location)
+    distance = distance2D(agent.me.location,agent.ball.location)
 
     if distance < 5000:
-        if distance < 2000:
-            return turtleTime(agent)
+        if distance < 1500:
+            return ShellTime(agent)
 
         defenderFound = False
         for ally in agent.allies:
             a_dist= distance2D(ally.location,agent.ball.location)
-            if a_dist < distance2D(agent.me.location,agent.ball.location):
-                if distance2D(center,ally.location) < distance:
+            if a_dist < distance:
+                if distance2D(center,ally.location) < ballToGoaldistance:
                     defenderFound = True
         if not defenderFound:
-            return turtleTime(agent)
+            return ShellTime(agent)
 
         else:
-            if distance2D(agent.me.location,center) > 1000:
-                return efficientMover(agent, center, 2200)
+            agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, center,
+                                                agent.renderer.blue))
+            if distance2D(agent.me.location,rendevouz) > 500:
+                return efficientMover(agent, rendevouz, 2200,boostHunt=True)
             else:
-                return efficientMover(agent,center,50)
+                return efficientMover(agent,rendevouz,50,boostHunt=True)
 
-    if distance >= 6000:
+    else:
+        centerField = Vector([0,agent.ball.location[1] + 3000*sign(agent.team),0])
         if agent.me.boostLevel < 50:
             return saferBoostGrabber(agent)
         else:
-            if distance2D(agent.me.location,center) > 600:
-                return efficientMover(agent, center, 2200)
-            else:
-                return efficientMover(agent,center,500)
-    else:
-        if distance2D(agent.me.location, center) > 600:
-            return efficientMover(agent, center, 2200)
-        else:
-            return efficientMover(agent, center, 400)
+            agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, centerField.data,
+                                                agent.renderer.blue))
+            return efficientMover(agent, centerField, 2200,boostHunt=True)
 
 
 def secondManSupport(agent):
-    #center = Vector([0, 5150 * sign(agent.team), 200])
-    goalward = ballHeadedTowardsMyGoal(agent)
-    if not goalward:
-        if agent.me.boostLevel < 50:
-            return saferBoostGrabber(agent)
+    defendTarget = Vector([0, 5120 * sign(agent.team), 200])
+    if agent.me.boostLevel < 50:
+        return saferBoostGrabber(agent)
 
-        else:
-            if agent.ball.location[0] > 0:
-                x = agent.ball.location[0]-400
-            else:
-                x = agent.ball.location[0]+400
+    destination = findOppositeSide(agent,agent.ball.location,defendTarget,-100)
+    destination.data[1] += sign(agent.team)*1200
+    destination.data[2] = 75
+    placeVecWithinArena(destination)
+    agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, destination.data,
+                                        agent.renderer.green))
 
-            y = agent.ball.location[1] + 1500*sign(agent.team)
-            return efficientMover(agent,Vector([x,y,100]),2200)
-    else:
-        return turtleTime(agent)
+    return efficientMover(agent,destination,2200,boostHunt=True)
 
 def ownGoalCheck(agent,targetVec):
     leftPost = Vector([sign(agent.team) * 800, 5100 * sign(agent.team), 200])
@@ -545,7 +522,6 @@ def ownGoalCheck(agent,targetVec):
         leftPostAngle = correctAngle(math.degrees(math.atan2(localLP[1], localLP[0])))
 
         if leftPostAngle < targetAngle < rightPostAngle:
-            #return True
             if leftPostAngle - targetAngle > rightPostAngle -targetAngle:
                 return True,leftPost
             else:
@@ -556,17 +532,21 @@ def ownGoalCheck(agent,targetVec):
 def noOwnGoalDefense(agent,targetVec):
     leftCorner = Vector([-sign(agent.team) * 4096, 5200 * sign(agent.team), 50])
     rightCorner = Vector([sign(agent.team) * 4096, 5200 * sign(agent.team), 50])
-    leftPost = Vector([-sign(agent.team) * 760, 4700 * sign(agent.team), 50])
-    rightPost = Vector([sign(agent.team) * 760, 4700 * sign(agent.team), 50])
+    leftPost = Vector([-sign(agent.team) * 760, 4100 * sign(agent.team), 50])
+    rightPost = Vector([sign(agent.team) * 760, 4100 * sign(agent.team), 50])
     center = Vector([0, 5400 * sign(agent.team), 200])
 
     ballGoalDist = distance2D(targetVec, center)
     carGoalDist = distance2D(agent.me.location, center)
 
-    if agent.me.location[1] * sign(agent.team) > targetVec[1] * sign(agent.team):
+    if ballGoalDist > 6000:
+        if (agent.me.location[1] * sign(agent.team)) + (sign(agent.team) * 120) < agent.ball.location[1] * sign(agent.team):
+            return (center, False)
+
+    elif (agent.me.location[1] * sign(agent.team)) + (sign(agent.team) * 20) > agent.ball.location[1] * sign(agent.team):
         return (center, False)
 
-    if ballGoalDist < 600:
+    if ballGoalDist < 1000:
         return (center, False)
 
     ballToLeft = distance1D(leftCorner,targetVec,0)
@@ -574,13 +554,6 @@ def noOwnGoalDefense(agent,targetVec):
 
     carToLeft = distance1D(leftCorner,agent.me.location,0)
     carToRight = distance1D(rightCorner,agent.me.location,0)
-
-
-    # if carToLeft < ballToLeft:
-    #     return (rightPost, True)
-    #
-    # if carToRight < ballToRight:
-    #     return (leftPost, True)
     if carToLeft < ballToLeft:
         return (rightPost, True)
 
@@ -590,79 +563,71 @@ def noOwnGoalDefense(agent,targetVec):
 
     return (rightPost, True)
 
-# def noOwnGoalDefense(agent,targetVec):
-#     leftCorner = Vector([-sign(agent.team) * 4096, 5000 * sign(agent.team), 200])
-#     rightCorner = Vector([sign(agent.team) * 4096, 5000 * sign(agent.team), 200])
-#     leftPost = Vector([sign(agent.team) * 800, 5000 * sign(agent.team), 200])
-#     rightPost = Vector([-sign(agent.team) * 800, 5000 * sign(agent.team), 200])
-#     centerDefend = Vector([0, 5500 * sign(agent.team), 200])
-#     centerReloc = Vector([0, 5100 * sign(agent.team), 200])
-#
-#     ballGoalDist = distance2D(agent.ball.location, centerDefend)
-#     carGoalDist = distance2D(agent.me.location, centerDefend)
-#
-#     ballToLeft = distance1D(leftCorner, agent.ball.location, 0)
-#     ballToRight = distance1D(rightCorner, agent.ball.location, 0)
-#
-#     carToLeft = distance1D(leftCorner, agent.me.location, 0)
-#     carToRight = distance1D(rightCorner, agent.me.location, 0)
-#
-#     if carGoalDist < ballGoalDist:
-#         return (centerDefend, False)
-#
-#     if ballGoalDist < 500:
-#         return (centerDefend, False)
-#
-#     # if ballGoalDist < 5000:
-#     #     ownGoaling,newVec = ownGoalCheck(agent,targetVec)
-#     #     if ownGoaling:
-#     #         loc = findOppositeSide(agent, newVec, targetVec, 350)
-#     #         return (loc, False)
-#     #
-#     #
-#     #     if carToLeft < ballToLeft:
-#     #         loc = findOppositeSide(agent,leftPost,targetVec,115)
-#     #         return (loc, False)
-#     #
-#     #     if carToRight < ballToRight:
-#     #         loc = findOppositeSide(agent, rightPost,targetVec, 115)
-#     #         return (loc, False)
-#
-#     if ballGoalDist < carGoalDist:
-#         if carToLeft < ballToLeft:
-#             return leftPost, True
-#
-#         if carToRight < ballToRight:
-#             return rightPost, True
-#
-#     if carToLeft < ballToLeft:
-#         return rightPost,False
-#
-#     if carToRight < ballToRight:
-#         return leftPost,False
-#
-#
-#
-#     return (rightPost, True)
+
+def ShellTime(agent):
+    defendTarget = Vector([0, 5120 * sign(agent.team), 200])
+    if agent.selectedBallPred:
+        targetVec = Vector([agent.selectedBallPred.physics.location.x,
+                             agent.selectedBallPred.physics.location.y,
+                             agent.selectedBallPred.physics.location.z])
+    else:
+        targetVec = agent.ball.location
+
+    goalDistance = distance2D(targetVec, defendTarget)
+    carDistance = distance2D(agent.me.location, defendTarget)
+    _enemyInfluenced = True
+
+    if goalDistance < 1300:
+        _enemyInfluenced = False
+
+    if len(agent.allies) < 1:
+        flipDecider(agent, targetVec,enemyInfluenced= _enemyInfluenced)
+    else:
+        flipDecider2(agent)
+
+    if carDistance < goalDistance:
+        destination = Vector([targetVec[0],targetVec[1]+sign(agent.team)*85,targetVec[2]])
+
+    else:
+        if agent.me.location[0] > targetVec[0]:
+            xOff = 80
+            if agent.me.location[1] * -sign(agent.team) > -sign(agent.team) * targetVec[1]:
+                xOff += clamp(30,1,abs(targetVec[1]-agent.me.location[1])/15)
 
 
+        else:
+            xOff = -80
+            if agent.me.location[1] * -sign(agent.team) > -sign(agent.team) * targetVec[1]:
+                xOff -= clamp(30,1,abs(targetVec[1]-agent.me.location[1])/15)
+
+        yOff = 55
+
+        yOff += clamp(30,0,abs(targetVec[0] - agent.me.location[0]))
+
+        destination = Vector([targetVec[0]+xOff,targetVec[1]+sign(agent.team)*yOff,targetVec[2]])
+
+    placeVecWithinArena(destination)
+    result = timeDelayedMovement(agent, destination, agent.ballDelay)
+
+    destination.data[2] = 75
+    agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d,
+                                        agent.me.location.data,
+                                        destination.data,
+                                        agent.renderer.blue))
+
+    return result
 
 
 
 def turtleTime(agent):
-    #7-21 @ 15:30
     goalDistance = distance2D(agent.ball.location,Vector([0, 5100 * sign(agent.team), 200]))
     defendTarget = Vector([0, 5250 * sign(agent.team), 200])
 
-    if agent.selectedBallPred == None:
-        targetStruct = findSoonestBallTouchable(agent)
-    else:
-        targetStruct = agent.selectedBallPred
 
-    if targetStruct != None:
-        targetVec = Vector([targetStruct.physics.location.x, targetStruct.physics.location.y,
-                            targetStruct.physics.location.z])
-        agent.ballDelay = targetStruct.game_seconds - agent.gameInfo.seconds_elapsed
+    if agent.selectedBallPred:
+        targetVec = Vector([agent.selectedBallPred.physics.location.x, agent.selectedBallPred.physics.location.y,
+                            agent.selectedBallPred.physics.location.z])
+        agent.ballDelay = agent.selectedBallPred.game_seconds - agent.gameInfo.seconds_elapsed
 
     else:
         targetVec = agent.ball.location
@@ -671,15 +636,12 @@ def turtleTime(agent):
     _enemyInfluenced = True
     if goalDistance < 1300:
         _enemyInfluenced = False
-    elif targetVec[2] > 165:
-        _enemyInfluenced = False
 
     flipDecider(agent,targetVec,enemyInfluenced= _enemyInfluenced)
 
     if distance2D(targetVec,defendTarget) < 5000:
         if ballHeadedTowardsMyGoal(agent):
             defendTarget, reposition = noOwnGoalDefense(agent,targetVec)
-            #defendTarget, reposition = noOwnGoalDefense(agent)
             if reposition:
                 agent.renderCalls.append(
                     renderCall(agent.renderer.draw_line_3d, agent.me.location.data, defendTarget.data,
@@ -693,11 +655,8 @@ def turtleTime(agent):
 
     distance = distance2D(defendTarget,targetVec)
     oppositeVector = (getLocation(defendTarget) - targetVec).normalize()
-    destination =  getLocation(defendTarget) - (oppositeVector.scale(distance - clamp(110,50,50))) #targetVec[2]/2
+    destination =  getLocation(defendTarget) - (oppositeVector.scale(distance - clamp(110,50,50)))
     placeVecWithinArena(destination)
-    # if destination[2] < 140:
-    #     result = testMover(agent, destination, 2300)
-    # else:
     result = timeDelayedMovement(agent, destination, agent.ballDelay)
 
     destination.data[2] = 95
@@ -718,13 +677,38 @@ def goalWallFixer(agent):
                 jump = True
     return jump
 
+def flipDecider2(agent):
+    if agent.selectedBallPred == None:
+        pred = agent.ballPred.slices[0]
+    else:
+        pred = agent.selectedBallPred
+
+    targetVec = convertStructLocationToVector(pred)
+    dist = distance2D(agent.me.location,targetVec)
+
+    jumpTimer = .5
+
+    if agent.contested:
+        timeUntilshot = pred.game_seconds - agent.gameInfo.seconds_elapsed
+        if pred.game_seconds - agent.gameInfo.seconds_elapsed< jumpTimer :
+            if dist <=50 or dist/agent.getCurrentSpd() <= jumpTimer :
+                if targetVec[2] >200:
+                    agent.setJumping(-1)
+                elif targetVec[2] > 125:
+                    agent.setJumping(0)
+
+    else:
+        if pred.game_seconds - agent.gameInfo.seconds_elapsed< jumpTimer :
+            if dist <= 50 or dist/agent.getCurrentSpd() <= jumpTimer :
+                if targetVec[2] > 200:
+                    agent.setJumping(-1)
+                elif targetVec[2] > 125:
+                    agent.setJumping(0)
+
 
 def flipDecider(agent,targetVec,enemyInfluenced=False):
     if not enemyInfluenced:
-        # if not agent.onWall:
-        #if findDistance(agent.me.location,targetVec) <= 200:
         targetVec = agent.ball.location
-        #if distance2D(agent.me.location,targetVec) <= 200:
         if distance2D(agent.me.location, agent.ball.location) <= 200:
             if targetVec[2] <= 160:
                 agent.setJumping(0)
@@ -754,7 +738,19 @@ def findEnemyClosestToLocation(agent,location):
                 closest = e
         return closest,cDist
     else:
-        return None
+        return None,None
+
+def ballContested(agent):
+    closestToMe,mDist = findEnemyClosestToLocation(agent,agent.me.location)
+    closestToBall, bDist = findEnemyClosestToLocation(agent,agent.ball.location)
+
+    if mDist:
+        if mDist > 800 and bDist > 800:
+            agent.contested = False
+        else:
+            agent.contested = True
+    else:
+        agent.contested = False
 
 
 
@@ -766,15 +762,14 @@ def lineupShot(agent,multi):
     leftPost = Vector([-sign(agent.team) * 700, 5200 * -sign(agent.team), 200])
     rightPost = Vector([sign(agent.team) * 700, 5200 * -sign(agent.team), 200])
     center = Vector([0, 5200 * -sign(agent.team), 200])
-    if agent.selectedBallPred == None:
-        targetStruct = findSoonestBallTouchable(agent)
-    else:
-        targetStruct = agent.selectedBallPred
 
-    if targetStruct != None:
-        targetVec = Vector([targetStruct.physics.location.x, targetStruct.physics.location.y,
-                            targetStruct.physics.location.z])
-        agent.ballDelay = targetStruct.game_seconds - agent.gameInfo.seconds_elapsed
+    if ballHeadedTowardsMyGoal(agent):
+        return ShellTime(agent)
+
+    if agent.selectedBallPred:
+        targetVec = Vector([agent.selectedBallPred.physics.location.x, agent.selectedBallPred.physics.location.y,
+                            agent.selectedBallPred.physics.location.z])
+        agent.ballDelay = agent.selectedBallPred.game_seconds - agent.gameInfo.seconds_elapsed
 
     else:
         targetVec = agent.ball.location
@@ -796,20 +791,10 @@ def lineupShot(agent,multi):
 
     correctedAngles=[x + 90 * -sign(agent.team) for x in shotAngles]
 
-    _enemyInfluenced = True
-    if targetVec[2] > 165:
-        _enemyInfluenced = False
-
-    flipDecider(agent, targetVec,enemyInfluenced= _enemyInfluenced)
-
-    #blue team
-    #+90 makes goal angles accurate
-    #positive to local left of goal, negative to local right
-
-    #orangeTeam
-    # -90 to correct angles
-    # negative to right of goal, positive to left
-
+    if len(agent.allies) < 1:
+        flipDecider(agent, targetVec,enemyInfluenced= True)
+    else:
+        flipDecider2(agent)
 
     if distance2D(center,targetVec) < 1500:
         goalAngle = correctedAngles[1]
@@ -828,99 +813,39 @@ def lineupShot(agent,multi):
             goalAngle = correctedAngles[1]
             goalSpot = center
 
-    # if abs(correctedAngles[1]) > 70:
-    #     if agent.me.boostLevel < 25:
-    #         if len(agent.allies) < 1:
-    #             return boostHungry(agent)
-
-    #blue team
-    # ball straight ahead local is -0
-    # ball on left is negative degrees ball on right is positive
-
-    #orange team
-    # straight ahead is 0
-    # positive if ball to the right
-
-    # if targetToBallAngle > 180:
-    #     targetToBallAngle-=360
-    # elif targetToBallAngle < -180:
-    #     targetToBallAngle+=360
-    #
-    # if goalAngle < -180:
-    #     goalAngle += 360
-    # if goalAngle > 180:
-    #     goalAngle -= 360
-
-    # ball_radius = 92.5
-    # carLength = 118
-    # offset = (ball_radius+(carLength/2))
-    # ballToGoalMulti = clamp(1,0,ballToGoalDist/5000)
-    # distMulti = clamp(3,.1,dist/500)
-    # goalOffset = clamp(350,minMin,(abs(goalAngle)+abs(targetToBallAngle)*(distMulti+ballToGoalMulti)))
-    # goalLocal = toLocal(goalSpot,agent.me)
-    # goalLocalDegrees = math.degrees(math.atan2(goalLocal[1],goalLocal[0]))*clamp(2,1,dist/100)
-    # if goalLocalDegrees < -180:
-    #     goalLocalDegrees += 360
-    # if goalLocalDegrees > 180:
-    #     goalLocalDegrees -= 360
-
-    #goalOffset = abs(goalLocalDegrees)+abs(targetToBallAngle)
-
-    #print(goalLocalDegrees,targetToBallAngle,goalOffset)
-    #if abs(goalLocalDegrees) <= 120:
-    if len(agent.allies) > 0:
-        if carToGoalDistance > ballToGoalDist:
-            if distance2D(agent.ball.location,agent.me.location) <= 200:
-                #if ballToGoalDist < 5000:
-                if abs(correctedAngles[0]) < 45:
-                    if carToBallAngle > correctedAngles[0] and carToBallAngle < correctedAngles[2]:
-                        if agent.onSurface:
-                            if not agent.onWall:
-                                if targetVec[2] < 140:
-                                    if agent.ballDelay < 0.55:
-                                        agent.setJumping(0)
 
     targetLoc = None
     rush = False
-    if agent.ball.location[2] <= 150:
+    if agent.ball.location[2] <= 140:
         if dist > 40:
             rush = True
 
+    if abs(carToBallAngle) < 30:
+        if is_in_strike_zone(agent, targetVec):
+            targetLoc = targetVec
+            targetLoc.data[1] += sign(agent.team)*10
+            if abs(carToBallAngle) <=6:
+                if distance2D(agent.me.location, agent.ball.location) < 400:
+                        if targetVec[2] <= 150:
+                            if openGoalOpportunity(agent):
+                                if (agent.me.location[1] * -sign(agent.team))+ -sign(agent.team)*100 < agent.ball.location[1] * -sign(agent.team):
+                                    agent.setJumping(0)
 
-
-    elif abs(targetVec[0]) < 2300: ##hook a shot in
-        if ballToGoalDist < 5500 and ballToGoalDist > 1000:
-            if agent.getCurrentSpd() > 800:
-                _direction  = direction(center,targetVec)
-                #print(30 * dist/500)
-                targetLoc = targetVec - _direction.scale(120 + findDistance(agent.me.location,targetVec) * 0.5)
 
 
     if not targetLoc:
-        if dist < 300:
-            if abs(carToBallAngle) < 30:
-                if is_in_strike_zone(agent, targetVec): #trying to just shove rrr in
-                    targetLoc = targetVec
-                    rush = True
+        if abs(targetVec[0]) < 2200:
+            if ballToGoalDist < 5800 and ballToGoalDist > 1300:
+                if targetVec[2] < 120:
+                    if abs(agent.me.location[1] < abs(targetVec[1])):
+                        _direction = direction(center, targetVec)
+                        targetLoc = targetVec - _direction.scale(120 + dist * 0.5)
         if not targetLoc:
-            targetLoc = findOppositeSide(agent,targetVec,goalSpot,clamp(125,20,(dist/1.5)-abs(carToBallAngle))) #try to center it
-
-    # else:
-    #     localVector = toLocal(targetVec,agent.me)
-    #     targetToBallAngle = math.degrees(math.atan2(localVector[1],localVector[0]))
-    #     ballToGoalMulti = clamp(1,0,ballToGoalDist/5000)
-    #     distMulti = clamp(3,.1,dist/500)
-    #     #goalOffset = clamp(350,minMin,(abs(goalAngle)+abs(targetToBallAngle)*(distMulti+ballToGoalMulti)))
-    #     goalOffset = clamp(120,20,(abs(targetToBallAngle)+abs(goalLocalDegrees))*(dist + ballToGoalDist)/2500)
-    #     targetLoc = findOppositeSideVector(agent,targetVec,goalSpot, goalOffset)
-    #     #print("awkward lineup!",time.time())
+            targetLoc = findOppositeSide(agent,targetVec,goalSpot,clamp(125,20,(dist/1.5)-abs(carToBallAngle)))
 
 
-
-    # if agent.ball.location[2] < 140:
-    #     result = testMover(agent, targetLoc, 2200)
-    # else:
     placeVecWithinArena(targetLoc)
+
     if rush:
         result = testMover(agent,targetLoc,2200)
     else:
@@ -966,25 +891,43 @@ def maxSpeedAdjustment(agent,target):
 
 
 
-
-
 def is_in_strike_zone(agent, ball_vec):
     leftPost = Vector([-sign(agent.team) * 700, 5100 * -sign(agent.team), 200])
     rightPost = Vector([sign(agent.team) * 700, 5100 * -sign(agent.team), 200])
-    #center = Vector([0, 5100 * -sign(agent.team), 200])
-    if angle2(leftPost, agent.me) < angle2(ball_vec,agent.me) < angle2(rightPost,agent.me):
+    localLeft = toLocal(leftPost,agent.me)
+    localRight = toLocal(rightPost,agent.me)
+    localBall = toLocal(ball_vec,agent.me)
+
+    angles = [math.degrees(math.atan2(localLeft[1],localLeft[0])),
+              math.degrees(math.atan2(localBall[1],localBall[0])),
+              math.degrees(math.atan2(localRight[1],localRight[0]))]
+
+    if not agent.forward:
+        for i in range(len(angles)):
+            angles[i] = angles[i]-180
+
+    if angles[0]+2.5 < angles[1] < angles[2]-2.5:
         return True
     return False
 
 def inaccurateArrivalEstimator(agent,destination):
     distance = clamp(math.inf,1,distance2D(agent.me.location,destination))
     currentSpd = clamp(2300,1,agent.getCurrentSpd())
-    if agent.me.boostLevel > 0:
-        maxSpd = clamp(2300,currentSpd,currentSpd+ (distance*.15))
+    localTarg = toLocal(destination,agent.me)
+    if agent.forward:
+        angle = math.degrees(math.atan2(localTarg[1],localTarg[0]))
     else:
-        maxSpd = clamp(2200, currentSpd, currentSpd + (distance*.1))
-    avgSpd = clamp(2200,currentSpd,currentSpd + currentSpd*(currentSpd/maxSpd))
-    return distance/avgSpd
+        angle = correctAngle(math.degrees(math.atan2(localTarg[1],localTarg[0]))-180)
+    if distance < 2000:
+        if abs(angle) > 40:
+            distance+= abs(angle)
+
+    if agent.me.boostLevel > 0:
+        maxSpd = clamp(2300,currentSpd,currentSpd+ (distance*.3))
+    else:
+        maxSpd = clamp(2200, currentSpd, currentSpd + (distance*.15))
+
+    return distance/maxSpd
 
 
 def direction(source, target) -> Vector:
@@ -1013,6 +956,12 @@ def distance2D(origin,destination):
     return abs(math.sqrt(sum([x * x for x in difference])))
 
 def correctAngle(x):
+
+    while x > 360:
+        x-=360
+    while x < -360:
+        x+=360
+
     if x > 180:
         x-=360
     elif x < -180:
@@ -1044,13 +993,12 @@ def testMover(agent, target_object,targetSpd):
             agent.renderCalls.append(
                 renderCall(agent.renderer.draw_line_3d, agent.me.location.data, target_object.data,
                            agent.renderer.yellow))
-            return efficientMover(agent,target_object,targetSpd)
+            return efficientMover(agent,target_object,targetSpd,boostHunt=False)
     currentSpd = agent.getCurrentSpd()
     _distance = distance2D(agent.me, target_object)
 
-    #print(currentSpd)
     if targetSpd < currentSpd+150 or agent.me.boostLevel <=0 or targetSpd < 900 or (getLocation(target_object)[2]>120 and _distance < 300):
-        return efficientMover(agent,target_object,targetSpd)
+        return efficientMover(agent,target_object,targetSpd,boostHunt=False)
 
     location = toLocal(target_object, agent.me)
     controller_state = SimpleControllerState()
@@ -1061,14 +1009,12 @@ def testMover(agent, target_object,targetSpd):
             agent.forward = False
 
     if not agent.forward:
-        return efficientMover(agent, target_object, targetSpd)
+        return efficientMover(agent, target_object, targetSpd,boostHunt=False)
 
-
-    #_distance = distance2D(agent.me, target_object)
-
-    #print(math.degrees(angle_to_target))
-    #steering, slide = newSteer(angle_to_target)
-    steering, slide = rockSteer(angle_to_target,_distance)
+    if len(agent.allies) >= 1:
+        steering, slide = newSteer(angle_to_target)
+    else:
+        steering, slide = rockSteer(angle_to_target,_distance)
 
     if abs(steering) >=.95:
         optimalSpd = maxSpeedAdjustment(agent, target_object)
@@ -1103,47 +1049,47 @@ def testMover(agent, target_object,targetSpd):
                 else:
                     controller_state.throttle = 1
 
-    #controller_state.jump = goalWallFixer(agent)
     if currentSpd > 1400:
-        if _distance > 2000:
+        if _distance > clamp(2300,1400,currentSpd+500)*1.6:
             if agent.onSurface:
                 if not agent.onWall:
                     if currentSpd < targetSpd:
-                        #if _distance > 2* (clamp(2300,200,currentSpd+500)/clamp(6,0.0001,agent.ballDelay)):
-                        if _distance> clamp(2300,200,currentSpd+500)+500:
                             maxAngle = 3 + clamp(2,0,_distance/1000)
                             if abs(angle_degrees) < maxAngle:
-                                agent.setJumping(1)
-                                #print("test jumping",time.time())
+                                    agent.setJumping(1)
 
     return controller_state
 
 
 def timeDelayedMovement(agent,targetVec,delay):
-    dist = distance2D(agent.me.location,targetVec)
-    # if dist > 700:
-    #     return testMover(agent, targetVec, 2200)
-
     arrivalEstimate = inaccurateArrivalEstimator(agent, targetVec)
-    if arrivalEstimate > delay:
-        #print(arrivalEstimate,delay)
+
+    if arrivalEstimate >= delay:
         return testMover(agent, targetVec, 2200)
 
     else:
-        return efficientMover(agent, targetVec, (dist/delay)+dist/50)
-        #return testMover(agent, targetVec, dist/delay)
+        dist = distance2D(agent.me.location, targetVec)
+        adjustedSpd = 0
+        if dist > 150:
+            adjustedSpd = dist/10
+        return efficientMover(agent, targetVec, (dist/delay)+adjustedSpd,boostHunt=True)
 
 
 
-def efficientMover(agent,target_object,target_speed):
+def efficientMover(agent,target_object,target_speed,boostHunt = False):
     controller_state = SimpleControllerState()
+    if boostHunt:
+        if agent.me.boostLevel < 88:
+            newTarget = convenientBoost(agent,getLocation(target_object))
+            if newTarget != None:
+                target_object = newTarget
+                agent.renderCalls.append(
+                    renderCall(agent.renderer.draw_line_3d, agent.me.location.data, newTarget.data,
+                               agent.renderer.yellow))
     location = toLocal(target_object, agent.me)
     angle_to_target = math.atan2(location.data[1], location.data[0])
     _distance = distance2D(agent.me, target_object)
-    current_speed = getVelocity(agent.me.velocity)
-
-
-
+    current_speed = agent.getCurrentSpd()
     if not agent.forward:
         controller_state.throttle = -1
         _angle = math.degrees(angle_to_target)
@@ -1155,20 +1101,20 @@ def efficientMover(agent,target_object,target_speed):
 
         angle_to_target = math.radians(_angle)
         if agent.onSurface:
-            if _distance > 800:
+            if _distance > 1200:
                 if abs(_angle) <= 50 :
                     agent.setHalfFlip()
 
-
-    steerDirection, slideBool = rockSteer(angle_to_target, _distance)
-
-    #steerDirection, slideBool = newSteer(angle_to_target)
+    if len(agent.allies) >= 1:
+        steerDirection, slideBool = newSteer(angle_to_target)
+    else:
+        steerDirection, slideBool = rockSteer(angle_to_target,_distance)
     if not agent.forward:
         steerDirection = -steerDirection
     controller_state.steer = steerDirection
     controller_state.handbrake = slideBool
 
-    if abs(steerDirection) >=.95:
+    if abs(steerDirection) >=.9:
         optimalSpd = maxSpeedAdjustment(agent, target_object)
 
         if target_speed > optimalSpd:
@@ -1179,28 +1125,18 @@ def efficientMover(agent,target_object,target_speed):
             controller_state.throttle = 1
         else:
             controller_state.throttle = -1
-        flip = False
+
         if agent.getActiveState() == 3 or agent.getActiveState() == 4 or agent.getActiveState() == 5:
-            if agent.ballDelay > 2.5:
-                flip = True
-        if _distance > 2500:
-            flip = True
-        if flip:
             if abs(math.degrees(angle_to_target)) <= clamp(3,0,_distance/1000):
                 if agent.onSurface:
-                    if _distance > 500:
-                        if agent.forward:
-                            agent.setJumping(1)
-                        else:
-                            agent.setJumping(3)
+                    if current_speed > 800:
+                        if _distance > clamp(2300,current_speed,current_speed+500)*1.5:
+                            if agent.forward:
+                                agent.setJumping(1)
+                            else:
+                                agent.setJumping(3)
 
     else:
-        if agent.forward:
-            controller_state.throttle = 1
-        else:
-            controller_state.throttle = -1
-
-
         if current_speed > target_speed:
             if agent.getActiveState() != 3:
                 if agent.forward:
@@ -1208,7 +1144,7 @@ def efficientMover(agent,target_object,target_speed):
                 else:
                     controller_state.throttle = 1
             else:
-                if current_speed - target_speed < 25:
+                if current_speed - target_speed < 35:
                     controller_state.throttle = 0
                 else:
                     if agent.forward:
@@ -1216,7 +1152,9 @@ def efficientMover(agent,target_object,target_speed):
                     else:
                         controller_state.throttle = 1
 
-    #controller_state.jump = goalWallFixer(agent)
+    if slideBool:
+        if agent.getCurrentSpd() < 500:
+            controller_state.handbrake = False
 
     return controller_state
 
@@ -1229,18 +1167,14 @@ def Gsteer(angle):
 def rockSteer(angle,distance):
     turn = Gsteer(angle)
     slide = False
-    distanceMod = clamp(10,.2,distance/500)
-    _angle = math.degrees(angle)
-    if _angle > 180:
-        _angle -=360
-    elif _angle < -180:
-        _angle +=360
+    distanceMod = clamp(10,.3,distance/500)
+    _angle = correctAngle(math.degrees(angle))
+
 
     adjustedAngle = _angle/distanceMod
     if abs(turn) >=1:
         if abs(adjustedAngle) > 100:
             slide = True
-    #print(adjustedAngle,slide)
 
     return turn,slide
 
@@ -1266,9 +1200,8 @@ def greedyMover(agent,target_object):
 def exampleController(agent, target_object,target_speed):
     distance = distance2D(agent.me.location,target_object.location)
     if distance > 400:
-        #print("switching to efficient")
         agent.state = efficientMover
-        return efficientMover(agent,target_object,target_speed)
+        return efficientMover(agent,target_object,target_speed,boostHunt=True)
 
     controller_state = SimpleControllerState()
     controller_state.handbrake = False
@@ -1279,10 +1212,7 @@ def exampleController(agent, target_object,target_speed):
     steer_correction_radians = steer(car_direction.correction_to(car_to_ball))
 
     current_speed = getVelocity(agent.me.velocity)
-    #steering
     controller_state.steer = steer(steer_correction_radians)
-
-    #throttle
     if target_speed > current_speed:
         controller_state.throttle = 1.0
         if target_speed > 1400 and current_speed < 2250:
@@ -1294,9 +1224,9 @@ def exampleController(agent, target_object,target_speed):
 
 
 
-def isBallHittable(ballStruct,agent):
+def isBallHittable(ballStruct,agent,maxHeight):
     multi = clamp(3, 1, len(agent.allies)+1)
-    if ballStruct.physics.location.z<= 92+84:
+    if ballStruct.physics.location.z<= maxHeight:
         return True
     if ballStruct.physics.location.x > 4096 - 130:
         if ballStruct.physics.location.z <= 200*multi:
@@ -1309,9 +1239,9 @@ def isBallHittable(ballStruct,agent):
         if ballStruct.physics.location.z <= 200*multi:
             if abs(ballStruct.physics.location.x) > 893:
                 return True
-    if ballStruct.physics.location.y > 5120 + 130:
+    if ballStruct.physics.location.y > 5120 - 130:
         if ballStruct.physics.location.z <= 200*multi:
-            if abs(ballStruct.physics.location.x) > 893:
+            if abs(ballStruct.physics.location.x) > 900:
                 return True
     return False
 
@@ -1328,7 +1258,7 @@ def findSoonestBallTouchable(agent):
                     distance = distance2D(agent.me.location, Vector([agent.ballPred.slices[i].physics.location.x,
                                                                      agent.ballPred.slices[i].physics.location.y,
                                                                      agent.ballPred.slices[i].physics.location.z]))
-                    adjustedSpd = clamp(2200,1400, spd+ distance * .7)
+                    adjustedSpd = clamp(2200,spd, spd+ distance * .5)
                     timeEstimate = distance / adjustedSpd
                     if timeEstimate < quickest:
                         bestStruct = agent.ballPred.slices[i]
@@ -1337,21 +1267,86 @@ def findSoonestBallTouchable(agent):
 
     return None
 
-def findSuitableBallPosition2(agent, heightMin,speed,origin):
+def findSuitableBallPosition2(agent, heightMax, speed, origin):
     applicableStructs = []
-    spd = clamp(2300,100,speed)
+    spd = clamp(2300,300,speed)
+    ballInGoal = None
+    goalTimer = math.inf
     if agent.ballPred is not None:
         for i in range(0, agent.ballPred.num_slices):
-            if isBallHittable(agent.ballPred.slices[i],agent):
+            if isBallHittable(agent.ballPred.slices[i],agent,heightMax):
+                applicableStructs.append(agent.ballPred.slices[i])
+                if agent.team == 0:
+                    if agent.ballPred.slices[i].physics.location.y <= -5050:
+                        ballInGoal = agent.ballPred.slices[i]
+                        goalTimer = agent.ballPred.slices[i].game_seconds - agent.gameInfo.seconds_elapsed
+                        break
+                else:
+                    if agent.ballPred.slices[i].physics.location.y >= 5050:
+                        ballInGoal = agent.ballPred.slices[i]
+                        goalTimer = agent.ballPred.slices[i].game_seconds - agent.gameInfo.seconds_elapsed
+                        break
                 applicableStructs.append(agent.ballPred.slices[i])
 
     for pred in applicableStructs:
-        distance = findDistance(origin,Vector([pred.physics.location.x,pred.physics.location.y,pred.physics.location.z]))
-        adjustSpd = clamp(2200,spd,speed+distance*.7)
+        distance = distance2D(Vector([pred.physics.location.x,pred.physics.location.y]),origin)
+        adjustSpd = clamp(2300,1000,speed+distance*.7)
         if distance/adjustSpd < (pred.game_seconds - agent.gameInfo.seconds_elapsed):
+            if goalTimer < pred.game_seconds - agent.gameInfo.seconds_elapsed:
+                agent.goalPred = ballInGoal
             return pred
 
-    return agent.ballPred.slices[1]
+    if goalTimer < math.inf:
+        agent.goalPred = ballInGoal
+    return agent.ballPred.slices[-1]
+
+def inaccurateArrivalEstimatorRemote(agent,start,destination):
+    distance = clamp(math.inf,1,distance2D(start,destination))
+    currentSpd = clamp(2300,1,agent.getCurrentSpd())
+
+    if agent.me.boostLevel > 0:
+        maxSpd = clamp(2300,currentSpd,currentSpd+ (distance*.3))
+    else:
+        maxSpd = clamp(2200, currentSpd, currentSpd + (distance*.15))
+
+    return distance/maxSpd
+
+def CB_Reworked(agent,targetVec):
+    dist = clamp(25000, 1, distance2D(agent.me.location, targetVec))
+    ballDist = clamp(25000, 1, distance2D(agent.me.location, agent.ball.location))
+    destinationEstimate = inaccurateArrivalEstimator(agent,targetVec)
+    locTarget = toLocal(targetVec, agent.me)
+    targetAngle = correctAngle(math.degrees(math.atan2(locTarget[1], locTarget[0])))
+
+    bestBoost = None
+    bestAngle = 0
+    angleDisparity = 1000
+    bestDist = math.inf
+    bestEstimate = math.inf
+    goodBoosts = []
+    for b in agent.boosts:
+        _dist = distance2D(b.location, agent.me.location)
+        if _dist < dist*.6:
+            localCoords = toLocal(b.location, agent.me)
+            angle = correctAngle(math.degrees(math.atan2(localCoords[1], localCoords[0])))
+            _angleDisparity = targetAngle - angle
+
+            if _angleDisparity > targetAngle-30 and _angleDisparity < targetAngle+30:
+                goodBoosts.append(b)
+
+    for b in goodBoosts:
+        pathEstimate = inaccurateArrivalEstimator(agent,b.location) + inaccurateArrivalEstimatorRemote(agent,b.location,targetVec)
+        if agent.me.boostLevel < 50:
+            if b.bigBoost:
+                pathEstimate*=.8
+        if pathEstimate < bestEstimate:
+            bestBoost = b
+            bestEstimate = pathEstimate
+
+    if bestEstimate < destinationEstimate*1.15 or bestEstimate < agent.ballDelay:
+        return bestBoost.location
+    else:
+        return None
 
 def convenientBoost(agent,targetVec):
     dist = clamp(25000,1,distance2D(agent.me.location,targetVec))
@@ -1381,12 +1376,8 @@ def convenientBoost(agent,targetVec):
                 elif _angleDisparity < -5:
                     _angleDisparity +=5
 
-            if abs(_angleDisparity) < clamp(30,0,15*_dist/2000):
+            if abs(_angleDisparity) < clamp(35,0,30*_dist/2000):
                 goodBoosts.append(b)
-                # bestAngle = angle
-                # bestBoost = b
-                # bestDist = _dist
-                # angleDisparity = _angleDisparity
 
 
     for each in goodBoosts:
@@ -1398,8 +1389,8 @@ def convenientBoost(agent,targetVec):
             bestDist = d
 
 
-    if bestBoost != None and abs(angleDisparity) and (bestDist/spd + distance2D(bestBoost.location,targetVec)/spd < agent.ballDelay or ballDist > 3500):
-        if (bestDist/spd) + (distance2D(bestBoost.location,targetVec)/spd) <= agent.ballDelay or ballDist >= 3500:
+    if bestBoost != None and abs(angleDisparity) and (bestDist/spd + distance2D(bestBoost.location,targetVec)/spd < agent.ballDelay):
+        if (bestDist/spd) + (distance2D(bestBoost.location,targetVec)/spd) <= agent.ballDelay or ballDist >= 3000:
             return bestBoost.location
 
     return None
