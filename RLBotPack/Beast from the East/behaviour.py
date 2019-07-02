@@ -1,5 +1,3 @@
-from RLUtilities.Simulation import Car, Input
-
 import predict
 import render
 from moves import AimCone

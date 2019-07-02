@@ -1,16 +1,11 @@
-import random
-import time
-
-from RLUtilities.Maneuvers import AirDodge
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
-from rlbot.utils.game_state_util import CarState, Physics, Vector3, Rotator, GameState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 import moves
 from behaviour import *
 from info import EGameInfo
 from moves import DriveController, AimCone, ShotController
-from plans import KickoffPlan, SmallJumpPlan
+from plans import choose_kickoff_plan
 from render import FakeRenderer, draw_ball_path
 from rlmath import *
 from utsystem import UtilitySystem
@@ -56,10 +51,9 @@ class Beast(BaseAgent):
 
         # Check kickoff
         if self.info.is_kickoff and not self.doing_kickoff:
-            self.plan = KickoffPlan()
+            self.plan = choose_kickoff_plan(self)
             self.doing_kickoff = True
-            team_name = "[BLUE]" if self.team == 0 else "[ORANGE]"
-            print("Beast", self.index, team_name, ": Hello World!")
+            self.print("Hello world!")
 
         # Execute logic
         if self.plan is None or self.plan.finished:
@@ -91,7 +85,11 @@ class Beast(BaseAgent):
         self.info.my_car.last_input.boost = self.controls.boost
 
         self.renderer.end_rendering()
-        return self.controls
+        return fix_controls(self.controls)
+
+    def print(self, s):
+        team_name = "[BLUE]" if self.team == 0 else "[ORANGE]"
+        print("Beast", self.index, team_name, ":", s)
 
     def random_color(self, anything):
         color_functions = {
@@ -107,6 +105,20 @@ class Beast(BaseAgent):
             9: self.renderer.teal,
         }
         return color_functions.get(hash(anything) % 10)()
+
+
+def fix_controls(controls):
+    return SimpleControllerState(
+        steer=controls.steer,
+        throttle=controls.throttle,
+        pitch=controls.pitch,
+        yaw=controls.yaw,
+        roll=controls.roll,
+        jump=controls.jump,
+        boost=controls.boost,
+        handbrake=controls.handbrake,
+        use_item=False
+    )
 
 
 class DefaultBehaviour:
