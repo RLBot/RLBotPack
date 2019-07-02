@@ -224,6 +224,164 @@ class KickoffPlan:
             bot.renderer.draw_line_3d(car.pos, point, bot.renderer.white())
 
 
+def choose_kickoff_plan(bot):
+
+    # Do we have teammates? If no -> always go for kickoff
+    if len(bot.info.teammates) == 0:
+        return KickoffPlan()
+
+    # Kickoff spawn locations (corners may vary from map to map)
+    ts = bot.info.team_sign
+    right_corner_loc = vec3(-1970, ts * 2450, 0)   # actually left for orange
+    left_corner_loc = vec3(1970, ts * 2450, 0)   # actually right for orange
+    back_right_loc = vec3(-256, ts * 3840, 0)   # actually left for orange
+    back_left_loc = vec3(256, ts * 3840, 0)   # actually right for orange
+    back_center_loc = vec3(0, ts * 4608, 0)
+
+    boost_x = 3072
+    boost_y = ts * 4096
+
+    # Are we in the corner -> go for kickoff (If two bot's are in the corners, we assume lowest index goes for kickoff)
+    if is_my_kickoff_spawn(bot, right_corner_loc):
+        tm_index = index_of_teammate_at_kickoff_spawn(bot, left_corner_loc)
+        if 0 <= tm_index < bot.index:
+            return SecondManSlowCornerKickoffPlan(bot)
+        else:
+            return KickoffPlan()
+    if is_my_kickoff_spawn(bot, left_corner_loc):
+        tm_index = index_of_teammate_at_kickoff_spawn(bot, right_corner_loc)
+        if 0 <= tm_index < bot.index:
+            return SecondManSlowCornerKickoffPlan(bot)
+        else:
+            return KickoffPlan()
+
+    # Is a teammate in the corner -> collect boost
+    if 0 <= index_of_teammate_at_kickoff_spawn(bot, right_corner_loc) \
+            or 0 <= index_of_teammate_at_kickoff_spawn(bot, left_corner_loc):
+        if bot.info.my_car.pos[X] > 10:
+            # go for left boost
+            return CollectSpecificBoostPlan(vec3(boost_x, boost_y, 0))
+        if bot.info.my_car.pos[X] < -10:
+            # go for right boost
+            return CollectSpecificBoostPlan(vec3(-boost_x, boost_y, 0))
+        if 0 <= index_of_teammate_at_kickoff_spawn(bot, back_right_loc):
+            # go for left boost
+            return CollectSpecificBoostPlan(vec3(boost_x, boost_y, 0))
+        else:
+            # go for right boost
+            return CollectSpecificBoostPlan(vec3(-boost_x, boost_y, 0))
+
+    # No teammate in the corner
+    # Are we back right or left -> go for kickoff
+    if is_my_kickoff_spawn(bot, back_right_loc)\
+            or is_my_kickoff_spawn(bot, back_left_loc):
+        return KickoffPlan()
+
+    # No teammate in the corner
+    # Is a teammate back right or left -> collect boost
+    if 0 <= index_of_teammate_at_kickoff_spawn(bot, back_right_loc):
+        # go for left boost
+        return CollectSpecificBoostPlan(vec3(boost_x, boost_y, 0))
+    elif 0 <= index_of_teammate_at_kickoff_spawn(bot, back_left_loc):
+        # go for right boost
+        return CollectSpecificBoostPlan(vec3(-boost_x, boost_y, 0))
+
+    # We have no teammates
+    return KickoffPlan()
+
+
+def is_my_kickoff_spawn(bot, loc):
+    dist = norm(bot.info.my_car.pos - loc)
+    return dist < 150
+
+
+def index_of_teammate_at_kickoff_spawn(bot, loc):
+    """
+    Returns index of teammate at loc, or -1 if there is no teammate
+    """
+    # RLU Cars does not contain index, so we have to find that ourselves :(
+    for i, car in enumerate(bot.info.cars):
+        if car.team == bot.info.my_car.team:
+            dist = norm(car.pos - loc)
+            if dist < 150:
+                return i
+    return -1
+
+
+class SecondManSlowCornerKickoffPlan:
+    def __init__(self, bot):
+        self.finished = False
+
+        # These vectors will help us make the curve
+        ts = bot.info.team_sign
+        self.target_loc = vec3(0, ts * 400, 0)
+        self.target_dir = vec3(0, -ts, 0)
+
+    def execute(self, bot):
+        car = bot.info.my_car
+
+        curve_point = curve_from_arrival_dir(car.pos, self.target_loc, self.target_dir)
+        bot.controls = bot.drive.go_towards_point(bot, curve_point, target_vel=1400, slide=True, boost=True, can_keep_speed=False)
+
+        self.finished = norm(car.pos) < 1000   # End plan when reaching getting close to ball (approx at boost pad)
+
+
+class CollectSpecificBoostPlan:
+    def __init__(self, pad_pos):
+        self.finished = False
+        self.boost_pad_pos = pad_pos
+
+    def execute(self, bot):
+        car = bot.info.my_car
+
+        # Drive towards the pad
+        bot.controls = bot.drive.go_towards_point(bot, self.boost_pad_pos, target_vel=2300, boost=True, can_keep_speed=True)
+
+        car_to_pad = self.boost_pad_pos - car.pos
+        vel = proj_onto_size(car.vel, car_to_pad)
+        dist = norm(car_to_pad)
+        if dist < vel * 0.3:
+            self.finished = True
+
+
+class CollectClosestBoostPlan:
+    def __init__(self, specific_loc=None):
+        self.finished = False
+        self.big_pad_locs = [
+            vec3(3584, 0, 0),
+            vec3(-3584, 0, 0),
+            vec3(3072, 4096, 0),
+            vec3(3072, -4096, 0),
+            vec3(-3072, 4096, 0),
+            vec3(-3072, -4096, 0)
+        ]
+        self.closest_pad = None
+
+        if specific_loc is not None:
+            self.closest_pad = specific_loc
+
+    def execute(self, bot):
+        car = bot.info.my_car
+
+        # Choose the closest big boost pad
+        if self.closest_pad is None:
+            closest_dist = 99999
+            for pad in self.big_pad_locs:
+                dist = norm(car.pos - pad)
+                if dist < closest_dist:
+                    closest_dist = dist
+                    self.closest_pad = pad
+
+        # Drive towards the pad
+        bot.controls = bot.drive.go_towards_point(bot, self.closest_pad, target_vel=2300, boost=True, can_keep_speed=True)
+
+        car_to_pad = self.closest_pad - car.pos
+        vel = proj_onto_size(car.vel, car_to_pad)
+        dist = norm(car_to_pad)
+        if dist < vel * 0.3:
+            self.finished = True
+
+
 class RecoverPlan:
     def __init__(self):
         self.finished = False
@@ -236,4 +394,5 @@ class RecoverPlan:
         self.aerialturn.step(0.01666)
         self.aerialturn.controls.throttle = 1
         bot.controls = self.aerialturn.controls
+        bot.controls.throttle = True
         self.finished = self.aerialturn.finished
