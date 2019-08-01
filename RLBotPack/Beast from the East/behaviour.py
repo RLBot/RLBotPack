@@ -1,5 +1,6 @@
 import predict
 import render
+from info import Field, Ball
 from moves import AimCone
 from plans import DodgePlan
 from rlmath import *
@@ -23,13 +24,13 @@ class Carry:
 
         car_to_ball = car.pos - ball.pos
 
-        bouncing_b = ball.pos[Z] > 130 or abs(ball.vel[Z]) > 300
+        bouncing_b = ball.pos.z > 130 or abs(ball.vel.z) > 300
         if not bouncing_b:
             return 0
 
         dist_01 = clip01(1 - norm(car_to_ball) / 3000)
 
-        head_dir = lerp(vec3(0, 0, 1), car.forward(), 0.1)
+        head_dir = lerp(Vec3(0, 0, 1), car.forward(), 0.1)
         ang = angle_between(head_dir, car_to_ball)
         ang_01 = clip01(1 - ang / (math.pi / 2))
 
@@ -88,8 +89,8 @@ class ShootAtGoal:
     def utility(self, bot):
         ball_soon = predict.ball_predict(bot, 1)
 
-        arena_length2 = bot.info.team_sign * FIELD_LENGTH / 2
-        own_half_01 = clip01(remap(arena_length2, -arena_length2, 0.0, 1.1, ball_soon.pos[Y]))
+        arena_length2 = bot.info.team_sign * Field.LENGTH / 2
+        own_half_01 = clip01(remap(arena_length2, -arena_length2, 0.0, 1.1, ball_soon.pos.y))
 
         reachable_ball = predict.ball_predict(bot, predict.time_till_reach_ball(bot.info.my_car, bot.info.ball))
         self.ball_to_goal_right = bot.info.enemy_goal_right - reachable_ball.pos
@@ -117,18 +118,18 @@ class ShootAtGoal:
             # Can't shoot but or at least on the right side: Chase
 
             goal_to_ball = normalize(hit_pos - bot.info.enemy_goal)
-            offset_ball = hit_pos + goal_to_ball * BALL_RADIUS * 0.9
+            offset_ball = hit_pos + goal_to_ball * Ball.RADIUS * 0.9
             bot.controls = bot.drive.go_towards_point(bot, offset_ball, target_vel=2200, slide=False, boost=True)
 
             if bot.do_rendering:
                 bot.renderer.draw_line_3d(car.pos, offset_ball, bot.renderer.yellow())
 
-        elif not bot.shoot.aim_is_ok and hit_pos[Y] * -bot.info.team_sign > 4350 and abs(hit_pos[X]) > 900 and not dist < 450:
+        elif not bot.shoot.aim_is_ok and hit_pos.y * -bot.info.team_sign > 4350 and abs(hit_pos.x) > 900 and not dist < 450:
             # hit_pos is an enemy corner and we are not close: Avoid enemy corners and just wait
 
             enemy_to_ball = normalize(hit_pos - closest_enemy.pos)
             wait_point = hit_pos + enemy_to_ball * enemy_dist  # a point 50% closer to the center of the field
-            wait_point = lerp(wait_point, ball.pos + vec3(0, bot.info.team_sign * 3000, 0), 0.5)
+            wait_point = lerp(wait_point, ball.pos + Vec3(0, bot.info.team_sign * 3000, 0), 0.5)
             bot.controls = bot.drive.go_towards_point(bot, wait_point, norm(car.pos - wait_point), slide=False, boost=False, can_keep_speed=True, can_dodge=False)
 
             if bot.do_rendering:
@@ -158,8 +159,8 @@ class ClearBall:
     def utility(self, bot):
         team_sign = bot.info.team_sign
 
-        length = team_sign * FIELD_LENGTH / 2
-        ball_own_half_01 = clip01(remap(-length, length, -0.2, 1.2, bot.info.ball.pos[Y]))
+        length = team_sign * Field.LENGTH / 2
+        ball_own_half_01 = clip01(remap(-length, length, -0.2, 1.2, bot.info.ball.pos.y))
 
         reachable_ball = predict.ball_predict(bot, predict.time_till_reach_ball(bot.info.my_car, bot.info.ball))
         car_to_ball = reachable_ball.pos - bot.info.my_car.pos
@@ -190,8 +191,8 @@ class ClearBall:
 class SaveGoal:
     def __init__(self, bot):
         team_sign = bot.info.team_sign
-        self.own_goal_right = vec3(-820 * team_sign, 5120 * team_sign, 0)
-        self.own_goal_left = vec3(820 * team_sign, 5120 * team_sign, 0)
+        self.own_goal_right = Vec3(-820 * team_sign, 5120 * team_sign, 0)
+        self.own_goal_left = Vec3(820 * team_sign, 5120 * team_sign, 0)
         self.aim_cone = None
         self.ball_to_goal_right = None
         self.ball_to_goal_left = None
@@ -201,10 +202,10 @@ class SaveGoal:
         ball = bot.info.ball
 
         ball_to_goal = bot.info.own_goal - ball.pos
-        too_close = norm(ball_to_goal) < GOAL_WIDTH / 2 + BALL_RADIUS
+        too_close = norm(ball_to_goal) < Field.GOAL_WIDTH / 2 + Ball.RADIUS
 
         hits_goal_prediction = predict.will_ball_hit_goal(bot)
-        hits_goal = hits_goal_prediction.happens and sign(ball.vel[Y]) == team_sign and hits_goal_prediction.time < 3
+        hits_goal = hits_goal_prediction.happens and sign(ball.vel.y) == team_sign and hits_goal_prediction.time < 3
 
         return hits_goal or too_close
 

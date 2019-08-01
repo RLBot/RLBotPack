@@ -3,7 +3,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 import moves
 from behaviour import *
-from info import EGameInfo
+from info import GameInfo
 from moves import DriveController, AimCone, ShotController
 from plans import choose_kickoff_plan
 from render import FakeRenderer, draw_ball_path
@@ -28,7 +28,7 @@ class Beast(BaseAgent):
         self.shoot = ShotController()
 
     def initialize_agent(self):
-        self.info = EGameInfo(self.index, self.team, )
+        self.info = GameInfo(self.index, self.team)
         self.ut = UtilitySystem([DefaultBehaviour(), ShootAtGoal(), ClearBall(self), SaveGoal(self), Carry()])
 
         if not RENDER:
@@ -43,11 +43,11 @@ class Beast(BaseAgent):
                 return SimpleControllerState()
         self.info.read_packet(packet)
 
-        self.renderer.begin_rendering()
-
         # Check if match is over
         if packet.game_info.is_match_ended:
             return moves.celebrate(self)  # Assuming we win!
+
+        self.renderer.begin_rendering()
 
         # Check kickoff
         if self.info.is_kickoff and not self.doing_kickoff:
@@ -75,8 +75,9 @@ class Beast(BaseAgent):
         if self.do_rendering:
             draw_ball_path(self, 4, 5)
             doing = self.plan or self.choice
+            car = self.info.my_car
             if doing is not None:
-                self.renderer.draw_string_3d(self.info.my_car.pos, 1, 1, doing.__class__.__name__, self.random_color(doing.__class__))
+                self.renderer.draw_string_3d(car.pos, 1, 1, doing.__class__.__name__, self.random_color(doing.__class__))
 
         # Save for next frame
         self.info.my_car.last_input.roll = self.controls.roll
@@ -138,15 +139,15 @@ class DefaultBehaviour:
         own_goal_to_ball = ball.pos - bot.info.own_goal
         dist = norm(car_to_ball)
 
-        offence = ball.pos[Y] * bot.info.team_sign < 0
+        offence = ball.pos.y * bot.info.team_sign < 0
         dot_enemy = dot(car_to_ball, ball_to_enemy_goal)
         dot_own = dot(car_to_ball, own_goal_to_ball)
         right_side_of_ball = dot_enemy > 0 if offence else dot_own > 0
 
         if right_side_of_ball:
             # Aim cone
-            dir_to_post_1 = (bot.info.enemy_goal + vec3(3800, 0, 0)) - bot.info.ball.pos
-            dir_to_post_2 = (bot.info.enemy_goal + vec3(-3800, 0, 0)) - bot.info.ball.pos
+            dir_to_post_1 = (bot.info.enemy_goal + Vec3(3800, 0, 0)) - bot.info.ball.pos
+            dir_to_post_2 = (bot.info.enemy_goal + Vec3(-3800, 0, 0)) - bot.info.ball.pos
             cone = AimCone(dir_to_post_1, dir_to_post_2)
             cone.get_goto_point(bot, car.pos, bot.info.ball.pos)
             if bot.do_rendering:

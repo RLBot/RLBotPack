@@ -1,41 +1,25 @@
-import math
-
-from RLUtilities.LinearAlgebra import *
-
-
-FIELD_WIDTH = 8192
-FIELD_LENGTH = 10240
-FILED_HEIGHT = 2044
-GOAL_WIDTH = 1900
-GOAL_HEIGHT = 640
-GRAVITY = vec3(0, 0, -650)
-BALL_RADIUS = 92
-
-
-X = 0
-Y = 1
-Z = 2
+from vec import *
 
 
 class Zone2d:
     def __init__(self, cornerA, cornerB):
-        self.cornerMin = vec3(min(cornerA[X], cornerB[X]), min(cornerA[Y], cornerB[Y]), 0)
-        self.cornerMax = vec3(max(cornerA[X], cornerB[X]), max(cornerA[Y], cornerB[Y]), 0)
+        self.cornerMin = Vec3(min(cornerA.x, cornerB.x), min(cornerA.y, cornerB.y), 0)
+        self.cornerMax = Vec3(max(cornerA.x, cornerB.x), max(cornerA.y, cornerB.y), 0)
 
     def contains(self, point):
-        return self.cornerMin[X] <= point[X] <= self.cornerMax[X]\
-               and self.cornerMin[Y] <= point[Y] <= self.cornerMax[Y]
+        return self.cornerMin.x <= point.x <= self.cornerMax.x\
+               and self.cornerMin.y <= point.y <= self.cornerMax.y
 
 
 class Zone3d:
     def __init__(self, cornerA, cornerB):
-        self.cornerMin = vec3(min(cornerA[X], cornerB[X]), min(cornerA[Y], cornerB[Y]), min(cornerA[Z], cornerB[Z]))
-        self.cornerMax = vec3(max(cornerA[X], cornerB[X]), max(cornerA[Y], cornerB[Y]), max(cornerA[Z], cornerB[Z]))
+        self.cornerMin = Vec3(min(cornerA.x, cornerB.x), min(cornerA.y, cornerB.y), min(cornerA.z, cornerB.z))
+        self.cornerMax = Vec3(max(cornerA.x, cornerB.x), max(cornerA.y, cornerB.y), max(cornerA.z, cornerB.z))
 
     def contains(self, point):
-        return self.cornerMin[X] <= point[X] <= self.cornerMax[X]\
-               and self.cornerMin[Y] <= point[Y] <= self.cornerMax[Y]\
-               and self.cornerMin[Z] <= point[Z] <= self.cornerMax[Z]
+        return self.cornerMin.x <= point.x <= self.cornerMax.x\
+               and self.cornerMin.y <= point.y <= self.cornerMax.y\
+               and self.cornerMin.z <= point.z <= self.cornerMax.z
 
 
 # returns sign of x, and 0 if x == 0
@@ -47,8 +31,107 @@ def sign(x) -> float:
     return (1, -1)[x < 0]
 
 
+def clip(x, minimum, maximum):
+    return min(max(minimum, x), maximum)
+
+
 def clip01(x) -> float:
     return clip(x, 0, 1)
+
+
+def angle_between(v: Vec3, u: Vec3) -> float:
+    return math.acos(dot(normalize(v), normalize(u)))
+
+
+def axis_to_rotation(axis: Vec3) -> Mat33:
+    radians = norm(axis)
+    if abs(radians) < 0.000001:
+        return Mat33.identity()
+    else:
+
+        axis = normalize(axis)
+
+        K = Mat33(
+            0.0, -axis[2], axis[1],
+            axis[2], 0.0, -axis[0],
+            -axis[1], axis[0], 0.0
+        )
+
+        return Mat33.identity() + math.sin(radians) * K + (1.0 - math.cos(radians)) * dot(K, K)
+
+        """
+        u = axis / radians
+
+        c = math.cos(radians)
+        s = math.sin(radians)
+
+        return Mat33(
+            u[0] * u[0] * (1.0 - c) + c,
+            u[0] * u[1] * (1.0 - c) - u[2] * s,
+            u[0] * u[2] * (1.0 - c) + u[1] * s,
+
+            u[1] * u[0] * (1.0 - c) + u[2] * s,
+            u[1] * u[1] * (1.0 - c) + c,
+            u[1] * u[2] * (1.0 - c) - u[0] * s,
+
+            u[2] * u[0] * (1.0 - c) - u[1] * s,
+            u[2] * u[1] * (1.0 - c) + u[0] * s,
+            u[2] * u[2] * (1.0 - c) + c
+        )
+        """
+
+
+def rotation_to_axis(rot: Mat33) -> Vec3:
+
+    ang = math.acos(clip(0.5 * (tr(rot) - 1.0), -1.0, 1.0))
+
+    # For small angles, prefer series expansion to division by sin(theta) ~ 0
+    if abs(ang) < 0.00001:
+        scale = 0.5 + ang * ang / 12.0
+    else:
+        scale = 0.5 * ang / math.sin(ang)
+
+    return Vec3(
+        rot.get(2, 1) - rot.get(1, 2),
+        rot.get(0, 2) - rot.get(2, 0),
+        rot.get(1, 0) - rot.get(0, 1)
+    ) * scale
+
+
+def euler_to_rotation(pitch_yaw_roll: Vec3) -> Mat33:
+    cp = math.cos(pitch_yaw_roll[0])
+    sp = math.sin(pitch_yaw_roll[0])
+    cy = math.cos(pitch_yaw_roll[1])
+    sy = math.sin(pitch_yaw_roll[1])
+    cr = math.cos(pitch_yaw_roll[2])
+    sr = math.sin(pitch_yaw_roll[2])
+
+    rotation = Mat33()
+
+    # front direction
+    rotation.set(0, 0, cp * cy)
+    rotation.set(1, 0, cp * sy)
+    rotation.set(2, 0, sp)
+
+    # left direction
+    rotation.set(0, 1, cy * sp * sr - cr * sy)
+    rotation.set(1, 1, sy * sp * sr + cr * cy)
+    rotation.set(2, 1, -cp * sr)
+
+    # up direction
+    rotation.set(0, 2, -cr * cy * sp - sr * sy)
+    rotation.set(1, 2, -cr * sy * sp + sr * cy)
+    rotation.set(2, 2, cp * cr)
+
+    return rotation
+
+
+def rotation_to_euler(rotation: Mat33) -> Vec3:
+    return Vec3(
+        math.atan2(rotation.get(2, 0), norm(Vec3(rotation.get(0, 0), rotation.get(1, 0)))),
+        math.atan2(rotation.get(1, 0), rotation.get(0, 0)),
+        math.atan2(-rotation.get(2, 1), rotation.get(2, 2))
+    )
 
 
 def lerp(a, b, t: float):
@@ -72,17 +155,17 @@ def fix_ang(ang: float) -> float:
     return ((ang + math.pi) % math.tau) - math.pi
 
 
-def proj_onto(src: vec3, dir: vec3) -> vec3:
+def proj_onto(src: Vec3, dir: Vec3) -> Vec3:
     """
     Returns the vector component of src that is parallel with dir, i.e. the projection of src onto dir.
     """
     try:
         return (dot(src, dir) / dot(dir, dir)) * dir
     except ZeroDivisionError:
-        return vec3()
+        return Vec3()
 
 
-def proj_onto_size(src: vec3, dir: vec3) -> float:
+def proj_onto_size(src: Vec3, dir: Vec3) -> float:
     """
     Returns the size of the vector that is the project of src onto dir
     """
@@ -93,15 +176,11 @@ def proj_onto_size(src: vec3, dir: vec3) -> float:
         return norm(src)
 
 
-def rotated_2d(vec: vec3, ang: float) -> vec3:
+def rotated_2d(vec: Vec3, ang: float) -> Vec3:
     c = math.cos(ang)
     s = math.sin(ang)
-    return vec3(c * vec[X] - s * vec[Y],
-                s * vec[X] + c * vec[Y])
-
-
-def is_near_wall(point: vec3, offset: float=130) -> bool:
-    return abs(point[X]) > FIELD_WIDTH - offset or abs(point[Y]) > FIELD_LENGTH - offset  # TODO Add diagonal walls
+    return Vec3(c * vec.x - s * vec.y,
+                s * vec.x + c * vec.y)
 
 
 def curve_from_arrival_dir(src, target, arrival_direction, w=1):
@@ -109,12 +188,12 @@ def curve_from_arrival_dir(src, target, arrival_direction, w=1):
     Returns a point that is equally far from src and target on the line going through target with the given direction
     """
     dir = normalize(arrival_direction)
-    tx = target[X]
-    ty = target[Y]
-    sx = src[X]
-    sy = src[Y]
-    dx = dir[X]
-    dy = dir[Y]
+    tx = target.x
+    ty = target.y
+    sx = src.x
+    sy = src.y
+    dx = dir.x
+    dy = dir.y
 
     t = - (tx * tx - 2 * tx * sx + ty * ty - 2 * ty * sy + sx * sx + sy * sy) / (2 * (tx * dx + ty * dy - sx * dx - sy * dy))
     t = clip(t, -1700, 1700)
@@ -122,7 +201,7 @@ def curve_from_arrival_dir(src, target, arrival_direction, w=1):
     return target + w * t * dir
 
 
-def bezier(t: float, points: list) -> vec3:
+def bezier(t: float, points: list) -> Vec3:
     """
     Returns a point on a bezier curve made from the given controls points
     """
@@ -133,6 +212,19 @@ def bezier(t: float, points: list) -> vec3:
         return (1 - t) * bezier(t, points[0:-1]) + t * bezier(t, points[1:n])
 
 
-def is_closer_to_goal_than(a: vec3, b: vec3, team_index):
+def is_closer_to_goal_than(a: Vec3, b: Vec3, team_index):
     """ Returns true if a is closer than b to goal owned by the given team """
-    return (a[Y] < b[Y], a[Y] > b[Y])[team_index]
+    return (a.y < b.y, a.y > b.y)[team_index]
+
+
+# Unit tests
+if __name__ == "__main__":
+    assert clip(12, -2, 2) == 2
+    assert clip(-20, -5, 3) == -5
+    assert angle_between(Vec3(x=1), Vec3(y=1)) == math.pi / 2
+    assert angle_between(Vec3(y=1), Vec3(y=-1, z=1)) == 0.75 * math.pi
+    assert norm(dot(axis_to_rotation(Vec3(x=-math.pi)), Vec3(y=1)) - Vec3(y=-1)) < 0.000001
+    assert norm(dot(axis_to_rotation(Vec3(y=0.5*math.pi)), Vec3(z=1)) - Vec3(x=-1)) < 0.000001
+    assert norm(dot(axis_to_rotation(Vec3(z=math.pi)), Vec3(x=1)) - Vec3(x=-1)) < 0.000001
+    pyr = Vec3(0.5, 0.2, -0.4)
+    assert norm(rotation_to_euler(euler_to_rotation(pyr)) - pyr) < 0.000001

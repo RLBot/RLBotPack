@@ -1,13 +1,8 @@
+from rlmath import *
+
 
 # This renderer replaces the framework renderer, and allows me to disable any rendering,
 # and thus saving some CPU power. Not all methods are included
-import math
-
-from RLUtilities.LinearAlgebra import *
-
-from rlmath import bezier
-
-
 class FakeRenderer:
     def __init__(self):
         pass
@@ -52,11 +47,11 @@ def draw_ball_path(bot, duration, step_size):
             bot.renderer.draw_polyline_3d(locations, bot.renderer.create_color(255, 255, 0, 0))
 
 
-def draw_circle(bot, center: vec3, normal: vec3, radius: float, pieces: int):
+def draw_circle(bot, center: Vec3, normal: Vec3, radius: float, pieces: int):
     # Construct the arm that will be rotated
     arm = normalize(cross(normal, center)) * radius
     angle = 2 * math.pi / pieces
-    rotation_mat = axis_rotation(angle * normalize(normal))
+    rotation_mat = axis_to_rotation(angle * normalize(normal))
     points = [center + arm]
 
     for i in range(pieces):
