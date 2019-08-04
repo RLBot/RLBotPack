@@ -1,0 +1,38 @@
+{
+	"name": "SkyBot",
+	"description": "Original dribble bot. kinda old now. Don't expect sky action",
+	"version": "2.3",
+	"testedFrameworkVersion": "1.20",
+	"botLanguage": "python",
+	"gamemodes": [
+		{
+			"name": "1v1"
+		},
+		{
+			"name": "2v2"
+		},
+		{
+			"name": "3v3"
+		},
+		{
+			"name": "4v4"
+		},
+	],
+	"categories": [
+		{
+			"name": "Dribble"
+		},
+		{
+			"name": "Ground"
+		},
+		{
+			"name": "OldSchool"
+		},
+		{
+			"name": "Veteran"
+		},
+		{
+			"name": "Control"
+		},
+	]
+}
