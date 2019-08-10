@@ -1,4 +1,5 @@
 import asyncio
+import webbrowser
 import json
 import os
 import queue
@@ -14,10 +15,12 @@ from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput, Ti
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_interface import GameInterface
 from selenium import webdriver
+from selenium.common.exceptions import SessionNotCreatedException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
 
 MAX_AGENT_CALL_PERIOD = timedelta(seconds=1.0)
 
@@ -83,22 +86,27 @@ class ScratchManager(BotHelperProcess):
             # This prevents an error message about AudioContext when running in headless mode.
             options.add_argument("--autoplay-policy=no-user-gesture-required")
 
-            current_folder = os.path.dirname(os.path.realpath(__file__))
-            driver_path = os.path.join(current_folder, "chromedriver.exe")
-            driver = webdriver.Chrome(driver_path, chrome_options=options)
-
             players_string = ",".join(map(index_to_player_string, self.running_indices))
-            driver.get(f"http://scratch.rlbot.org?host=localhost:{str(self.port)}&players={players_string}")
 
-            if self.sb3_file is not None:
-                element = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "sb3-selenium-uploader"))
-                )
-                # TODO: This sleep is designed to avoid a race condition. Instead of sleeping,
-                # Consider passing a url param to make scratch not load the default project.
-                # Hopefully that will make the race go away.
-                time.sleep(5)
-                element.send_keys(self.sb3_file)
+            try:
+                driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+                driver.get(f"http://scratch.rlbot.org?host=localhost:{str(self.port)}&players={players_string}")
+
+                if self.sb3_file is not None:
+                    element = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "sb3-selenium-uploader"))
+                    )
+                    # TODO: This sleep is designed to avoid a race condition. Instead of sleeping,
+                    # Consider passing a url param to make scratch not load the default project.
+                    # Hopefully that will make the race go away.
+                    time.sleep(5)
+                    element.send_keys(self.sb3_file)
+
+            except SessionNotCreatedException:
+                # This can happen if the downloaded chromedriver does not match the version of Chrome that is installed.
+                webbrowser.open_new(f"http://scratch.rlbot.org?host=localhost:{str(self.port)}&players={players_string}")
+                self.logger.info(f"Could not load the Scratch file automatically! You'll need to upload it yourself "
+                                 f"from {self.sb3_file}")
 
         asyncio.get_event_loop().run_until_complete(websockets.serve(self.data_exchange, port=self.port))
         asyncio.get_event_loop().run_until_complete(self.game_loop())
@@ -180,6 +188,9 @@ class ScratchManager(BotHelperProcess):
         ControllerState.ControllerStateAddJump(builder, json_state['jump'])
         ControllerState.ControllerStateAddBoost(builder, json_state['boost'])
         ControllerState.ControllerStateAddHandbrake(builder, json_state['handbrake'])
+
+        # This may throw a KeyError for anyone using old cached javascript. You should hard-refresh scratch.rlbot.org.
+        ControllerState.ControllerStateAddUseItem(builder, json_state['useItem'])
         controller_state = ControllerState.ControllerStateEnd(builder)
 
         PlayerInput.PlayerInputStart(builder)
