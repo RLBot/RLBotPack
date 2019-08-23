@@ -1,38 +1,11 @@
-from rlmath import *
+import math
+from typing import List
+
+from util.curves import bezier
+from util.vec import Vec3, cross, normalize, axis_to_rotation, dot
 
 
-# This renderer replaces the framework renderer, and allows me to disable any rendering,
-# and thus saving some CPU power. Not all methods are included
-class FakeRenderer:
-    def __init__(self):
-        pass
-
-    def begin_rendering(self):
-        pass
-
-    def end_rendering(self):
-        pass
-
-    def create_color(self, a, r, g, b):
-        pass
-
-    def draw_string_2d(self, x, y, scale_x, scale_y, text, color):
-        pass
-
-    def draw_rect_3d(self, location, width, height, fill, color):
-        pass
-
-    def draw_string_3d(self, location, scale_x, scale_y, text, color):
-        pass
-
-    def draw_line_3d(self, start, end, color):
-        pass
-
-    def draw_polyline_3d(self, vectors, color):
-        pass
-
-
-def draw_ball_path(bot, duration, step_size):
+def draw_ball_path(bot, duration: float, step_size: int):
     ball_prediction = bot.get_ball_prediction_struct()
     if ball_prediction is not None and duration > 0 and step_size > 0:
         time_passed = 0
@@ -61,7 +34,7 @@ def draw_circle(bot, center: Vec3, normal: Vec3, radius: float, pieces: int):
     bot.renderer.draw_polyline_3d(points, bot.renderer.orange())
 
 
-def draw_bezier(bot, points, time_step=0.05):
+def draw_bezier(bot, points: List[Vec3], time_step: float=0.05):
     time = 0
     last_point = points[0]
     while time < 1:

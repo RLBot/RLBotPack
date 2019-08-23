@@ -1,7 +1,8 @@
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket, FieldInfo
 
-from rlmath import *
+from util.rlmath import clip
+from util.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
 
 
 GRAVITY = Vec3(0, 0, -650)
@@ -46,12 +47,15 @@ class Car:
 
         self.last_input = SimpleControllerState()
 
+    @property
     def forward(self) -> Vec3:
         return self.rot.col(0)
 
+    @property
     def left(self) -> Vec3:
         return self.rot.col(1)
 
+    @property
     def up(self) -> Vec3:
         return self.rot.col(2)
 
@@ -107,7 +111,12 @@ class GameInfo:
         for i in range(field_info.num_boosts):
             pad = field_info.boost_pads[i]
             pos = Vec3(pad.location)
-            self.boost_pads.append(BoostPad(i, pos, pad.is_full_boost, True, 0.0))
+            pad = BoostPad(i, pos, pad.is_full_boost, True, 0.0)
+            self.boost_pads.append(pad)
+            if pad.is_big:
+                self.big_boost_pads.append(pad)
+            else:
+                self.small_boost_pads.append(pad)
 
         self.convenient_boost_pad = self.boost_pads[0]
         self.convenient_boost_pad_score = 0
@@ -192,7 +201,7 @@ class GameInfo:
             return 0
 
         car_to_pad = pad.pos - self.my_car.pos
-        angle = angle_between(self.my_car.forward(), car_to_pad)
+        angle = angle_between(self.my_car.forward, car_to_pad)
 
         # Pads behind the car is bad
         if abs(angle) > 1.3:

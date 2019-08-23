@@ -1,12 +1,17 @@
+import math
 import time
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-import render
-from info import Field, Ball, is_near_wall
-from plans import DodgePlan, RecoverPlan, SmallJumpPlan
-from predict import ball_predict, next_ball_landing
-from rlmath import *
+from maneuvers.dodge import DodgeManeuver
+from maneuvers.recovery import RecoveryManeuver
+from maneuvers.small_jump import SmallJumpManeuver
+from util import rendering
+from util.curves import curve_from_arrival_dir
+from util.info import Field, Ball, is_near_wall
+from util.predict import ball_predict, next_ball_landing
+from util.rlmath import lerp, sign, clip, fix_ang
+from util.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
 
 
 class DriveController:
@@ -18,34 +23,33 @@ class DriveController:
         self.dodge_cooldown = 0.26
         self.recovery = None
 
-    def start_dodge(self):
+    def start_dodge(self, bot):
         if self.dodge is None:
-            self.dodge = DodgePlan(self.last_point)
+            self.dodge = DodgeManeuver(bot, self.last_point)
 
-    def go_towards_point(self, bot, point: Vec3, target_vel=1430, slide=False, boost=False, can_keep_speed=True, can_dodge=True, wall_offset_allowed=110) -> SimpleControllerState:
+    def go_towards_point(self, bot, point: Vec3, target_vel=1430, slide=False, boost_min=101, can_keep_speed=True, can_dodge=True, wall_offset_allowed=110) -> SimpleControllerState:
         REQUIRED_ANG_FOR_SLIDE = 1.65
         REQUIRED_VELF_FOR_DODGE = 1100
 
         car = bot.info.my_car
 
-        # Dodge is finished
-        if self.dodge is not None and self.dodge.finished:
+        # Dodge is done
+        if self.dodge is not None and self.dodge.done:
             self.dodge = None
             self.last_dodge_end_time = bot.info.time
 
         # Continue dodge
         if self.dodge is not None:
             self.dodge.target = point
-            self.dodge.execute(bot)
-            return self.dodge.controls
+            return self.dodge.exec(bot)
 
         # Begin recovery
         if not car.on_ground:
-            bot.plan = RecoverPlan()
+            bot.maneuver = RecoveryManeuver(bot)
             return self.controls
 
         # Get down from wall by choosing a point close to ground
-        if not is_near_wall(point, wall_offset_allowed) and angle_between(car.up(), Vec3(0, 0, 1)) > math.pi * 0.31:
+        if not is_near_wall(point, wall_offset_allowed) and angle_between(car.up, Vec3(0, 0, 1)) > math.pi * 0.31:
             point = lerp(xy(car.pos), xy(point), 0.5)
 
         # If the car is in a goal, avoid goal posts
@@ -62,13 +66,13 @@ class DriveController:
         # Angle to point in local xy plane and other stuff
         angle = math.atan2(point_local.y, point_local.x)
         dist = norm(point_local)
-        vel_f = proj_onto_size(car.vel, car.forward())
+        vel_f = proj_onto_size(car.vel, car.forward)
         vel_towards_point = proj_onto_size(car.vel, car_to_point)
 
         # Start dodge
         if can_dodge and abs(angle) <= 0.02 and vel_towards_point > REQUIRED_VELF_FOR_DODGE\
                 and dist > vel_towards_point + 500 + 700 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
-            self.dodge = DodgePlan(point)
+            self.dodge = DodgeManeuver(bot, point)
 
         # Is in turn radius deadzone?
         tr = turn_radius(abs(vel_f + 50))  # small bias
@@ -79,8 +83,8 @@ class DriveController:
         if car.on_ground and bot.do_rendering:
             tr_center_world = car.pos + dot(car.rot, tr_center_local)
             tr_center_world_2 = car.pos + dot(car.rot, -1 * tr_center_local)
-            render.draw_circle(bot, tr_center_world, car.up(), tr, 22)
-            render.draw_circle(bot, tr_center_world_2, car.up(), tr, 22)
+            rendering.draw_circle(bot, tr_center_world, car.up, tr, 22)
+            rendering.draw_circle(bot, tr_center_world_2, car.up, tr, 22)
 
         if point_is_in_turn_radius_deadzone:
             # Hard turn
@@ -116,7 +120,7 @@ class DriveController:
             # Find appropriate throttle/boost
             if vel_towards_point < target_vel:
                 self.controls.throttle = 1
-                if boost and vel_towards_point + 25 < target_vel and target_vel > 1400 \
+                if boost_min < car.boost and vel_towards_point + 25 < target_vel and target_vel > 1400 \
                         and not self.controls.handbrake and is_heading_towards(angle, dist):
                     self.controls.boost = True
                 else:
@@ -174,10 +178,10 @@ class DriveController:
         if vel_f_home * 2 > dist:
             target = bot.info.ball.pos
 
-        boost = dist > 1500 or enemy_dist < dist
+        boost = 40 - (dist / 100) + enemy_dist / 200
         dodge = dist > 1500 or enemy_dist < dist
 
-        return self.go_towards_point(bot, target, 2300, True, boost=boost, can_dodge=dodge)
+        return self.go_towards_point(bot, target, 2300, True, boost_min=boost, can_dodge=dodge)
 
 
 class AimCone:
@@ -253,7 +257,7 @@ class AimCone:
                 bot.renderer.draw_line_3d(point, goto, bot.renderer.create_color(255, 150, 150, 150))
 
                 # Bezier
-                render.draw_bezier(bot, [car_pos, goto, point])
+                rendering.draw_bezier(bot, [car_pos, goto, point])
 
             return goto, 0.5
         else:
@@ -338,7 +342,7 @@ class ShotController:
 
                 if vel_f > 400:
                     if diff < 150:
-                        bot.plan = SmallJumpPlan(lambda b: b.info.ball.pos)
+                        bot.maneuver = SmallJumpManeuver(bot, lambda b: b.info.ball.pos)
 
             if 110 < ball_soon.pos.z: # and ball_soon.vel.z <= 0:
                 # The ball is slightly in the air, lets wait just a bit more
@@ -359,11 +363,11 @@ class ShotController:
                 self.can_shoot = True
 
                 if norm(car_to_ball_soon) < 240 + Ball.RADIUS and aim_cone.contains_direction(car_to_ball_soon):
-                    bot.drive.start_dodge()
+                    bot.drive.start_dodge(bot)
 
                 offset_point = xy(ball_soon.pos) - 50 * aim_cone.get_center_dir()
                 speed = self.determine_speed(norm(car_to_ball_soon), time)
-                self.controls = bot.drive.go_towards_point(bot, offset_point, target_vel=speed, slide=True, boost=True, can_keep_speed=False)
+                self.controls = bot.drive.go_towards_point(bot, offset_point, target_vel=speed, slide=True, boost_min=0, can_keep_speed=False)
                 return self.controls
 
             elif aim_cone.contains_direction(car_to_ball_soon, math.pi / 5):
@@ -381,11 +385,11 @@ class ShotController:
                 self.curve_point.x = clip(self.curve_point.x, -Field.WIDTH / 2, Field.WIDTH / 2)
                 self.curve_point.y = clip(self.curve_point.y, -Field.LENGTH / 2, Field.LENGTH / 2)
 
-                if dodge_hit and norm(car_to_ball_soon) < 240 + Ball.RADIUS and angle_between(car.forward(), car_to_ball_soon) < 0.5 and aim_cone.contains_direction(car_to_ball_soon):
-                    bot.drive.start_dodge()
+                if dodge_hit and norm(car_to_ball_soon) < 240 + Ball.RADIUS and angle_between(car.forward, car_to_ball_soon) < 0.5 and aim_cone.contains_direction(car_to_ball_soon):
+                    bot.drive.start_dodge(bot)
 
                 speed = self.determine_speed(norm(car_to_ball_soon), time)
-                self.controls = bot.drive.go_towards_point(bot, self.curve_point, target_vel=speed, slide=True, boost=True, can_keep_speed=False)
+                self.controls = bot.drive.go_towards_point(bot, self.curve_point, target_vel=speed, slide=True, boost_min=0, can_keep_speed=False)
                 return self.controls
 
             else:
@@ -420,6 +424,7 @@ class ShotController:
 def celebrate(bot):
     controls = SimpleControllerState()
     controls.steer = math.sin(time.time() * 10)
+    controls.throttle = -1
     return controls
 
 
