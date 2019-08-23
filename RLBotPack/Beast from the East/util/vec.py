@@ -1,5 +1,7 @@
 import math
 
+from util.rlmath import clip
+
 
 class Vec3:
     def __init__(self, x: float or 'Vec3'=0.0, y: float=0.0, z: float=0.0):
@@ -240,3 +242,136 @@ def inv(mat: Mat33) -> Mat33:
     
     return invm
 
+
+def angle_between(v: Vec3, u: Vec3) -> float:
+    return math.acos(dot(normalize(v), normalize(u)))
+
+
+def axis_to_rotation(axis: Vec3) -> Mat33:
+    radians = norm(axis)
+    if abs(radians) < 0.000001:
+        return Mat33.identity()
+    else:
+
+        axis = normalize(axis)
+
+        K = Mat33(
+            0.0, -axis[2], axis[1],
+            axis[2], 0.0, -axis[0],
+            -axis[1], axis[0], 0.0
+        )
+
+        return Mat33.identity() + math.sin(radians) * K + (1.0 - math.cos(radians)) * dot(K, K)
+
+        """
+        u = axis / radians
+
+        c = math.cos(radians)
+        s = math.sin(radians)
+
+        return Mat33(
+            u[0] * u[0] * (1.0 - c) + c,
+            u[0] * u[1] * (1.0 - c) - u[2] * s,
+            u[0] * u[2] * (1.0 - c) + u[1] * s,
+
+            u[1] * u[0] * (1.0 - c) + u[2] * s,
+            u[1] * u[1] * (1.0 - c) + c,
+            u[1] * u[2] * (1.0 - c) - u[0] * s,
+
+            u[2] * u[0] * (1.0 - c) - u[1] * s,
+            u[2] * u[1] * (1.0 - c) + u[0] * s,
+            u[2] * u[2] * (1.0 - c) + c
+        )
+        """
+
+
+def rotation_to_axis(rot: Mat33) -> Vec3:
+
+    ang = math.acos(clip(0.5 * (tr(rot) - 1.0), -1.0, 1.0))
+
+    # For small angles, prefer series expansion to division by sin(theta) ~ 0
+    if abs(ang) < 0.00001:
+        scale = 0.5 + ang * ang / 12.0
+    else:
+        scale = 0.5 * ang / math.sin(ang)
+
+    return Vec3(
+        rot.get(2, 1) - rot.get(1, 2),
+        rot.get(0, 2) - rot.get(2, 0),
+        rot.get(1, 0) - rot.get(0, 1)
+    ) * scale
+
+
+def euler_to_rotation(pitch_yaw_roll: Vec3) -> Mat33:
+    cp = math.cos(pitch_yaw_roll[0])
+    sp = math.sin(pitch_yaw_roll[0])
+    cy = math.cos(pitch_yaw_roll[1])
+    sy = math.sin(pitch_yaw_roll[1])
+    cr = math.cos(pitch_yaw_roll[2])
+    sr = math.sin(pitch_yaw_roll[2])
+
+    rotation = Mat33()
+
+    # front direction
+    rotation.set(0, 0, cp * cy)
+    rotation.set(1, 0, cp * sy)
+    rotation.set(2, 0, sp)
+
+    # left direction
+    rotation.set(0, 1, cy * sp * sr - cr * sy)
+    rotation.set(1, 1, sy * sp * sr + cr * cy)
+    rotation.set(2, 1, -cp * sr)
+
+    # up direction
+    rotation.set(0, 2, -cr * cy * sp - sr * sy)
+    rotation.set(1, 2, -cr * sy * sp + sr * cy)
+    rotation.set(2, 2, cp * cr)
+
+    return rotation
+
+
+def rotation_to_euler(rotation: Mat33) -> Vec3:
+    return Vec3(
+        math.atan2(rotation.get(2, 0), norm(Vec3(rotation.get(0, 0), rotation.get(1, 0)))),
+        math.atan2(rotation.get(1, 0), rotation.get(0, 0)),
+        math.atan2(-rotation.get(2, 1), rotation.get(2, 2))
+    )
+
+
+def rotate2d(vec: Vec3, ang: float) -> Vec3:
+    c = math.cos(ang)
+    s = math.sin(ang)
+    return Vec3(c * vec.x - s * vec.y,
+                s * vec.x + c * vec.y)
+
+
+def proj_onto(src: Vec3, dir: Vec3) -> Vec3:
+    """
+    Returns the vector component of src that is parallel with dir, i.e. the projection of src onto dir.
+    """
+    try:
+        return (dot(src, dir) / dot(dir, dir)) * dir
+    except ZeroDivisionError:
+        return Vec3()
+
+
+def proj_onto_size(src: Vec3, dir: Vec3) -> float:
+    """
+    Returns the size of the vector that is the project of src onto dir
+    """
+    try:
+        dir_n = normalize(dir)
+        return dot(src, dir_n) / dot(dir_n, dir_n)  # can be negative!
+    except ZeroDivisionError:
+        return norm(src)
+
+
+# Unit tests
+if __name__ == "__main__":
+    assert angle_between(Vec3(x=1), Vec3(y=1)) == math.pi / 2
+    assert angle_between(Vec3(y=1), Vec3(y=-1, z=1)) == 0.75 * math.pi
+    assert norm(dot(axis_to_rotation(Vec3(x=-math.pi)), Vec3(y=1)) - Vec3(y=-1)) < 0.000001
+    assert norm(dot(axis_to_rotation(Vec3(y=0.5*math.pi)), Vec3(z=1)) - Vec3(x=-1)) < 0.000001
+    assert norm(dot(axis_to_rotation(Vec3(z=math.pi)), Vec3(x=1)) - Vec3(x=-1)) < 0.000001
+    pyr = Vec3(0.5, 0.2, -0.4)
+    assert norm(rotation_to_euler(euler_to_rotation(pyr)) - pyr) < 0.000001

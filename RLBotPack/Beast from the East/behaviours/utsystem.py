@@ -1,3 +1,16 @@
+from rlbot.agents.base_agent import SimpleControllerState
+
+
+class Choice:
+    def utility(self, bot) -> float:
+        raise NotImplementedError
+
+    def exec(self, bot) -> SimpleControllerState:
+        raise NotImplementedError
+
+    def reset(self):
+        pass
+
 
 class UtilitySystem:
     def __init__(self, choices, prev_bias=0.15):
@@ -32,9 +45,7 @@ class UtilitySystem:
     def reset_current(self):
         # Reset the current choice if it has a reset method
         if self.current_best_index != -1:
-            reset_method = getattr(self.choices[self.current_best_index], "reset", None)
-            if callable(reset_method):
-                reset_method()
+            self.choices[self.current_best_index].reset()
 
     def reset(self):
         self.reset_current()
