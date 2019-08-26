@@ -75,7 +75,7 @@ class SoccarStrategy:
         corners = [my_goal + vec3(Arena.size[0], 0, 0), my_goal - vec3(Arena.size[0], 0, 0)]
         corner = Strike.pick_easiest_target(car, my_hit.ball, corners)
         corner[1] *= 0.8
-        return DodgeShot(car, self.info, corner)
+        return self.offense.any_shot(car, corner, my_hit)
 
     def choose_maneuver(self):
         info = self.info
@@ -92,16 +92,11 @@ class SoccarStrategy:
         my_hit = Intercept(car, info.ball_predictions)
         their_best_hit, opponent = self.best_intercept(info.opponents, 500)
 
-        if my_score > their_score + 2:
-            self.aggresivity = 5
-        else:
-            self.aggresivity = 0
+        my_align = align(car.pos, my_hit.ball, their_goal)
 
         if their_score > my_score:
-            if self.packet.game_info.game_time_remaining < 60:
-                self.aggresivity = 5
             if self.packet.game_info.game_time_remaining < 30:
-                self.aggresivity = 30
+                self.aggresivity = 99999
 
         should_commit = True
         if info.teammates:
@@ -125,12 +120,12 @@ class SoccarStrategy:
         # save
         if info.about_to_be_scored_on:
 
-            if align(car.pos, my_hit.ball, their_goal) > -0.2:
+            if my_align > -0.2:
 
                 any_shot = offense.any_shot(car, their_goal, my_hit)
 
                 if (not isinstance(any_shot, Strike) or their_best_hit.time < any_shot.intercept.time + 0.5) \
-                and align(car.pos, my_hit.ball, their_goal) < 0.6:
+                and my_align < 0.6:
                 
                     return DodgeStrike(car, info, their_goal)
                 return any_shot
@@ -139,9 +134,17 @@ class SoccarStrategy:
 
 
         # fallback
-        if align(car.pos, my_hit.ball, my_goal) > 0.2:
-            if ground_distance(my_hit, my_goal) < 4000 and should_commit and abs(car.pos[1]) < abs(my_hit.pos[1]):
+        if align(car.pos, my_hit.ball, my_goal) > 0.3:
+            if (
+                ground_distance(my_hit, my_goal) < 6000
+                and ground_distance(car, my_hit) < 4000
+                and their_best_hit.time < my_hit.time + 2
+                and should_commit
+                and abs(car.pos[1]) < abs(my_hit.pos[1])
+                and abs(my_hit.pos[0]) < Arena.size[0] - 2000
+            ):
                 return self.clear_into_corner(my_hit)
+
             return ShadowDefense(car, info, my_hit.ground_pos, 6000)
 
         # clear
@@ -152,12 +155,12 @@ class SoccarStrategy:
             and ground_distance(car, my_goal) < 2500
         ):
 
-            if align(car.pos, my_hit.ball, their_goal) > -0.1:
+            if my_align > -0.1:
 
                 any_shot = offense.any_shot(car, their_goal, my_hit)
 
                 if (not isinstance(any_shot, Strike) or their_best_hit.time < any_shot.intercept.time + 0.5) \
-                and align(car.pos, my_hit.ball, their_goal) < 0.6:
+                and my_align < 0.6:
                 
                     return DodgeStrike(car, info, their_goal)
                 return any_shot
@@ -178,13 +181,13 @@ class SoccarStrategy:
                 opponents_align = align(opponent.pos, their_best_hit.ball, my_goal)
 
             # I can get to ball faster than them
-            if should_commit and my_hit.time < their_best_hit.time - 0.8:
+            if should_commit and my_hit.time < their_best_hit.time + (1.5 - my_align) + self.aggresivity / 10:
                 strike = offense.any_shot(car, their_goal, my_hit)
 
                 if not isinstance(strike, Strike):
                     return strike
 
-                if strike.intercept.time < their_best_hit.time - 0.8 \
+                if strike.intercept.time < their_best_hit.time + self.aggresivity / 10 \
                 and (not info.about_to_score or strike.intercept.time < info.time_of_goal - 1):
 
                     if strike.intercept.time - car.time > 4 and car.boost < 30 \
@@ -202,8 +205,8 @@ class SoccarStrategy:
             # they are out of position
             if (
                 should_commit
-                and opponents_align < -0.1 - self.aggresivity / 20 
-                and my_hit.time < their_best_hit.time - opponents_align * 1.5
+                and opponents_align < 0 + self.aggresivity / 20 
+                and my_hit.time < their_best_hit.time - opponents_align
             ):
 
                 strike = offense.any_shot(car, their_goal, my_hit)
@@ -238,7 +241,7 @@ class SoccarStrategy:
             if car.boost < 50:
                 return Refuel(car, info, my_goal)
 
-        shadow_distance = 5500
+        shadow_distance = 6500
         shadow_distance -= self.aggresivity * 500
         shadow_distance = max(shadow_distance, 3000)
         return ShadowDefense(car, info, their_best_hit.ground_pos, shadow_distance)

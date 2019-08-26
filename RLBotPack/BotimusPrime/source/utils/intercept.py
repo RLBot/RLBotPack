@@ -1,7 +1,7 @@
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.LinearAlgebra import *
 from RLUtilities.Simulation import Car, Ball
-from RLUtilities.Maneuvers import Aerial
+from RLUtilities.Maneuvers import Aerial, look_at
 
 from utils.vector_math import *
 from utils.math import *
@@ -33,17 +33,24 @@ class Intercept:
         self.pos = self.ball.pos
 
 class AerialIntercept:
-    def __init__(self, car: Car, ball_predictions, predicate: callable = None, power = 1000):
+    def __init__(self, car: Car, ball_predictions, predicate: callable = None):
         self.ball: Ball = None
         self.is_viable = True
 
         #find the first reachable ball slice that also meets the predicate
+        test_car = Car(car)
         test_aerial = Aerial(car, vec3(0, 0, 0), 0)
+        
         for ball in ball_predictions:
             test_aerial.target = ball.pos
             test_aerial.t_arrival = ball.t
-            test_aerial.calculate_course()
-            if test_aerial.B_avg < power and (predicate is None or predicate(car, ball)):
+
+            # fake our car state :D
+            dir_to_target = ground_direction(test_car.pos, test_aerial.target)
+            test_car.vel = dir_to_target * max(norm(test_car.vel), 1200)
+            test_car.theta = look_at(dir_to_target)
+
+            if test_aerial.is_viable() and (predicate is None or predicate(car, ball)):
                 self.ball = ball
                 break
 

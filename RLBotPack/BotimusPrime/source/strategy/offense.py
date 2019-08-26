@@ -45,13 +45,15 @@ class Offense:
         ground_shot = GroundShot(car, self.info, target)
 
         if (
-            dodge_shot.intercept.time < ground_shot.intercept.time - 0.1 \
-            or distance(dodge_shot.intercept.ground_pos, target) < 4000 \
+            dodge_shot.intercept.time < ground_shot.intercept.time - 0.1
+            or distance(dodge_shot.intercept.ground_pos, target) < 4000
             or (dot(direction(ground_shot.intercept.ground_pos, car), ground_shot.intercept.ball.vel) < -0.2 \
             and norm(ground_shot.intercept.ball.vel) > 500)
         ):
-            if distance(dodge_shot.intercept.ground_pos, target) < 4000\
-            and abs(dodge_shot.intercept.ground_pos[0]) < 3000:
+            if (
+                distance(dodge_shot.intercept.ground_pos, target) < 4000
+                and abs(dodge_shot.intercept.ground_pos[0]) < 3000
+            ):
                 return CloseShot(car, self.info, target)
             return dodge_shot
         return ground_shot
@@ -80,10 +82,15 @@ class Offense:
     def any_shot(self, car: Car, target: vec3, intercept: Intercept) -> Maneuver:
         ball = intercept.ball
 
-        if 120 < ball.pos[2] < 1500 and abs(ball.vel[2]) < 1200 and ground_distance(car, intercept) < 1000:
+        if (
+            100 < ball.pos[2] < 2000
+            and abs(ball.vel[2]) < 1500
+            and ground_distance(car, intercept) < 1000
+            and abs(ball.pos[1] - self.info.my_goal.center[1]) > 500
+        ):
             is_opponent_close = False
             for opponent in self.info.opponents:
-                if ground_distance(opponent, car) < ball.pos[2] * 10 + 500:
+                if ground_distance(opponent, car) < ball.pos[2] / 2 + 500:
                     is_opponent_close = True
                     break
             if not is_opponent_close:
