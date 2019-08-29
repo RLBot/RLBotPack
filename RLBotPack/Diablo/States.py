@@ -187,9 +187,10 @@ class AerialHandler():
                                         if abs(carToBallAngle) < 45:
                                             if distance2D(self.agent.me.location,targetLocal) > 1500:
                                                 if self.agent.ballPred.slices[i].physics.location.z >= 900:
-                                                    self.agent.activeState = airLaunch(self.agent)
-                                                    self.active = False
-                                                    return self.agent.activeState.update()
+                                                    if not self.agent.onWall:
+                                                        self.agent.activeState = airLaunch(self.agent)
+                                                        self.active = False
+                                                        return self.agent.activeState.update()
                                 break
 
                 else:
@@ -247,12 +248,61 @@ class WaveDashing(baseState):
 
 
 
+# class JumpingState(baseState):
+#     def __init__(self,agent, targetCode):
+#         self.agent = agent
+#         self.active = True
+#         self.targetCode = targetCode
+#         self.flip_obj = FlipStatus()
+#
+#     def update(self):
+#         controller_state = SimpleControllerState()
+#         jump = flipHandler(self.agent, self.flip_obj)
+#         if jump:
+#             if self.targetCode == 1:
+#                 controller_state.pitch = -1
+#                 controller_state.steer = 0
+#                 controller_state.throttle = 1
+#
+#             elif self.targetCode == 0:
+#                 ball_local = toLocal(self.agent.ball.location, self.agent.me)
+#                 ball_angle = math.atan2(ball_local.data[1], ball_local.data[0])
+#                 controller_state.jump = True
+#                 controller_state.yaw = math.sin(ball_angle)
+#                 pitch = -math.cos(ball_angle)
+#                 controller_state.pitch = pitch
+#                 if pitch > 0:
+#                     controller_state.throttle = -1
+#                 else:
+#                     controller_state.throttle = 1
+#
+#             elif self.targetCode == 2:
+#                 controller_state.pitch = 0
+#                 controller_state.steer = 0
+#                 controller_state.yaw = 0
+#             elif self.targetCode == 3:
+#                 controller_state.pitch = 1
+#                 controller_state.steer = 0
+#                 controller_state.throttle = -1
+#
+#             elif self.targetCode == -1:
+#                 controller_state.pitch = 0
+#                 controller_state.steer = 0
+#                 controller_state.throttle = 0
+#
+#         controller_state.jump = jump
+#         controller_state.boost = False
+#         if self.flip_obj.flipDone:
+#             self.active = False
+#
+#         return controller_state
+
 class JumpingState(baseState):
     def __init__(self,agent, targetCode):
         self.agent = agent
         self.active = True
         self.targetCode = targetCode
-        self.flip_obj = FlipStatus()
+        self.flip_obj = FlipStatus(agent.time)
 
     def update(self):
         controller_state = SimpleControllerState()
@@ -343,16 +393,83 @@ class Obstruct(baseState):
             self.agent.activeState = Kickoff(self.agent)
             return self.agent.activeState.update()
 
+# class Kickoff(baseState):
+#     def __init__(self,agent):
+#         self.agent = agent
+#         self.started = False
+#         self.firstFlip = False
+#         self.secondFlip = False
+#         self.finalFlipDistance = 650
+#         self.active = True
+#         self.startTime = time.time()
+#         self.flipState = None
+#
+#     def retire(self):
+#         self.active = False
+#         self.agent.activeState = None
+#         self.flipState = None
+#
+#     def update(self):
+#         spd = self.agent.getCurrentSpd()
+#         if self.flipState != None:
+#             if self.flipState.active:
+#                 controller = self.flipState.update()
+#                 if time.time() - self.flipState.flip_obj.flipStartedTimer <= 0.15:
+#                     if spd < 2200:
+#                         controller.boost = True
+#                 return controller
+#             if self.secondFlip:
+#                 self.retire()
+#
+#         jumping = False
+#         ballDistance = distance2D(self.agent.me.location, self.agent.ball.location)
+#
+#         if not self.started:
+#             if not kickOffTest(self.agent):
+#                 self.started = True
+#                 self.startTime = time.time()
+#
+#         if self.started and time.time() - self.startTime > 2.5:
+#             self.retire()
+#
+#         if not self.firstFlip:
+#             if spd > 1100:
+#                 self.flipState = JumpingState(self.agent,1)
+#                 self.firstFlip = True
+#                 return self.flipState.update()
+#
+#         if ballDistance > self.finalFlipDistance:
+#             destination = self.agent.ball.location
+#             if not self.firstFlip:
+#                 destination.data[1] += (sign(self.agent.team)*200)
+#             return greedyMover(self.agent, destination)
+#
+#         else:
+#             self.flipState = JumpingState(self.agent,0)
+#             self.secondFlip = True
+#             return self.flipState.update()
+
 class Kickoff(baseState):
     def __init__(self,agent):
         self.agent = agent
         self.started = False
         self.firstFlip = False
         self.secondFlip = False
-        self.finalFlipDistance = 650
+        self.finalFlipDistance = 750
         self.active = True
-        self.startTime = time.time()
+        self.startTime = agent.time
         self.flipState = None
+
+    def fakeKickOffChecker(self):
+        closestToBall, bDist = findEnemyClosestToLocation(self.agent, self.agent.ball.location)
+        myDist = findDistance(self.agent.me.location,self.agent.ball.location)
+
+        if bDist:
+            if bDist <= myDist*.75:
+                return True
+            else:
+                return False
+        return False
 
     def retire(self):
         self.active = False
@@ -360,11 +477,11 @@ class Kickoff(baseState):
         self.flipState = None
 
     def update(self):
-        spd = self.agent.getCurrentSpd()
+        spd = self.agent.currentSpd
         if self.flipState != None:
             if self.flipState.active:
                 controller = self.flipState.update()
-                if time.time() - self.flipState.flip_obj.flipStartedTimer <= 0.15:
+                if self.agent.time - self.flipState.flip_obj.flipStartedTimer <= 0.15:
                     if spd < 2200:
                         controller.boost = True
                 return controller
@@ -377,9 +494,9 @@ class Kickoff(baseState):
         if not self.started:
             if not kickOffTest(self.agent):
                 self.started = True
-                self.startTime = time.time()
+                self.startTime = self.agent.time
 
-        if self.started and time.time() - self.startTime > 2.5:
+        if self.started and self.agent.time - self.startTime > 2.5:
             self.retire()
 
         if not self.firstFlip:
@@ -391,7 +508,7 @@ class Kickoff(baseState):
         if ballDistance > self.finalFlipDistance:
             destination = self.agent.ball.location
             if not self.firstFlip:
-                destination.data[1] += (sign(self.agent.team)*200)
+                destination.data[1] += (sign(self.agent.team)*100)
             return greedyMover(self.agent, destination)
 
         else:
@@ -528,12 +645,12 @@ def halfFlipStateManager(agent):
 class emergencyDefend(baseState):
     def update(self):
         penetrationPosition = convertStructLocationToVector(self.agent.goalPred)
-        penetrationPosition.data[1] = 5200 * sign(self.agent.team)
-        if self.agent.goalPred.game_seconds - self.agent.gameInfo.seconds_elapsed > .5:
+        penetrationPosition.data[1] = 5350 * sign(self.agent.team)
+        if self.agent.goalPred.game_seconds - self.agent.gameInfo.seconds_elapsed > .1:
             if distance2D(self.agent.me.location,penetrationPosition) > 100:
                 return testMover(self.agent,penetrationPosition,2300)
         else:
-            if penetrationPosition[2] > 200:
+            if penetrationPosition[2] > 300:
                 self.activeState = JumpingState(self.agent,-1)
                 return self.activeState.update()
 
@@ -585,10 +702,17 @@ def teamStateManager(agent):
 
             timeTillBallReady = 9999
             agent.ballDelay = 6
-            if agent.contested:
-                ballStruct = findSuitableBallPosition2(agent, 300, agent.getCurrentSpd(), agent.me.location)
-            else:
-                ballStruct = findSuitableBallPosition2(agent, 120, agent.getCurrentSpd(), agent.me.location)
+            # if agent.contested:
+            #     ballStruct = findSuitableBallPosition2(agent, 300, agent.getCurrentSpd(), agent.me.location)
+            # else:
+            #     ballStruct = findSuitableBallPosition2(agent, 120, agent.getCurrentSpd(), agent.me.location)
+
+            # if agent.contested:
+            #     ballStruct = findSuitableBallPosition(agent, 300, agent.getCurrentSpd(), agent.me.location)
+            # else:
+            #     ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
+
+            ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
             agent.selectedBallPred = ballStruct
             goalward = ballHeadedTowardsMyGoal(agent)
 
@@ -748,14 +872,17 @@ def soloStateManager(agent):
 
             timeTillBallReady = 9999
             agent.ballDelay = 6
-            if agent.contested:
-                ballStruct = findSuitableBallPosition2(agent, 220, agent.getCurrentSpd(), agent.me.location)
-            else:
-                ballStruct = findSuitableBallPosition2(agent, 120, agent.getCurrentSpd(), agent.me.location)
+            # if agent.contested:
+            #     ballStruct = findSuitableBallPosition2(agent, 220, agent.getCurrentSpd(), agent.me.location)
+            # else:
+            #     ballStruct = findSuitableBallPosition2(agent, 120, agent.getCurrentSpd(), agent.me.location)
+
+
+            ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
 
             agent.selectedBallPred = ballStruct
             goalward = ballHeadedTowardsMyGoal(agent)
-            openNet = openGoalOpportunity(agent)
+            agent.openGoal = openNet = openGoalOpportunity(agent)
 
             if ballStruct != None:
                 if ballStruct == agent.ballPred.slices[0]:
@@ -765,6 +892,11 @@ def soloStateManager(agent):
             else:
                 timeTillBallReady = 0
             agent.ballDelay = timeTillBallReady
+
+            if agent.ball.location[2] <= 120:
+                agent.ballGrounded = True
+            else:
+                agent.ballGrounded = False
 
             if agentType == JumpingState:
                 if agent.activeState.active != False:
