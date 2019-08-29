@@ -1,17 +1,20 @@
 import math
 
-from RLUtilities.GameInfo import GameInfo
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.game_state_util import *
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from RLUtilities.LinearAlgebra import *
+import rendering
+from rldata import GameInfo
+from vec import Vec3, norm, normalize
 
 NORMAL_SPEED = 2100
 SUPER_SPEED = 3500
 AIM_DURATION = 2.0
 AIM_DURATION_AFTER_KICKOFF = 1.0
-GOAL_AIM_BIAS_AMOUNT = 60
+AIM_DURATION_AFTER_KICKOFF_INDEX_EXTRA = 1.0
+GOAL_AIM_BIAS_AMOUNT = 50
+
 
 class SniperBot(BaseAgent):
     AIMING = 0
@@ -20,102 +23,62 @@ class SniperBot(BaseAgent):
 
     def __init__(self, name, team, index):
         super().__init__(name, team, index)
+        self.info = GameInfo(index, team)
         self.controls = SimpleControllerState()
-        self.info = GameInfo(self.index, self.team)
-        self.t_index = 0
-        self.standby_position = vec3(0, 0, 300)
-        self.direction = vec3(0, 0, 1)
+        self.direction = Vec3(0, 0, 1)
         self.state = self.KICKOFF
-        self.shoot_time = 0
-        self.last_pos = self.standby_position
+        self.next_flight_start_time = 0
+        self.last_pos = Vec3(0, 0, 1)
         self.last_elapsed_seconds = 0
-        self.kickoff_timer_edge = False
-        self.ball_moved = False
+        self.last_clock = 0
+        self.kickoff_timer_edge = False  # Set to True first time is_kickoff_pause is True and self.state == KICKOFF
+        self.ball_moved = False  # True if moved since last kickoff start was detected
         self.next_is_super = False
         self.doing_super = False
-        self.hit_pos = vec3(0, 0, 0)
+        self.expected_hit_pos = Vec3(0, 1, 0)
+        self.expected_hit_time = 0
         self.standby_initiated = False
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        dt = packet.game_info.seconds_elapsed - self.last_elapsed_seconds
-        self.last_elapsed_seconds = packet.game_info.seconds_elapsed
         self.info.read_packet(packet)
+        if not packet.game_info.is_round_active:
+            return SimpleControllerState()
+
+        # Reset buttons
+        self.controls.boost = False
+        self.controls.roll = 0
+
+        self.renderer.begin_rendering()
+
+        if not self.info.aim_poss_determined:
+            self.info.determine_aim_poss()
 
         ball_pos = self.info.ball.pos
 
-        if not self.standby_initiated:
-            self.initiate_standby(packet)
-
-        if ball_pos[0] != 0 or ball_pos[1] != 0:
+        if ball_pos.x != 0 or ball_pos.y != 0:
             self.ball_moved = True
 
-        if ball_pos[0] == 0 and ball_pos[1] == 0 and self.info.my_car.boost == 34 and not self.state == self.KICKOFF and self.ball_moved:
+        if ball_pos.x == 0 and ball_pos.y == 0 and self.info.my_car.boost == 34 and not self.state == self.KICKOFF and self.ball_moved:
             # Ball is placed at the center - assume kickoff
             self.state = self.KICKOFF
             self.ball_moved = False
 
         if self.state == self.KICKOFF:
-            if packet.game_info.is_kickoff_pause:
-                self.kickoff_timer_edge = True
-            if ball_pos[0] != 0 or ball_pos[1] != 0 or (self.kickoff_timer_edge and not packet.game_info.is_kickoff_pause):
-                self.shoot_time = self.info.time + AIM_DURATION_AFTER_KICKOFF + self.t_index
-                self.controls.boost = False
-                self.controls.roll = 0
-                self.kickoff_timer_edge = False
-                self.state = self.AIMING
-                self.last_pos = self.standby_position
+            self.do_kickoff_state()
 
         elif self.state == self.AIMING:
-
-            self.controls.boost = False
-            self.controls.roll = 0
-            self.hit_pos = self.predict_hit_pos()
-            self.direction = d = normalize(self.hit_pos - self.standby_position)
-
-            rotation = Rotator(math.asin(d[2]), math.atan2(d[1], d[0]), 0)
-            car_state = CarState(Physics(location=to_fb(self.standby_position),
-                                         velocity=Vector3(0, 0, 0),
-                                         rotation=rotation,
-                                         angular_velocity=Vector3(0, 0, 0)))
-            game_state = GameState(cars={self.index: car_state})
-            self.set_game_state(game_state)
-
-            self.render_aiming(self.hit_pos)
-
-            if self.shoot_time < self.info.time:
-                self.state = self.FLYING
-                if self.next_is_super:
-                    self.doing_super = True
-                    self.next_is_super = False
-                else:
-                    self.doing_super = False
+            self.do_aiming_state()
 
         elif self.state == self.FLYING:
+            self.do_fly_state()
 
-            speed = SUPER_SPEED if self.doing_super else NORMAL_SPEED
-            vel = self.direction * speed
-            n_pos = self.last_pos + vel * dt
-
-            car_state = CarState(Physics(location=to_fb(n_pos), velocity=to_fb(vel)))
-            game_state = GameState(cars={self.index: car_state})
-            self.set_game_state(game_state)
-
-            self.last_pos = n_pos
-            self.controls.boost = self.doing_super
-            self.controls.roll = self.doing_super
-
-            if abs(n_pos[0]) > 4080 or abs(n_pos[1]) > 5080 or n_pos[2] < 0 or n_pos[2] > 2020:
-                # Crash
-                self.state = self.AIMING
-                self.shoot_time = self.info.time + AIM_DURATION
-                self.last_pos = self.standby_position
-                self.next_is_super = self.info.my_car.boost >= 99
-
-        self.render_aiming(self.hit_pos)
+        # Extra rendering
+        self.render_stuff()
+        self.renderer.end_rendering()
 
         return self.controls
 
-    def predict_hit_pos(self):
+    def predict_hit_pos(self, from_pos):
         speed = SUPER_SPEED if self.next_is_super else NORMAL_SPEED
         ball_prediction = self.get_ball_prediction_struct()
 
@@ -127,85 +90,97 @@ class SniperBot(BaseAgent):
             for i in range(0, 360):
                 time = i * TIME_PER_SLICES
                 rlpos = ball_prediction.slices[i].physics.location
-                pos = vec3(rlpos.x, rlpos.y, rlpos.z)
-                dist = norm(self.standby_position - pos)
+                pos = Vec3(rlpos.x, rlpos.y, rlpos.z)
+                dist = norm(from_pos - pos)
                 travel_time = dist / speed
-                if time + TIME_PER_SLICES > travel_time:
+                if time >= travel_time:
                     # Add small bias for aiming
                     tsign = -1 if self.team == 0 else 1
-                    enemy_goal = vec3(0, tsign * -5030, 300)
+                    enemy_goal = Vec3(0, tsign * -5030, 300)
                     bias_direction = normalize(pos - enemy_goal)
                     pos = pos + bias_direction * GOAL_AIM_BIAS_AMOUNT
-                    return pos
+                    return pos, travel_time
 
             # Use last
             rlpos = ball_prediction.slices[SLICES - 1].physics.location
-            return vec3(rlpos.x, rlpos.y, rlpos.z)
+            return Vec3(rlpos.x, rlpos.y, rlpos.z), 6
 
-        return vec3(0, 0, 0)
+        return Vec3(0, 0, 0), 5
 
-    def render_aiming(self, pos):
+    def render_stuff(self):
         if self.state == self.AIMING or self.state == self.FLYING:
-            self.renderer.begin_rendering()
-            t = max(0, self.shoot_time - self.info.time)
-            r = 50 + 400 * t
-            self.draw_circle(pos, self.direction, r, 20 + int(r / (math.tau * 5)))
-            if self.state != self.FLYING:
-                l = self.direction * (70 + t * 100)
-                self.renderer.draw_line_3d(pos - l, pos + l, self.renderer.team_color())
-            else:
+            time_till_flight = max(0, self.next_flight_start_time - self.info.time)
+            radius = 50 + 400 * time_till_flight
+            rendering.draw_circle(self, self.expected_hit_pos, self.direction, radius, 20 + int(radius / (math.tau * 5)), self.renderer.team_color)
+            pos = self.expected_hit_pos
+            if self.state == self.FLYING:
                 s = 70
-                x = vec3(s, 0, 0)
-                y = vec3(0, s, 0)
-                z = vec3(0, 0, s)
+                x = Vec3(s, 0, 0)
+                y = Vec3(0, s, 0)
+                z = Vec3(0, 0, s)
                 self.renderer.draw_line_3d(pos - x, pos + x, self.renderer.team_color())
                 self.renderer.draw_line_3d(pos - y, pos + y, self.renderer.team_color())
                 self.renderer.draw_line_3d(pos - z, pos + z, self.renderer.team_color())
-            self.renderer.end_rendering()
+            else:
+                length = self.direction * (70 + time_till_flight * 100)
+                self.renderer.draw_line_3d(pos - length, pos + length, self.renderer.team_color())
 
-    def draw_circle(self, center: vec3, normal: vec3, radius: float, pieces: int):
-        # Construct the arm that will be rotated
-        arm = normalize(cross(normal, center)) * radius
-        angle = 2 * math.pi / pieces
-        rotation_mat = axis_rotation(angle * normalize(normal))
-        points = [center + arm]
+    def do_kickoff_state(self):
+        if self.info.is_kickoff:
+            self.kickoff_timer_edge = True
 
-        for i in range(pieces):
-            arm = dot(rotation_mat, arm)
-            points.append(center + arm)
+        ball_pos = self.info.ball.pos
 
-        self.renderer.draw_polyline_3d(points, self.renderer.team_color())
+        if ball_pos.x != 0 or ball_pos.y != 0\
+                or self.info.clock_dt != 0\
+                or (self.kickoff_timer_edge and not self.info.is_kickoff
+        ):
+            self.next_flight_start_time = self.info.time + AIM_DURATION_AFTER_KICKOFF + self.info.my_car.sniper_index * AIM_DURATION_AFTER_KICKOFF_INDEX_EXTRA
+            self.kickoff_timer_edge = False
+            self.state = self.AIMING
+            self.last_pos = self.info.my_car.aim_pos
 
-    def initiate_standby(self, packet):
-        self.standby_initiated = True
-        snipers_on_team = 0
-        for i in range(0, packet.num_cars):
-            car = packet.game_cars[i]
-            if car.team == self.team:
-                if car.name == self.name:
-                    self.t_index = snipers_on_team
-                if car.name[:6] == "Sniper":
-                    snipers_on_team += 1
+    def do_aiming_state(self):
+        self.expected_hit_pos, travel_time = self.predict_hit_pos(self.info.my_car.aim_pos)
+        self.expected_hit_time = self.info.time + travel_time
+        self.direction = d = normalize(self.expected_hit_pos - self.info.my_car.aim_pos)
 
-        tsign = -1 if self.team == 0 else 1
+        rotation = Rotator(math.asin(d.z), math.atan2(d.y, d.x), 0)
+        car_state = CarState(Physics(location=to_fb(self.info.my_car.aim_pos),
+                                     velocity=Vector3(0, 0, 0),
+                                     rotation=rotation,
+                                     angular_velocity=Vector3(0, 0, 0)))
+        game_state = GameState(cars={self.index: car_state})
+        self.set_game_state(game_state)
 
-        z = 300
-        y = 5030
-        spacing = 400
+        if self.next_flight_start_time < self.info.time:
+            self.state = self.FLYING
+            if self.next_is_super:
+                self.doing_super = True
+                self.next_is_super = False
+            else:
+                self.doing_super = False
 
-        if snipers_on_team == 1:
-            self.standby_position = vec3(0, tsign * y, z)
-        elif snipers_on_team == 2:
-            self.standby_position = vec3(-400 + self.t_index * 800, tsign * y, z)
-        else:
-            # There are an even number of snipers on the team
-            is_top_row = (self.t_index < snipers_on_team / 2)
-            offset = spacing * (snipers_on_team - 2) / 4
-            row_index = self.t_index if is_top_row else self.t_index - snipers_on_team / 2
-            x = -offset + row_index * spacing
-            self.standby_position = vec3(x, tsign * y, z + 150 * is_top_row)
+    def do_fly_state(self):
+        speed = SUPER_SPEED if self.doing_super else NORMAL_SPEED
+        vel = self.direction * speed
+        new_pos = self.last_pos + vel * self.info.dt
+
+        car_state = CarState(Physics(location=to_fb(new_pos), velocity=to_fb(vel)))
+        game_state = GameState(cars={self.index: car_state})
+        self.set_game_state(game_state)
+
+        self.last_pos = new_pos
+        self.controls.boost = self.doing_super
+        self.controls.roll = self.doing_super
+
+        # Crash?
+        if abs(new_pos.x) > 4080 or abs(new_pos.y) > 5080 or new_pos.z < 0 or new_pos.z > 2020:
+            self.state = self.AIMING
+            self.next_flight_start_time = self.info.time + AIM_DURATION
+            self.last_pos = self.info.my_car.aim_pos
+            self.next_is_super = self.info.my_car.boost >= 100
 
 
-
-def to_fb(vec: vec3):
+def to_fb(vec):
     return Vector3(vec[0], vec[1], vec[2])
