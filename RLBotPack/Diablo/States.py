@@ -707,12 +707,11 @@ def teamStateManager(agent):
             # else:
             #     ballStruct = findSuitableBallPosition2(agent, 120, agent.getCurrentSpd(), agent.me.location)
 
-            # if agent.contested:
-            #     ballStruct = findSuitableBallPosition(agent, 300, agent.getCurrentSpd(), agent.me.location)
-            # else:
-            #     ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
+            if agent.contested:
+                ballStruct = findSuitableBallPosition(agent, 300, agent.getCurrentSpd(), agent.me.location)
+            else:
+                ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
 
-            ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
             agent.selectedBallPred = ballStruct
             goalward = ballHeadedTowardsMyGoal(agent)
 
