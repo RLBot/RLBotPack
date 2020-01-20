@@ -71,6 +71,7 @@ class diabloBot(BaseAgent):
         self.carWidth = 84.2
         self.carHeight = 36.159
         self.openGoal = False
+        self.maxDT = 1/120
 
     def getActiveState(self):
         if type(self.activeState) == JumpingState:
@@ -159,7 +160,7 @@ class diabloBot(BaseAgent):
         self.me.avelocity = Vector([car.physics.angular_velocity.x, car.physics.angular_velocity.y, car.physics.angular_velocity.z])
         self.me.boostLevel = car.boost
         self.onSurface = car.has_wheel_contact
-        self.deltaTime = clamp(1, 1 / 250, game.game_info.seconds_elapsed - self.time)
+        self.deltaTime = clamp(1, self.maxDT, game.game_info.seconds_elapsed - self.time)
         self.time = game.game_info.seconds_elapsed
 
 

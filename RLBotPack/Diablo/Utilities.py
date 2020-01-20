@@ -1194,9 +1194,9 @@ def lineupShot(agent,multi):
 
     if len(agent.allies) < 1:
         flipDecider(agent,targetVec,True)
-        if abs(correctedAngles[1]) >= 60:
-            if agent.contested:
-                return playBack(agent)
+        # if abs(correctedAngles[1]) >= 60:
+        #     if agent.contested:
+        #         return playBack(agent)
     else:
         flipDecider2(agent)
 
@@ -1408,193 +1408,7 @@ def lineupShot(agent,multi):
 #                                         agent.renderer.red))
 #     return result
 
-# def lineupShot(agent,multi):
-#     variance = 5
-#
-#     leftPost = Vector([-sign(agent.team) * 500, 5200 * -sign(agent.team), 200])
-#     rightPost = Vector([sign(agent.team) * 500, 5200 * -sign(agent.team), 200])
-#     center = Vector([0, 5400 * -sign(agent.team), 200])
-#
-#     myGoal = Vector([0, 5300 * sign(agent.team), 200])
-#
-#
-#     # if agent.me.location.data[1] *-sign(agent.team) > agent.ball.location.data[1] *-sign(agent.team):
-#     #     print("am I ahead of the ball?")
-#
-#     if ballHeadedTowardsMyGoal(agent):
-#         return ShellTime(agent)
-#
-#     if agent.selectedBallPred:
-#         targetVec = Vector([agent.selectedBallPred.physics.location.x, agent.selectedBallPred.physics.location.y,
-#                             agent.selectedBallPred.physics.location.z])
-#         agent.ballDelay = agent.selectedBallPred.game_seconds - agent.gameInfo.seconds_elapsed
-#
-#     else:
-#         targetVec = agent.ball.location
-#         agent.ballDelay = 0
-#
-#     #ballCorner = cornerDetection(agent.ball.location)
-#
-#     dist = distance2D(agent.me.location, targetVec)
-#     goalDist = distance2D(center, targetVec)
-#     ballToGoalDist = distance2D(targetVec, center)
-#     targetLocal = toLocal(targetVec,agent.me)
-#     carToBallAngle = math.degrees(math.atan2(targetLocal[1],targetLocal[0]))
-#     carToGoalDistance = distance2D(center,agent.me.location)
-#     carToBallDistance = distance2D(targetVec,agent.me.location)
-#
-#     carToBallAngle = correctAngle(carToBallAngle)
-#
-#
-#     shotAngles = [math.degrees(angle2(targetVec, leftPost)),
-#                   math.degrees(angle2(targetVec, center)),
-#                   math.degrees(angle2(targetVec, rightPost))]
-#
-#     correctedAngles=[correctAngle(x + 90 * -sign(agent.team)) for x in shotAngles]
-#
-#     if len(agent.allies) < 1:
-#         if abs(correctedAngles[1]) >= 65:
-#             if agent.contested or agent.me.boostLevel < 50:
-#                 return playBack(agent)
-#                 # if agent.me.boostLevel < 50:
-#                 #     #print('getting boost?')
-#                 #     return saferBoostGrabber(agent)
-#                 # else:
-#                 #     return playDefensive(agent)
-#     else:
-#         flipDecider2(agent)
-#
-#     # if distance2D(center,targetVec) < 2000:
-#     #     goalAngle = correctedAngles[1]
-#     #     goalSpot = center
-#     #
-#     # else:
-#     #     if correctedAngles[1] < -variance:
-#     #         goalAngle = correctedAngles[0]
-#     #         goalSpot = leftPost
-#     #
-#     #     elif correctedAngles[1] > variance:
-#     #         goalAngle = correctedAngles[2]
-#     #         goalSpot = rightPost
-#     #
-#     #     else:
-#     #         goalAngle = correctedAngles[1]
-#     #         goalSpot = center
-#     goalSpot = center
-#
-#     targetLoc = None
-#     rush = agent.ballGrounded
-#
-#     if abs(carToBallAngle) <=45 or abs(carToBallAngle) >= 135:
-#         carOffset = agent.carLength/2
-#     else:
-#         carOffset = agent.carWidth/2
-#
-#     positioningOffset = 0
-#
-#     if agent.contested:
-#         _direction = direction(center, targetVec)
-#         targetLoc = targetVec - _direction.scale(120)
-#         positioningOffset = 120
-#
-#     if abs(carToBallAngle) < 30:
-#         if is_in_strike_zone(agent, targetVec):
-#             targetLoc = targetVec
-#             targetLoc.data[1] += sign(agent.team)*10
-#             if abs(carToBallAngle) <=6:
-#                 if distance2D(agent.me.location, agent.ball.location) < 400:
-#                         if targetVec[2] <= 150:
-#                             #rush = True
-#                             if openGoalOpportunity(agent):
-#                                 if agent.me.boostLevel < 1:
-#                                     if (agent.me.location[1] * -sign(agent.team))+ -sign(agent.team)*100 < agent.ball.location[1] * -sign(agent.team):
-#                                         agent.setJumping(0)
-#
-#
-#
-#     if not targetLoc:
-#         if not agent.contested:
-#             if abs(targetVec[0]) < 2200:
-#                 if ballToGoalDist < 5800 and ballToGoalDist > 1300:
-#                     if targetVec[2] < 120:
-#                         if abs(agent.me.location[1] < abs(targetVec[1])):
-#                             _direction = direction(goalSpot, targetVec)
-#                             targetLoc = targetVec - _direction.scale(120 + dist * 0.5)
-#                             positioningOffset = 120 + dist * 0.5
-#
-#
-#
-#     if not targetLoc:
-#         targetLoc = findOppositeSide(agent, targetVec, goalSpot, clamp(400, 80, carToBallDistance * .35))
-#         positioningOffset = clamp(400, 80, carToBallDistance * .35)
-#         #targetLoc = findOppositeSide(agent,targetVec,goalSpot,clamp(125,20,(dist/1.5)-abs(carToBallAngle)))
-#
-#     if agent.contested:
-#         defensivePosition = findOppositeSide(agent, targetVec, myGoal, -120)
-#         y = targetLoc.data[1]
-#         percent = 1
-#         if agent.team == 0:
-#             if y < 0:
-#                 percent = clamp(1, 0, abs(y / 5120))
-#
-#         else:
-#             if y > 0:
-#                 percent = clamp(1, 0, abs(y / 5120))
-#
-#         if percent < 0.75:
-#             targetLoc = targetLoc.lerp(defensivePosition, percent)
-#             # print(f"lerping {y}  {percent}")
-#
-#
-#
-#
-#
-#
-#     placeVecWithinArena(targetLoc)
-#
-#     if rush:
-#         result = testMover(agent,targetLoc,maxPossibleSpeed)
-#     else:
-#         #modifiedDelay = clamp(6,0,agent.ballDelay-((positioningOffset+carOffset)/agent.currentSpd))
-#         modifiedDelay = clamp(6, 0, agent.ballDelay - (positioningOffset+carOffset / agent.currentSpd))
-#         result = timeDelayedMovement(agent, targetLoc, agent.ballDelay,True)
-#
-#     targetLoc.data[2] = 95
-#     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, targetLoc.data,
-#                                         agent.renderer.purple))
-#
-#     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.ball.location.data, goalSpot,
-#                                         agent.renderer.red))
-#     return result
 
-# def maxSpeedAdjustment(agent,target):
-#     tar_local = toLocal(target,agent.me)
-#     angle = correctAngle(math.degrees(math.atan2(tar_local[1],tar_local[0])))
-#     dist = distance2D(agent.me.location,target)
-#     distCorrection = dist/300
-#
-#     if dist >=3000:
-#         return 2200
-#
-#     if distCorrection > abs(angle):
-#         angle = 0
-#
-#     else:
-#         if angle > 0:
-#             angle -= distCorrection
-#         else:
-#             angle += distCorrection
-#
-#     cost = 2200/180
-#
-#     if abs(angle) <-10:
-#         return 2200
-#
-#     elif abs(angle) >=90:
-#         return 500
-#
-#     else:
-#         return clamp(2200,1000,2200 - (angle*cost))
 
 def maxSpeedAdjustment(agent,target):
     tar_local = toLocal(target,agent.me)
@@ -1612,10 +1426,10 @@ def maxSpeedAdjustment(agent,target):
 
     cost_inc = maxPossibleSpeed/180
     if dist < 1000:
-        cost_inc*=2
+        cost_inc*=2.5
     #angle = abs(angle) -10
     angle = abs(angle)
-    newSpeed = clamp(maxPossibleSpeed,500,maxPossibleSpeed - (angle*cost_inc))
+    newSpeed = clamp(maxPossibleSpeed,400,maxPossibleSpeed - (angle*cost_inc))
     #print(f"adjusting speed to {newSpeed}")
 
     return newSpeed
@@ -1641,14 +1455,11 @@ def is_in_strike_zone(agent, ball_vec):
         return True
     return False
 
-def calcTimeWithAcceleration(agent,distance,boostless = False):
+def calcTimeWithAcceleration(agent,distance):
     estimatedSpd = agent.currentSpd
     estimatedTime = 0
     distanceTally = 0
-    if boostless:
-        boostAmount = 0
-    else:
-        boostAmount = agent.me.boostLevel
+    boostAmount = agent.me.boostLevel
     boostingCost = 33.3*agent.deltaTime
     linearChunk = 1600/1410
     while distanceTally < distance and estimatedTime < 6:
@@ -1994,13 +1805,14 @@ def testMover(agent, target_object,targetSpd):
 #         return efficientMover(agent, targetVec, (dist/delay)+adjustedSpd,boostHunt=True)
 
 def timeDelayedMovement(agent,targetVec,delay,boostHungry):
-    arrivalEstimate = inaccurateArrivalEstimator(agent, targetVec,boostless= True)
+    arrivalEstimate = inaccurateArrivalEstimator(agent, targetVec)
 
-    distance = clamp(999999, 0.00001, distance2D(agent.me.location, targetVec))
-    speed = distance / clamp(20,0.00001,delay)
+    if arrivalEstimate >= delay:
+        return testMover(agent, targetVec, maxPossibleSpeed)
 
-    if arrivalEstimate > delay:
-        return testMover(agent, targetVec, speed)
+    else:
+        distance = clamp(999999,0.00001,distance2D(agent.me.location,targetVec))
+        speed = distance/delay
 
     return efficientMover(agent, targetVec, speed,boostHunt=boostHungry)
 
@@ -2324,7 +2136,7 @@ def findSuitableBallPosition(agent, heightMax, speed, origin):
     ballInGoal = None
     goalTimer = math.inf
     if agent.ballPred is not None:
-        for i in range(0, agent.ballPred.num_slices):
+        for i in range(0, agent.ballPred.num_slices,3):
             if isBallHittable(agent.ballPred.slices[i],agent,heightMax):
                 applicableStructs.append(agent.ballPred.slices[i])
                 if agent.team == 0:
@@ -2394,12 +2206,16 @@ def findSuitableBallPosition2(agent, heightMax, speed, origin):
         agent.goalPred = ballInGoal
     return agent.ballPred.slices[-1]
 
-def inaccurateArrivalEstimator(agent,destination,boostless = False):
-    distance = clamp(math.inf,0.00001,distance2D(agent.me.location,destination)-(91+agent.carLength/2))
-    moreAccurateEstimation = calcTimeWithAcceleration(agent,distance,boostless = boostless)
+def inaccurateArrivalEstimatorRemote(agent,start,destination):
+    distance = clamp(math.inf,1,distance2D(start,destination))
+    currentSpd = clamp(2300,1,agent.getCurrentSpd())
 
-    #print(f"estimate for reaching distance {distance}: {moreAccurateEstimation}")
-    return moreAccurateEstimation
+    if agent.me.boostLevel > 0:
+        maxSpd = clamp(2300,currentSpd,currentSpd+ (distance*.3))
+    else:
+        maxSpd = clamp(2200, currentSpd, currentSpd + (distance*.15))
+
+    return distance/maxSpd
 
 def CB_Reworked(agent,targetVec):
     dist = clamp(25000, 1, distance2D(agent.me.location, targetVec))
