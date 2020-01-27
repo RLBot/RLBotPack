@@ -6,7 +6,7 @@ from Utilities import *
 from States import *
 import cProfile, pstats, io
 import time
-from numba import jit
+#from numba import jit
 
 
 
@@ -85,7 +85,6 @@ class Kamael(BaseAgent):
         self.superSonic = False
         self.wallShot = False
         self.openGoal = False
-        self.activeState = PreemptiveStrike(self)
         self.boostConsumptionRate = 33.3
         self.boostAccelerationRate = 991.666
         self.jumpLimit = 275
@@ -106,7 +105,28 @@ class Kamael(BaseAgent):
         self.timid = False
         self.dribbling = False
         self.goalward = False
+        self.stubbornessTimer = 0
+        self.stubbornessMax = 500
+        self.stubbornessMin = 200
+        self.stubborness = self.stubbornessMin
+        self.activeState = PreemptiveStrike(self)
+        self.contestedTimeLimit = .5
+        self.demoSpawns = [[Vector([-2304, -4608,0]),Vector([2304, -4608,0])],[Vector([2304, 4608,0]),Vector([-2304, 4608,0])]]
+        self.rotationNumber = 1
 
+
+    def demoRelocation(self,car):
+        if car.team == 0:
+            if distance2D(self.ball.location,self.demoSpawns[0][0]) < distance2D(self.ball.location,self.demoSpawns[0][1]):
+                return self.demoSpawns[0][0]
+            else:
+                return self.demoSpawns[0][1]
+        else:
+            if distance2D(self.ball.location, self.demoSpawns[1][0]) < distance2D(self.ball.location,
+                                                                                  self.demoSpawns[1][1]):
+                return self.demoSpawns[1][0]
+            else:
+                return self.demoSpawns[1][1]
 
     def getActiveState(self):
         if type(self.activeState) == LeapOfFaith:
@@ -143,18 +163,19 @@ class Kamael(BaseAgent):
         ])
 
     def determineFacing(self):
-        offset = self.me.location + self.me.velocity
+        offset = self.me.location + self.me.velocity.normalize().scale(500)
         loc = toLocal(offset,self.me)
         angle = correctAngle(math.degrees(math.atan2(loc[1],loc[0])))
 
-        if abs(angle) >= 115:
-            if self.currentSpd <= 300:
+        if abs(angle) >= 100:
+            if self.currentSpd <= self.stubborness:
                 self.forward = True
             else:
                 self.forward = False
             #self.forward = False
         else:
             self.forward = True
+        #self.forward = False
 
         self.velAngle = angle
 
@@ -192,20 +213,30 @@ class Kamael(BaseAgent):
         self.oldPreds = self.ballPred
         self.ballPred = self.get_ball_prediction_struct()
         self.players = [self.index]
-
         car = game.game_cars[self.index]
         self.timid = False
-        self.me.location = Vector([car.physics.location.x, car.physics.location.y, car.physics.location.z])
-        self.me.velocity = Vector([car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z])
-        self.me.rotation = Vector([car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll])
-        self.me.avelocity = Vector([car.physics.angular_velocity.x, car.physics.angular_velocity.y, car.physics.angular_velocity.z])
-        self.me.boostLevel = car.boost
-        #self.me.rot_vector = Rotation_Vector(self.me.rotation)
-        self.onSurface = car.has_wheel_contact
-        self.superSonic = car.is_super_sonic
-        self.deltaTime = clamp(1,self.fpsLimit,game.game_info.seconds_elapsed - self.time)
+        self.deltaTime = clamp(1, self.fpsLimit, game.game_info.seconds_elapsed - self.time)
         self.time = game.game_info.seconds_elapsed
-        self.currentSpd = clamp(2300, 1, self.getCurrentSpd())
+        self.me.demolished = car.is_demolished
+        if not car.is_demolished:
+            self.me.location = Vector([car.physics.location.x, car.physics.location.y, car.physics.location.z])
+            self.me.velocity = Vector([car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z])
+            self.me.rotation = Vector([car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll])
+            self.me.avelocity = Vector([car.physics.angular_velocity.x, car.physics.angular_velocity.y, car.physics.angular_velocity.z])
+            self.me.boostLevel = car.boost
+            self.onSurface = car.has_wheel_contact
+            self.superSonic = car.is_super_sonic
+            self.currentSpd = clamp(2300, 1, self.getCurrentSpd())
+        else:
+            self.me.location = self.demoRelocation(car)
+            self.me.velocity = Vector([0,0,0])
+            self.me.rotation = Vector([0,0,0])
+            self.me.avelocity = Vector([0,0,0])
+            self.me.boostLevel = 34
+            self.onSurface = True
+            self.superSonic = False
+            self.currentSpd = 0.0001
+
         #print(self.me.rotation[0])
         if not self.hitbox_set:
             #'hitbox': {'length': 118, 'width': 84, 'height': 36},
@@ -220,6 +251,10 @@ class Kamael(BaseAgent):
             self.hitbox_set = True
             print(f"team {self.team} hitbox length:{self.carLength} width:{self.carWidth} height:{self.carHeight} groundCutoff:{self.groundCutOff}")
 
+        if self.stubbornessTimer > 0:
+            self.stubbornessTimer -= self.deltaTime
+            if self.stubbornessTimer <=0:
+                self.stubborness = self.stubbornessMin
 
         ball = game.game_ball.physics
         self.ball.location = Vector([ball.location.x, ball.location.y, ball.location.z])
@@ -245,13 +280,23 @@ class Kamael(BaseAgent):
                 _obj = physicsObject()
                 _obj.index = i
                 _obj.team = car.team
-                _obj.location = Vector([car.physics.location.x, car.physics.location.y, car.physics.location.z])
-                _obj.velocity = Vector([car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z])
-                _obj.rotation = Vector([car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll])
-                _obj.avelocity = Vector([car.physics.angular_velocity.x, car.physics.angular_velocity.y, car.physics.angular_velocity.z])
-                _obj.boostLevel = car.boost
-                _obj.local_location = localizeVector(_obj,self.me)
-                _obj.onSurface = car.has_wheel_contact
+                _obj.demolished = car.is_demolished
+                if not car.is_demolished:
+                    _obj.location = Vector([car.physics.location.x, car.physics.location.y, car.physics.location.z])
+                    _obj.velocity = Vector([car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z])
+                    _obj.rotation = Vector([car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll])
+                    _obj.avelocity = Vector([car.physics.angular_velocity.x, car.physics.angular_velocity.y, car.physics.angular_velocity.z])
+                    _obj.boostLevel = car.boost
+                    _obj.local_location = localizeVector(_obj,self.me)
+                    _obj.onSurface = car.has_wheel_contact
+                else:
+                    #print(f"relocated demo'd player {car.name}")
+                    _obj.location = self.demoRelocation(car)
+                    _obj.velocity = Vector([0, 0, 0])
+                    _obj.rotation = Vector([0, 0, 0])
+                    _obj.avelocity = Vector([0, 0, 0])
+                    _obj.boostLevel = 34
+                    _obj.onSurface = True
 
                 if car.team == self.team:
                     self.allies.append(_obj)
@@ -276,6 +321,13 @@ class Kamael(BaseAgent):
                 self.onWall = True
         #if type(self.activeState) != PreemptiveStrike:
         self.hits = findHits(self, self.groundCutOff, self.jumpLimit)
+
+        # print("==========")
+        # for each in self.hits:
+        #     if each != None:
+        #         print(each)
+
+
         self.determineFacing()
         self.goalPred = None
         self.gravity = game.game_info.world_gravity_z
@@ -336,11 +388,11 @@ class Kamael(BaseAgent):
         if len(self.allies) > 0:
             newTeamStateManager(self)
         else:
-            soloStateManager(self)
+            #soloStateManager(self)
             # if self.team == 0:
             #     soloStateManager(self)
             # else:
-            #     soloStateManager_testing(self)
+            soloStateManager_testing(self)
 
         #action = SimpleControllerState()
         action = self.activeState.update()
