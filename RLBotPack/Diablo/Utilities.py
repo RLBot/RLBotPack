@@ -999,11 +999,11 @@ def ShellTime(agent):
         modifiedDelay = agent.ballDelay
     result = timeDelayedMovement(agent, destination, agent.ballDelay,True)
 
-    if len(agent.allies) <1:
-        flipDecider(agent,targetVec,True)
-    else:
-        flipDecider2(agent)
-
+    # if len(agent.allies) <1:
+    #     flipDecider(agent,targetVec,True)
+    # else:
+    #     flipDecider2(agent)
+    flipDecider(agent, targetVec, True)
     destination.data[2] = 75
     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d,
                                         agent.me.location.data,
@@ -1192,13 +1192,14 @@ def lineupShot(agent,multi):
 
     correctedAngles=[correctAngle(x + 90 * -sign(agent.team)) for x in shotAngles]
 
-    if len(agent.allies) < 1:
-        flipDecider(agent,targetVec,True)
-        # if abs(correctedAngles[1]) >= 60:
-        #     if agent.contested:
-        #         return playBack(agent)
-    else:
-        flipDecider2(agent)
+    # if len(agent.allies) < 1:
+    #     flipDecider(agent,targetVec,True)
+    #     # if abs(correctedAngles[1]) >= 60:
+    #     #     if agent.contested:
+    #     #         return playBack(agent)
+    # else:
+    #     flipDecider2(agent)
+    flipDecider(agent, targetVec, True)
 
     if distance2D(center,targetVec) < 2000:
         goalAngle = correctedAngles[1]
@@ -1735,11 +1736,11 @@ def testMover(agent, target_object,targetSpd):
     if agent.me.boostLevel <=0:
         return efficientMover(agent, target_object, targetSpd, boostHunt=False)
 
-    if len(agent.allies) >= 1:
-        steering, slide = newSteer(angle_to_target)
-    else:
-        steering, slide = rockSteer(angle_to_target,_distance)
-
+    # if len(agent.allies) >= 1:
+    #     steering, slide = newSteer(angle_to_target)
+    # else:
+    #     steering, slide = rockSteer(angle_to_target,_distance)
+    steering, slide = newSteer(angle_to_target)
     if slide:
         if abs(agent.me.avelocity[2]) < 1:
             slide = False
@@ -1942,11 +1943,11 @@ def efficientMover(agent,target_object,target_speed,boostHunt = False):
                 if abs(_angle) <= 50 :
                     agent.setHalfFlip()
 
-    if len(agent.allies) >= 1:
-        steerDirection, slideBool = newSteer(angle_to_target)
-    else:
-        steerDirection, slideBool = rockSteer(angle_to_target,_distance)
-
+    # if len(agent.allies) >= 1:
+    #     steerDirection, slideBool = newSteer(angle_to_target)
+    # else:
+    #     steerDirection, slideBool = rockSteer(angle_to_target,_distance)
+    steerDirection, slideBool = newSteer(angle_to_target)
     if slideBool:
         if abs(agent.me.avelocity[2]) < 1:
             slideBool = False
