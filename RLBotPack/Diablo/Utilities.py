@@ -1,9 +1,30 @@
 import math
 import time
+#import States
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlutilities.linear_algebra import *
 from rlutilities.mechanics import Aerial, AerialTurn, Dodge, Wavedash, Boostdash
 from rlutilities.simulation import Game, Ball, Car
+import cProfile, pstats, io
+
+
+
+def profile(fnc):
+    """A decorator that uses cProfile to profile a function"""
+
+    def inner(*args, **kwargs):
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+
+    return inner
 
 
 
@@ -130,6 +151,9 @@ class Vector:
 
         else:
             self.raiseCrossError()
+
+    def flatten(self):
+        return Vector(self.data[:2]+[0])
 
 
     def magnitude(self):
@@ -513,9 +537,11 @@ def secondManSupport(agent):
         return saferBoostGrabber(agent)
 
     destination = findOppositeSide(agent,agent.ball.location,defendTarget,-100)
-    destination.data[1] += sign(agent.team)*1200
+    destination.data[1] += sign(agent.team)*2200
     destination.data[2] = 75
     placeVecWithinArena(destination)
+    destination.data[0] = clamp(3500,-3500,destination.data[0])
+
     agent.renderCalls.append(renderCall(agent.renderer.draw_line_3d, agent.me.location.data, destination.data,
                                         agent.renderer.green))
 
@@ -2131,48 +2157,181 @@ def findSoonestBallTouchable(agent):
 
     return None
 
+
+def aerialWorkHorse(agent,struct):
+    myGoal = center = Vector([0, 5120 * sign(agent.team), 200])
+    enemyGoal = center = Vector([0, 5120 * -sign(agent.team), 200])
+
+
+    aerial = agent.aerial
+    a_turn = agent.a_turn
+
+    targetVec = Vector([aerial.target[0],aerial.target[1],aerial.target[2]])
+    #print(aerial.target.x)
+
+    if agent.onSurface and not agent.onWall:
+        targetLocal = toLocal(targetVec, agent.me)
+
+        carToBallAngle = correctAngle(
+            math.degrees(math.atan2(targetLocal[1], targetLocal[0])))
+
+        maxAngle = clamp(45,2,distance2D(agent.me.location,targetVec)/100)
+        if abs(carToBallAngle) > maxAngle:
+            print("driving to target")
+            agent.forward = True
+            return efficientMover(agent,targetVec,1000,boostHunt = False)
+        # else:
+        #     print("launching")
+        #     agent.setLaunch()
+        #     return agent.activeState.update()
+
+    print("returning aerial controls")
+    aerial.step(agent.deltaTime)
+    controls = aerial.controls
+    if agent.onSurface:
+        controls.jump = True
+    return controls
+
+
+
+#@profile
+def aerialSelection(agent, struct):
+
+    myGoal = Vector([0, 5120 * sign(agent.team), 200])
+    enemyGoal = Vector([0, 5120 * -sign(agent.team), 200])
+
+    if agent.aerial == None:
+        agent.aerial = Aerial(agent.game.my_car)
+    if agent.a_turn == None:
+        agent.a_turn = AerialTurn(agent.game.my_car)
+
+    aerial = agent.aerial
+    a_turn = agent.a_turn
+
+
+    targetVec = Vector([struct.physics.location.x,struct.physics.location.y,struct.physics.location.z])
+
+
+    acceptable = False
+    if agent.team == 0:
+        if agent.me.location[1] < targetVec[1]:
+            acceptable = True
+    else:
+        if agent.me.location[1] > targetVec[1]:
+            acceptable = True
+
+    if acceptable:
+
+        if agent.team == 0:
+
+            targetLocal = toLocal(targetVec, agent.me)
+
+            totalAngle = math.degrees(math.atan2(targetLocal[1],targetLocal[0]))
+
+            if abs(totalAngle) > 60:
+                return False
+
+        elif agent.team == 1:
+
+            targetLocal = toLocal(targetVec, agent.me)
+            totalAngle = math.degrees(math.atan2(targetLocal[1], targetLocal[0]))
+
+            if abs(totalAngle) > 60:
+                return False
+
+
+        ballAngle = correctAngle(math.degrees(angle2(targetVec, enemyGoal)+ 90 * -sign(agent.team)))
+        if abs(ballAngle) > 55:
+            return False
+
+
+        aerial.arrival_time = struct.game_seconds
+        direction = (enemyGoal.flatten() - targetVec.flatten()).normalize()
+        beneathAmount = -35
+        if distance2D(targetVec, enemyGoal) >= 2000:
+            beneathAmount = 0
+        offset = direction.scale(100+beneathAmount)
+        targetVec = targetVec - offset
+
+        targetVec.data[2]-=beneathAmount
+
+        aerial.target = vec3(targetVec[0], targetVec[1], targetVec[2])
+
+        simulation = aerial.simulate()
+        if norm(simulation.location - aerial.target) < 100:
+            return True
+
+    return False
+
+
+def findPredictionByTime(agent,_time): #agent and updated prediction.game_seconds
+    req_time = _time - agent.gameInfo.seconds_elapsed
+    index = int((1/60) * req_time)
+    if index <=0 or index >= 360:
+        return -1
+
+    return agent.ballPred[index]
+
+
+
 def findSuitableBallPosition(agent, heightMax, speed, origin):
     applicableStructs = []
     spd = clamp(2300,300,speed)
     ballInGoal = None
     goalTimer = math.inf
-    if agent.ballPred is not None:
-        for i in range(0, agent.ballPred.num_slices,3):
-            if isBallHittable(agent.ballPred.slices[i],agent,heightMax):
-                applicableStructs.append(agent.ballPred.slices[i])
-                if agent.team == 0:
-                    if agent.ballPred.slices[i].physics.location.y <= -5250:
-                        ballInGoal = agent.ballPred.slices[i]
-                        goalTimer = agent.ballPred.slices[i].game_seconds - agent.gameInfo.seconds_elapsed
-                        break
-                else:
-                    if agent.ballPred.slices[i].physics.location.y >= 5250:
-                        ballInGoal = agent.ballPred.slices[i]
-                        goalTimer = agent.ballPred.slices[i].game_seconds - agent.gameInfo.seconds_elapsed
-                        break
-    agent.wallShot = False
-    for pred in applicableStructs:
-        distance = distance2D(Vector([pred.physics.location.x,pred.physics.location.y]),origin)
-        timeToTarget = inaccurateArrivalEstimator(agent,Vector([pred.physics.location.x,pred.physics.location.y,pred.physics.location.z]))
-        #adjustSpd = clamp(2300,1000,speed+distance*.7)
-        if timeToTarget < (pred.game_seconds - agent.gameInfo.seconds_elapsed):
-            if goalTimer < pred.game_seconds - agent.gameInfo.seconds_elapsed:
-                agent.goalPred = ballInGoal
-            agent.wallShot = isBallNearWall(pred)
-            if timeToTarget < goalTimer:
-                return pred
+
+    aerialStruct = None
+    aboveThreshold = False
+    valid = True
+
+    for i in range(0, agent.ballPred.num_slices,3):
+        # if i > 60 and i%3 == 0:
+        #     continue
+        pred = agent.ballPred.slices[i]
+        _distance = distance2D(Vector([pred.physics.location.x, pred.physics.location.y]), origin)
+        if isBallHittable(agent.ballPred.slices[i],agent,heightMax):
+            if agent.team == 0:
+                if pred.physics.location.y <= -5250:
+                    ballInGoal = pred
+                    goalTimer = pred.game_seconds - agent.gameInfo.seconds_elapsed
+                    agent.goalPred = pred
+                    agent.wallShot = isBallNearWall(pred)
+                    return ballInGoal,aerialStruct
+            else:
+                if pred.physics.location.y >= 5250:
+                    ballInGoal = pred
+                    goalTimer = pred.game_seconds - agent.gameInfo.seconds_elapsed
+                    agent.goalPred = pred
+                    agent.wallShot = isBallNearWall(pred)
+                    return ballInGoal, aerialStruct
+
+            #ground ball selection here
 
 
-    if ballInGoal:
-        agent.wallShot = isBallNearWall(ballInGoal)
-        return ballInGoal
+            timeToTarget = inaccurateArrivalEstimator(agent, Vector(
+                [pred.physics.location.x, pred.physics.location.y, pred.physics.location.z]))
+            if timeToTarget < (pred.game_seconds - agent.gameInfo.seconds_elapsed):
+                agent.wallShot = isBallNearWall(pred)
+                return pred, aerialStruct
 
-    if len(applicableStructs) > 0:
-        agent.wallShot = isBallNearWall(applicableStructs[0])
-        return applicableStructs[0]
 
-    agent.wallShot = isBallNearWall(agent.ballPred.slices[-1])
-    return agent.ballPred.slices[-1]
+
+        else:
+            if aerialStruct == None:
+                if pred.physics.location.z >= clamp(700,200,_distance/3):
+                    aboveThreshold = True
+                    if valid:
+                        if agent.me.boostLevel > 0:
+                            if aerialSelection(agent, pred):
+                                aerialStruct = pred
+                # else:
+                #     if aboveThreshold:
+                #         valid = False
+
+
+    return pred,aerialStruct
+
+
 
 def findSuitableBallPosition2(agent, heightMax, speed, origin):
     applicableStructs = []
