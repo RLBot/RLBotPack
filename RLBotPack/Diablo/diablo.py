@@ -20,8 +20,24 @@ except:
 
 from Utilities import *
 from States import *
+import cProfile, pstats, io
 
+def profile(fnc):
+    """A decorator that uses cProfile to profile a function"""
 
+    def inner(*args, **kwargs):
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+
+    return inner
 
 
 class diabloBot(BaseAgent):
@@ -72,6 +88,8 @@ class diabloBot(BaseAgent):
         self.carHeight = 36.159
         self.openGoal = False
         self.maxDT = 1/120
+        self.aerial = None #Aerial(agent.game.my_car)
+        self.a_turn = None #AerialTurn(agent.game.my_car)
 
     def getActiveState(self):
         if type(self.activeState) == JumpingState:
@@ -91,6 +109,9 @@ class diabloBot(BaseAgent):
 
     def setHalfFlip(self):
         self.activeState = halfFlip(self)
+
+    def setLaunch(self):
+        self.activeState = airLaunch(self)
 
     def determineFacing(self):
         offset = self.me.location + self.me.velocity
@@ -227,9 +248,7 @@ class diabloBot(BaseAgent):
             self.contested = False
             self.enemyAttacking = False
 
-
-
-
+    #@profile
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         self.preprocess(packet)
         if len(self.allies) >=1:
@@ -239,12 +258,15 @@ class diabloBot(BaseAgent):
         action = self.activeState.update()
 
         self.renderer.begin_rendering()
-        self.renderer.draw_string_2d(100, 100, 1, 1, str(type(self.activeState)), self.renderer.white())
+        #self.renderer.draw_string_2d(100, 100, 1, 1, str(type(self.activeState)), self.renderer.white())
 
         for each in self.renderCalls:
             each.run()
         self.renderer.end_rendering()
         self.renderCalls.clear()
+        if action == None:
+            print(f"{str(type(self.activeState))} failed to produce a controller. Whoops.")
+            action = SimpleControllerState()
 
         return action
 
