@@ -70,7 +70,6 @@ class airLaunch(baseState):
             else:
                 self.active = False
                 self.jump = False
-                self.agent.activeState = AerialHandler(self.agent)
 
         if time.time() - self.jumpTimer > 0.15 and time.time() - self.jumpTimer < 0.35:
             stateController.pitch = 1
@@ -78,161 +77,30 @@ class airLaunch(baseState):
 
 
 class AerialHandler():
-    def __init__(self,agent):
+    def __init__(self,agent,struct):
         self.agent = agent
-        self.active = False
-        self.timer = time.time()
-        self.setup()
+        self.active = True
         self.threshold = 300
-
-    def setup(self):
-        self.aerial = Aerial(self.agent.game.my_car)
-        self.turn = AerialTurn(self.agent.game.my_car)
-        myGoal = center = Vector([0, 5120 * sign(self.agent.team), 200])
-        enemyGoal = center = Vector([0, 5120 * -sign(self.agent.team), 200])
-        aboveThreshold = False
-
-        if self.agent.me.boostLevel > 0:
-            for i in range(0, self.agent.ballPred.num_slices):
-                targetVec = Vector([self.agent.ballPred.slices[i].physics.location.x,
-                                    self.agent.ballPred.slices[i].physics.location.y,
-                                    self.agent.ballPred.slices[i].physics.location.z])
-
-                if self.agent.ballPred.slices[i].physics.location.z >= 300:
-                    if not aboveThreshold:
-                        aboveThreshold =True
-                    goalDist = distance2D(center, targetVec)
-                    acceptable = False
-                    if self.agent.team == 0:
-                        if self.agent.me.location[1]  < targetVec[1]:
-                            acceptable = True
-                    else:
-                        if self.agent.me.location[1]  > targetVec[1]:
-                            acceptable = True
-
-                    if acceptable:
-                        zOffset = -10
-                        if goalDist < 1500:
-                            if targetVec[2] > 600:
-                                zOffset = 70
-                        shotAngle = correctAngle(math.degrees(angle2(targetVec, enemyGoal)) + 90 * -sign(self.agent.team))
-
-                        if self.agent.team == 0:
-                            if targetVec[1] >= 0:
-                                if abs(targetVec[0]) > 893:
-                                    if targetVec[0] > 0:
-                                        closePost = Vector([893, 5120 * -sign(self.agent.team), 200])
-                                    else:
-                                        closePost = Vector([-893, 5120 * -sign(self.agent.team), 200])
-
-                                    attackAngle  = correctAngle(math.degrees(angle2(targetVec, closePost)) + 90 * -sign(self.agent.team))
-
-                                    targetLocal = toLocal(
-                                        Vector([self.agent.ballPred.slices[i].physics.location.x,
-                                                self.agent.ballPred.slices[i].physics.location.y,
-                                                self.agent.ballPred.slices[i].physics.location.z]), self.agent.me)
-                                    carToBallAngle = correctAngle(math.degrees(math.atan2(targetLocal[1],
-                                                                                          targetLocal[0])))
-                                    totalAngle = correctAngle(math.degrees(math.tan(attackAngle) + math.tan(carToBallAngle) / (1 - (math.tan(attackAngle) * math.tan(carToBallAngle)))))
-
-                                    if abs(totalAngle) > 60:
-                                        continue
-
-                        elif self.agent.team == 1:
-                            if targetVec[1] <= 0:
-                                if abs(targetVec[0]) > 893:
-                                    if targetVec[0] > 0:
-                                        closePost = Vector([893, 5120 * -sign(self.agent.team), 200])
-                                    else:
-                                        closePost = Vector([-893, 5120 * -sign(self.agent.team), 200])
-
-                                    attackAngle = correctAngle(
-                                        math.degrees(angle2(targetVec, closePost)) + 90 * -sign(self.agent.team))
-
-                                    targetLocal = toLocal(
-                                        Vector([self.agent.ballPred.slices[i].physics.location.x,
-                                                self.agent.ballPred.slices[i].physics.location.y,
-                                                self.agent.ballPred.slices[i].physics.location.z]), self.agent.me)
-                                    carToBallAngle = correctAngle(
-                                        math.degrees(math.atan2(targetLocal[1], targetLocal[0])))
-
-                                    totalAngle = correctAngle(carToBallAngle + attackAngle)
-
-                                    if abs(totalAngle) > 60:
-                                        continue
+        self.struct = struct
 
 
-                        if abs(shotAngle) <=75:
+    def structViable(self):
+        updatedStructTime = self.struct.game_seconds - self.agent.gameInfo.seconds_elapsed
+        updatedStruct = findPredictionByTime(self.agent,updatedStructTime) #agent and updated prediction.game_seconds
+        if updatedStruct == -1:
+            return False
 
-                            xOffset = clamp(80,-80,(shotAngle*2)*-sign(self.agent.team))
-                            self.aerial.arrival_time = self.agent.ballPred.slices[i].game_seconds
-                            direction = (enemyGoal - targetVec).normalize()
-                            offset = direction.scale(100)
-                            targetVec = targetVec-offset
+        old = convertStructLocationToVector(self.struct)
+        new = convertStructLocationToVector(updatedStruct)
 
-                            self.aerial.target = vec3(targetVec[0],targetVec[1],targetVec[2])
+        if findDistance(old,new) < 10:
+            return True
+        return False
 
-                            simulation = self.aerial.simulate()
-                            if norm(simulation.location - self.aerial.target) < 100:
-
-                                self.target_ball = self.agent.ballPred.slices[i]
-                                self.xOffset = xOffset
-                                self.zOffset = zOffset
-                                self.active = True
-                                if self.agent.onSurface:
-                                    if self.agent.ballPred.slices[i].physics.location.z >= 400:
-                                        targetLocal = toLocal(targetVec, self.agent.me)
-
-                                        carToBallAngle = correctAngle(math.degrees(math.atan2(targetLocal[1], targetLocal[0])))
-                                        if abs(carToBallAngle) < 45:
-                                            if distance2D(self.agent.me.location,targetLocal) > 1500:
-                                                if self.agent.ballPred.slices[i].physics.location.z >= 900:
-                                                    if not self.agent.onWall:
-                                                        self.agent.activeState = airLaunch(self.agent)
-                                                        self.active = False
-                                                        return self.agent.activeState.update()
-                                break
-
-                else:
-                    if aboveThreshold:
-                        break
-
-    def stillValid(self):
-        for i in range(0, self.agent.ballPred.num_slices):
-            if self.agent.ballPred.slices[i].physics.location.z >= 300:
-                if abs(self.target_ball.game_seconds - self.agent.ballPred.slices[i].game_seconds) < self.agent.deltaTime*3:
-                    difference = 0
-                    difference+= abs((self.agent.ballPred.slices[i].physics.location.x+self.xOffset) - (self.target_ball.physics.location.x+self.zOffset))
-                    difference += abs(self.agent.ballPred.slices[i].physics.location.y - self.target_ball.physics.location.y)
-                    difference += abs((self.agent.ballPred.slices[i].physics.location.z+self.zOffset) - (self.target_ball.physics.location.z+self.zOffset))
-                    if difference < 10:
-                        self.aerial.target = vec3(self.agent.ballPred.slices[i].physics.location.x + self.xOffset,
-                                                  self.agent.ballPred.slices[i].physics.location.y,
-                                                  self.agent.ballPred.slices[i].physics.location.z + self.zOffset)
-
-                        self.aerial.arrival_time = self.agent.ballPred.slices[i].game_seconds
-                        self.target_ball = self.agent.ballPred.slices[i]
-
-                        simulation = self.aerial.simulate()
-                        return
-
-        self.active = False
-        self.setup()
 
     def update(self):
-        if self.agent.me.boostLevel > 0:
-            self.setup()
-            self.aerial.step(self.agent.deltaTime)
-            self.controls = self.aerial.controls
-            self.controls.jump = True
-            if self.aerial.finished:
-                self.active = False
-        else:
-            self.active = False
-        if time.time() - self.timer > 0.5:
-            if self.agent.onSurface:
-                self.active = False
-        return self.controls
+        self.active = self.structViable() and not self.agent.aerial.finished
+        return aerialWorkHorse(self.agent,self.struct)
 
 class WaveDashing(baseState):
     def __init__(self,agent,targVec):
@@ -470,26 +338,29 @@ class Kickoff(baseState):
 
 class aerialRecovery(baseState):
     def update(self):
-        if self.agent.onSurface or self.agent.me.location[2] < 100:
-            self.active = False
-        controller_state = SimpleControllerState()
+        if self.agent.me.location[2] < 600:
+            if self.agent.onSurface or self.agent.me.location[2] < 100:
+                self.active = False
+            controller_state = SimpleControllerState()
 
-        if self.agent.me.rotation[2] > 0:
-            controller_state.roll = -1
+            if self.agent.me.rotation[2] > 0:
+                controller_state.roll = -1
 
-        elif self.agent.me.rotation[2] < 0:
-            controller_state.roll = 1
+            elif self.agent.me.rotation[2] < 0:
+                controller_state.roll = 1
 
-        if self.agent.me.rotation[0] > self.agent.velAngle:
-            controller_state.yaw = -1
+            if self.agent.me.rotation[0] > self.agent.velAngle:
+                controller_state.yaw = -1
 
-        elif self.agent.me.rotation[0] < self.agent.velAngle:
-            controller_state.yaw = 1
+            elif self.agent.me.rotation[0] < self.agent.velAngle:
+                controller_state.yaw = 1
 
-        if self.active:
-            controller_state.throttle = 1
+            if self.active:
+                controller_state.throttle = 1
+            else:
+                controller_state.throttle = 0
         else:
-            controller_state.throttle = 0
+            controller_state = SimpleControllerState()
 
         return controller_state
 
@@ -601,6 +472,8 @@ class emergencyDefend(baseState):
         if self.agent.goalPred.game_seconds - self.agent.gameInfo.seconds_elapsed > .1:
             if distance2D(self.agent.me.location,penetrationPosition) > 100:
                 return testMover(self.agent,penetrationPosition,2300)
+            else:
+                return testMover(self.agent, penetrationPosition, 100)
         else:
             if penetrationPosition[2] > 300:
                 self.activeState = JumpingState(self.agent,-1)
@@ -633,6 +506,10 @@ def teamStateManager(agent):
     agentType = type(agent.activeState)
     if agentType != Kickoff:
         if not kickOffTest(agent):
+            if agentType == AerialHandler:
+                if agent.activeState.active != False:
+                    return
+
             myGoalLoc = center = Vector([0, 5150 * sign(agent.team), 200])
             ballDistanceFromGoal = distance2D(myGoalLoc, agent.ball)
             carDistanceFromGoal = distance2D(myGoalLoc, agent.me)
@@ -653,7 +530,7 @@ def teamStateManager(agent):
             timeTillBallReady = 9999
             agent.ballDelay = 6
 
-            ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
+            ballStruct,aerialStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
 
             agent.selectedBallPred = ballStruct
             goalward = ballHeadedTowardsMyGoal(agent)
@@ -687,32 +564,20 @@ def teamStateManager(agent):
                 if agent.activeState.active != False:
                     return
 
+            if aerialStruct != None:
+                agent.activeState = AerialHandler(agent, aerialStruct)
+                return
+
             if agentType == aerialRecovery:
                 if agent.activeState.active != False:
-                    _test = AerialHandler(agent)
-                    if _test.active:
-                        if _test.target_ball.game_seconds - agent.gameInfo.seconds_elapsed < timeTillBallReady:
-                            agent.activeState = _test
-                    return
-
-            if agentType == AerialHandler:
-                if agent.activeState.active != False:
-                    return
-
-
-            if _test == None:
-                _test = AerialHandler(agent)
-
-            if _test.active:
-                if _test.target_ball.game_seconds - agent.gameInfo.seconds_elapsed < timeTillBallReady :
-                    agent.activeState = _test
                     return
 
             if not agent.onSurface:
                 if agent.me.location[2] > 150:
                     if agentType != aerialRecovery:
                         agent.activeState = aerialRecovery(agent)
-                        return
+                    return
+
 
             if agent.goalPred != None:
                 if agentType != emergencyDefend:
@@ -767,7 +632,7 @@ def teamStateManager(agent):
                     mostForward = parseCarInfo(carInfo, 0, _max=True)
                     moveForward = False
                     if agent.team == 0:
-                        if mostForward[2].location[1] - 50 > agent.ball.location[1]:
+                        if mostForward[2].location[1] + 50 > agent.ball.location[1]:
                             moveForward = True
                     else:
                         if mostForward[2].location[1] - 50 < agent.ball.location[1]:
@@ -813,6 +678,9 @@ def soloStateManager(agent):
 
     if agentType != Kickoff:
         if not kickOffTest(agent):
+            if agentType == AerialHandler:
+                if agent.activeState.active != False:
+                    return
             myGoalLoc = center = Vector([0, 5150 * sign(agent.team), 200])
 
             ballDistanceFromGoal = distance2D(myGoalLoc, agent.ball)
@@ -822,7 +690,7 @@ def soloStateManager(agent):
             agent.ballDelay = 6
 
 
-            ballStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
+            ballStruct,aerialStruct = findSuitableBallPosition(agent, 120, agent.currentSpd, agent.me.location)
 
             agent.selectedBallPred = ballStruct
             goalward = ballHeadedTowardsMyGoal(agent)
@@ -856,25 +724,21 @@ def soloStateManager(agent):
                 if agent.activeState.active != False:
                     return
 
+            if aerialStruct != None:
+                agent.activeState = AerialHandler(agent, aerialStruct)
+                return
+
+
             if agentType == aerialRecovery:
                 if agent.activeState.active != False:
                     return
 
-            if agentType == AerialHandler:
-                if agent.activeState.active != False:
-                    return
-
-            _test = AerialHandler(agent)
-            if _test.active:
-                if _test.target_ball.game_seconds - agent.gameInfo.seconds_elapsed < timeTillBallReady:
-                    agent.activeState = _test
-                    return
 
             if not agent.onSurface:
                 if agent.me.location[2] > 150:
                     if agentType != aerialRecovery:
                         agent.activeState = aerialRecovery(agent)
-                        return
+                    return
 
             if agent.goalPred != None:
                 if agentType != emergencyDefend:
