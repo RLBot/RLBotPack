@@ -137,17 +137,10 @@ class diabloBot(BaseAgent):
             else:
                 self.activeState = JumpingState(self, targetType)
             self.flipTimer = _time
-        # else:
-        #     print("tried to jump but timer not rdy", self.flipTimer,self.time)
+            return 1
+        else:
+            return 0
 
-    # def setJumping(self,targetType):
-    #     _time = time.time()
-    #     if _time - self.flipTimer > 2:
-    #         if self.me.location[2] > 250:
-    #             self.activeState = JumpingState(self, -1)
-    #         else:
-    #             self.activeState = JumpingState(self, targetType)
-    #         self.flipTimer = _time
 
     def setDashing(self,target):
         self.activeState = WaveDashing(self,target)

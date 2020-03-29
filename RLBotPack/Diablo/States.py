@@ -81,26 +81,24 @@ class AerialHandler():
         self.agent = agent
         self.active = True
         self.threshold = 300
-        self.struct = struct
+        self.struct = predictionStruct(convertStructLocationToVector(struct),struct.game_seconds)
+        self.currentPredStruct = None
 
 
     def structViable(self):
-        updatedStructTime = self.struct.game_seconds - self.agent.gameInfo.seconds_elapsed
-        updatedStruct = findPredictionByTime(self.agent,updatedStructTime) #agent and updated prediction.game_seconds
-        if updatedStruct == -1:
+        updatedPredAtTime = find_pred_at_time(self.agent,self.struct.time)
+        self.currentPredStruct = updatedPredAtTime
+        if updatedPredAtTime.game_seconds <= self.agent.time:
             return False
 
-        old = convertStructLocationToVector(self.struct)
-        new = convertStructLocationToVector(updatedStruct)
-
-        if findDistance(old,new) < 10:
-            return True
-        return False
+        if findDistance(convertStructLocationToVector(updatedPredAtTime),self.struct.location) > 10:
+            return False
+        return True
 
 
     def update(self):
         self.active = self.structViable() and not self.agent.aerial.finished
-        return aerialWorkHorse(self.agent,self.struct)
+        return aerialWorkHorse(self.agent,self.currentPredStruct)
 
 class WaveDashing(baseState):
     def __init__(self,agent,targVec):
@@ -608,7 +606,7 @@ def teamStateManager(agent):
                             agent.activeState = secondMan(agent)
 
                 else:
-                    if ballDistanceFromGoal >=3500:
+                    if ballDistanceFromGoal >=4500:
                         if agentType != secondMan:
                             agent.activeState = secondMan(agent)
                         return
