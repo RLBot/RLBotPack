@@ -113,7 +113,8 @@ class MyHivemind(PythonHivemind):
         ball = self.ball.location
         sorted_by_dist = sorted([*self.friends, *self.drones], key=lambda bot: distance(bot.location, ball))
         sorted_by_dist_on_side = [bot for bot in sorted_by_dist if bot.on_side]
-        sorted_by_dist_on_side[0].closest = True if len(sorted_by_dist_on_side) > 0 else False
+        if len(sorted_by_dist_on_side) > 0:
+            sorted_by_dist_on_side[0].closest = True
         self.conceding = False
         ball_prediction = self.get_ball_prediction_struct()
         for i in range(ball_prediction.num_slices):
