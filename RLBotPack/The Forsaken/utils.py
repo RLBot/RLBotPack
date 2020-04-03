@@ -139,6 +139,8 @@ def invlerp(a: float, b: float, v: float) -> float:
 def closest_boost(agent: MyHivemind, location: Vector3, return_distance=False) -> \
         Union[BoostObject, (BoostObject, float)]:
     large_boosts = [boost for boost in agent.boosts if boost.large and boost.active]
+    if len(large_boosts) == 0:
+        return None
     closest = large_boosts[0]
     closest_distance = (closest.location - location).magnitude()
     for boost in large_boosts:

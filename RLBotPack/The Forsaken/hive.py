@@ -1,5 +1,5 @@
 from typing import Dict
-
+import random
 from rlbot.agents.hivemind.drone_agent import DroneAgent
 from rlbot.agents.hivemind.python_hivemind import PythonHivemind
 from rlbot.utils.structures.bot_input_struct import PlayerInput
@@ -156,10 +156,13 @@ class MyHivemind(PythonHivemind):
                 offset += 1
 
     def run(self):
-        if len(self.drones) == 1 and len(self.friends) == 0:
-            run_1v1(self)
-        else:
-            run_hivemind(self)
+        try:
+            if len(self.drones) == 1 and len(self.friends) == 0:
+                run_1v1(self)
+            else:
+                run_hivemind(self)
+        except:
+            pass
 
     def side(self) -> float:
         # returns -1 for blue team and 1 for orange team

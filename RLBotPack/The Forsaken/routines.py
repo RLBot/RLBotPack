@@ -344,6 +344,9 @@ class GotoBoost(Routine):
         self.target: Vector3 = target
 
     def run(self, drone: CarObject, agent: MyHivemind):
+        if self.boost is None:
+            drone.pop()
+            return
         car_to_boost = self.boost.location - drone.location
         distance_remaining = car_to_boost.flatten().magnitude()
 
