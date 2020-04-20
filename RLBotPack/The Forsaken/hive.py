@@ -1,4 +1,5 @@
 import traceback
+import random
 from typing import Dict
 from rlbot.agents.hivemind.drone_agent import DroneAgent
 from rlbot.agents.hivemind.python_hivemind import PythonHivemind
@@ -6,8 +7,8 @@ from rlbot.utils.structures.bot_input_struct import PlayerInput
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 # Dummy agent to call request MyHivemind.
-from gamemodes import run_1v1, run_hivemind
-from objects import CarObject, BoostObject, BallObject, GoalObject, GameObject, Vector3
+from gamemodes import run_1v1, run_hivemind, run_test
+from objects import CarObject, BoostObject, BallObject, GoalObject, GameObject, Vector3, TestState
 from utils import distance
 
 
@@ -47,6 +48,8 @@ class MyHivemind(PythonHivemind):
         self.last_time: float = 0
         self.my_score: float = 0
         self.foe_score: float = 0
+        self.test_state = TestState.Reset
+        self.test_time = 0
 
     def initialize_hive(self, packet: GameTickPacket) -> None:
         # Find out team by looking at packet.
@@ -97,7 +100,7 @@ class MyHivemind(PythonHivemind):
         self.time = packet.game_info.seconds_elapsed
         # When a new kickoff begins we empty the stack
         self.prev_kickoff_flag = self.kickoff_flag
-        self.kickoff_flag = packet.game_info.is_kickoff_pause
+        self.kickoff_flag = self.game.kickoff or not self.game.round_active
         if not self.prev_kickoff_flag and self.kickoff_flag:
             for drone in self.drones:
                 drone.clear()
@@ -156,13 +159,13 @@ class MyHivemind(PythonHivemind):
                 offset += 1
 
     def run(self):
-        try:
-            if len(self.drones) == 1 and len(self.friends) == 0:
-                run_1v1(self)
-            else:
-                run_hivemind(self)
-        except:
-            traceback.print_exc()
+        # Used to run test scenerio's
+        # if self.game.round_active:
+        #     run_test(self)
+        if len(self.drones) == 1 and len(self.friends) == 0:
+            run_1v1(self)
+        else:
+            run_hivemind(self)
 
     def side(self) -> float:
         # returns -1 for blue team and 1 for orange team
