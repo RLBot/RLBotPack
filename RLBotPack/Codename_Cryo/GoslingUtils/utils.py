@@ -20,21 +20,23 @@ def cap(x, low, high):
     return x
 
 def defaultPD(agent, local_target, direction = 1.0):
-    #points the car towards a given local target.
-    #Direction can be changed to allow the car to steer towards a target while driving backwards
+    # points the car towards a given local target.
+    # Direction can be changed to allow the car to steer towards a target while driving backwards
     local_target *= direction
-    up = agent.me.local(Vector3(0,0,1)) #where "up" is in local coordinates
+    up = agent.me.local(Vector3(0, 0, 1))  # where "up" is in local coordinates
     target_angles = [
-        math.atan2(local_target[2],local_target[0]), #angle required to pitch towards target
-        math.atan2(local_target[1],local_target[0]), #angle required to yaw towards target
-        math.atan2(up[1],up[2])]                     #angle required to roll upright
-    #Once we have the angles we need to rotate, we feed them into PD loops to determing the controller inputs
-    agent.controller.steer = steerPD(target_angles[1],0) * direction
-    agent.controller.pitch = steerPD(target_angles[0],agent.me.angular_velocity[1]/4)
-    agent.controller.yaw = steerPD(target_angles[1],-agent.me.angular_velocity[2]/4)
-    agent.controller.roll = steerPD(target_angles[2],agent.me.angular_velocity[0]/2)
-    #Returns the angles, which can be useful for other purposes
+        math.atan2(local_target[2], local_target[0]),  # angle required to pitch towards target
+        math.atan2(local_target[1], local_target[0]),  # angle required to yaw towards target
+        math.atan2(up[1], up[2])]  # angle required to roll upright
+    # Once we have the angles we need to rotate, we feed them into PD loops to determing the controller inputs
+    agent.controller.steer = steerPD(target_angles[1], 0) * direction
+    agent.controller.pitch = steerPD(target_angles[0], agent.me.angular_velocity[1] / 4)
+    agent.controller.yaw = steerPD(target_angles[1], -agent.me.angular_velocity[2] / 4)
+    agent.controller.roll = steerPD(target_angles[2], agent.me.angular_velocity[0] / 2)
+    # Returns the angles, which can be useful for other purposes
     return target_angles
+
+
 
 def defaultThrottle(agent, target_speed, direction = 1.0):
     #accelerates the car to a desired speed using throttle and boost
@@ -138,3 +140,30 @@ def invlerp(a, b, v):
     #For instance, it returns 0 if v == a, and returns 1 if v == b, and returns 0.5 if v is exactly between a and b
     #Works for both numbers and Vector3s
     return (v - a)/(b - a)
+
+
+def in_goal_area(agent):
+    if abs(agent.me.location[1]) > 5050:
+        if abs(agent.me.location[0]) < 880:
+            return True
+    return False
+
+def detect_demo(agent):
+    for car in agent.foes:
+        if not car.airborne:
+            distance_to_target = (agent.me.location - car.location).magnitude()
+            velocity = (car.velocity).magnitude()
+            velocity_needed = 2200 - velocity
+            time_boosting_required = velocity_needed / 991.666
+            boost_required = 33.3 * time_boosting_required
+            distance_required = velocity * time_boosting_required + 0.5 * 991.666 * (time_boosting_required ** 2)
+            time_to_target = distance_to_target / velocity
+            aim_point = car.location + time_to_target * velocity
+            my_future_location = agent.me.location + time_to_target * agent.me.velocity.magnitude()
+            can_demo = car.supersonic or (distance_required < distance_to_target and boost_required < car.boost)
+            if (aim_point - my_future_location).magnitude()  and can_demo:
+                if time_to_target < 0.75:
+                    return False\
+                        .as_integer_ratio()\
+                        , car
+    return False, None

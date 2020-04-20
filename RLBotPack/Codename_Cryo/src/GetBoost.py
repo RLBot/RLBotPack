@@ -1,6 +1,6 @@
 from GoslingUtils.routines import *
 from src.utils import *
-
+from GoslingUtils.objects import boost_object
 
 class State:
     def __init__(self):
@@ -9,20 +9,34 @@ class State:
 
 class GetBoost(State):
     def __init__(self):
-        pass
+        self.target = None
 
     def run(self, agent):
-        if len(agent.stack) < 1:
-            agent.push(goto_boost(self.closest_full_boost(agent), agent.ball.location))
+        if len(agent.stack) < 1 or type(agent.stack[-1]) == goto:
+            if len(agent.stack): agent.pop()
+            self.target = self.closest_full_boost(agent)
+            if type(self.target) == Vector3:
+                agent.push(goto(self.target, agent.ball.location))
+            else:
+                agent.push(goto_boost(self.target, agent.ball.location))
         agent.debug_stack()
 
-    def generate_stack(self, agent):
-        pass
-
     def next_state(self, agent):
-        # if ((boost_location.x() == 0 and boost_location.y() == 0) or boost_index == -1) return "Defending";
-        if is_ball_going_towards_goal(agent) and agent.ball.velocity.magnitude() > 600:
+        #rogue boost pad fix
+        if type(self.target) == boost_object and abs(self.target.location[0]) < 3000:
+            print("found rogue boost pad")
             return "Defending"
+        # if ((boost_location.x() == 0 and boost_location.y() == 0) or boost_index == -1) return "Defending";
+        if (is_ball_going_towards_goal(agent) and agent.ball.velocity.magnitude() > 600) or are_no_bots_back(agent) or is_ball_centering(agent, True):
+            return "Defending"
+        if len(agent.friends) == 1 and not is_closest(agent, agent.me, True) and agent.me.boost < 24:
+            if agent.ball.location[1] * side(agent.team) > 4000:
+                return "Defending"
+            return "GetBoost"
+        if len(agent.friends) >= 2 and not is_second_closest(agent) and agent.me.boost < 24:
+            if agent.ball.location[1] * side(agent.team) > 4000:
+                return "Defending"
+            return "GetBoost"
         if (agent.me.boost < 36 and not is_closest(agent, agent.me) and
                 (agent.me.location - agent.ball.location).magnitude() > 2000):
             if not(len(agent.friends) >= 1 and is_closest(agent, agent.me, True)):
@@ -60,13 +74,21 @@ class GetBoost(State):
         closest_index = -1
         for bp in boost_index:
             boost = agent.boosts[bp]
+            if boost.index != bp:
+                print("REEEEEEEEEEEEEE")
             if not boost.active:
                 continue
             if ((boost.location[1] > agent.ball.location[1] and agent.team == 0) or
                     (boost.location[1] < agent.ball.location[1] and agent.team == 1)):
                 continue
+            if abs(boost.location[0]) < 3000:
+                print("wrong boost, skipping")
+                continue
             if (agent.me.location - boost.location).magnitude() < closest_distance:
                 closest_distance = (agent.me.location - boost.location).magnitude()
                 closest_index = bp
 
-        return agent.boosts[closest_index]
+        if closest_index != -1:
+            return agent.boosts[closest_index]
+        else:
+            return agent.friend_goal.location

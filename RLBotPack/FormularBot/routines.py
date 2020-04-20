@@ -548,7 +548,6 @@ class jump_shot():
         defaultThrottle(agent, speed_required,self.direction)
 
         agent.line(agent.me.location, agent.me.location + (self.shot_vector*200), [255,255,255])
-
         agent.controller.boost = False if agent.me.airborne or (abs(angles[1]) > 0.3 and car_to_ball.magnitude() < 1000) else agent.controller.boost
         agent.controller.handbrake = True if abs(angles[1]) > 2.3 and self.direction == 1 else agent.controller.handbrake
 

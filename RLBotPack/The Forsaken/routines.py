@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from copy import copy
 from typing import TYPE_CHECKING
 
 from objects import Vector3, Routine
@@ -10,8 +11,24 @@ if TYPE_CHECKING:
     from hive import MyHivemind
     from objects import CarObject, BoostObject
 
+gravity: Vector3 = Vector3(0, 0, -650)
+
+# Aerial constants
+max_speed: float = 2300
+boost_accel: float = 1060
+throttle_accel: float = 200 / 3
+boost_per_second: float = 30
+
+# Jump constants
+
+jump_speed: float = 291.667
+jump_acc = 1458.3333
+jump_min_duration = 0.025
+jump_max_duration = 0.2
+
 
 # This file holds all of the mechanical tasks, called "routines", that the bot can do
+
 
 class Atba(Routine):
     # An example routine that just drives towards the ball at max speed
@@ -23,6 +40,112 @@ class Atba(Routine):
         local_target = drone.local(relative_target)
         defaultPD(drone, local_target)
         defaultThrottle(drone, 2300)
+
+
+class Aerial(Routine):
+
+    def __init__(self, ball_location: Vector3, intercept_time: float, on_ground: bool, target: Vector3 = None):
+        super().__init__()
+        self.ball_location = ball_location
+        self.intercept_time = intercept_time
+        self.target = target
+        self.jumping = on_ground
+        self.time = -1
+        self.jump_time = -1
+        self.counter = 0
+
+    def run(self, drone: CarObject, agent: MyHivemind):
+        if self.time == -1:
+            elapsed = 0
+            self.time = agent.time
+        else:
+            elapsed = agent.time - self.time
+        T = self.intercept_time - agent.time
+        xf = drone.location + drone.velocity * T + 0.5 * gravity * T ** 2
+        vf = drone.velocity + gravity * T
+        if self.jumping:
+            if self.jump_time == -1:
+                jump_elapsed = 0
+                self.jump_time = agent.time
+            else:
+                jump_elapsed = agent.time - self.jump_time
+            tau = jump_max_duration - jump_elapsed
+            if jump_elapsed == 0:
+                vf += drone.up * jump_speed
+                xf += drone.up * jump_speed * T
+
+            vf += drone.up * jump_acc * tau
+            xf += drone.up * jump_acc * tau * (T - 0.5 * tau)
+
+            vf += drone.up * jump_speed
+            xf += drone.up * jump_speed * (T - tau)
+
+            if jump_elapsed < jump_max_duration:
+                drone.controller.jump = True
+            elif elapsed >= jump_max_duration and self.counter < 3:
+                drone.controller.jump = False
+                self.counter += 1
+            elif elapsed < 0.3:
+                drone.controller.jump = True
+            else:
+                self.jumping = jump_elapsed <= 0.3
+        else:
+            drone.controller.jump = 0
+
+        delta_x = self.ball_location - xf
+        direction = delta_x.normalize()
+        if delta_x.magnitude() > 50:
+            defaultPD(drone, drone.local(delta_x))
+        else:
+            if self.target is not None:
+                defaultPD(drone, drone.local(self.target))
+            else:
+                defaultPD(drone, drone.local(self.ball_location - drone.location))
+
+        if jump_max_duration <= elapsed < 0.3 and self.counter == 3:
+            drone.controller.roll = 0
+            drone.controller.pitch = 0
+            drone.controller.yaw = 0
+            drone.controller.steer = 0
+
+        if drone.forward.angle3D(direction) < 0.3:
+            if delta_x.magnitude() > 50:
+                drone.controller.boost = 1
+                drone.controller.throttle = 0
+            else:
+                drone.controller.boost = 0
+                drone.controller.throttle = cap(0.5 * throttle_accel * T ** 2, 0, 1)
+        else:
+            drone.controller.boost = 0
+            drone.controller.throttle = 0
+
+        if T <= 0 or not shot_valid(agent, self, threshold=150):
+            drone.pop()
+            drone.push(Recovery(agent.friend_goal.location))
+
+    def is_viable(self, drone: CarObject, time: float):
+        T = self.intercept_time - time
+        xf = drone.location + drone.velocity * T + 0.5 * gravity * T ** 2
+        vf = drone.velocity + gravity * T
+        if not drone.airborne:
+            vf += drone.up * (2 * jump_speed + jump_acc * jump_max_duration)
+            xf += drone.up * (jump_speed * (2 * T - jump_max_duration) + jump_acc * (
+                    T * jump_max_duration - 0.5 * jump_max_duration ** 2))
+
+        delta_x = self.ball_location - xf
+        f = delta_x.normalize()
+        phi = f.angle3D(drone.forward)
+        turn_time = 0.7 * (2 * math.sqrt(phi / 9))
+
+        tau1 = turn_time * cap(1 - 0.3 / phi, 0, 1)
+        required_acc = (2 * delta_x.magnitude()) / ((T - tau1) ** 2)
+        ratio = required_acc / boost_accel
+        tau2 = T - (T - tau1) * math.sqrt(1 - cap(ratio, 0, 1))
+        velocity_estimate = vf + boost_accel * (tau2 - tau1) * f
+        boos_estimate = (tau2 - tau1) * 30
+        enough_boost = boos_estimate < 0.95 * drone.boost
+        enough_time = abs(ratio) < 0.9
+        return velocity_estimate.magnitude() < 0.9 * max_speed and enough_boost and enough_time
 
 
 class AerialShot(Routine):
@@ -65,7 +188,7 @@ class AerialShot(Routine):
 
         # The adjustment causes the car to circle around the dodge point in an effort to line up with the shot vector
         # The adjustment slowly decreases to 0 as the bot nears the time to jump
-        adjustment = car_to_intercept.angle(self.shot_vector) * distance_remaining / 1.57  # size of adjustment
+        adjustment = car_to_intercept.angle2D(self.shot_vector) * distance_remaining / 1.57  # size of adjustment
         adjustment *= (cap(self.jump_threshold - (acceleration_required[2]), 0.0,
                            self.jump_threshold) / self.jump_threshold)  # factoring in how close to jump we are
         # we don't adjust the final target if we are already jumping
@@ -255,7 +378,7 @@ class Goto(Routine):
             # See commends for adjustment in jump_shot or aerial for explanation
             side_of_vector = sign(self.vector.cross((0, 0, 1)).dot(car_to_target))
             car_to_target_perp = car_to_target.cross((0, 0, side_of_vector)).normalize()
-            adjustment = car_to_target.angle(self.vector) * distance_remaining / 3.14
+            adjustment = car_to_target.angle2D(self.vector) * distance_remaining / 3.14
             final_target = self.target + (car_to_target_perp * adjustment)
         else:
             final_target = self.target
@@ -295,7 +418,7 @@ class Shadow(Routine):
         self.direction = direction
 
     def run(self, drone: CarObject, agent: MyHivemind):
-        target = agent.friend_goal.location + (agent.ball.location - agent.friend_goal.location) / 2
+        target = agent.friend_goal.location + 2 * (agent.ball.location - agent.friend_goal.location) / 3
         car_to_target = target - drone.location
         distance_remaining = car_to_target.flatten().magnitude()
 
@@ -305,7 +428,7 @@ class Shadow(Routine):
             # See commends for adjustment in jump_shot or aerial for explanation
             side_of_vector = sign(self.vector.cross((0, 0, 1)).dot(car_to_target))
             car_to_target_perp = car_to_target.cross((0, 0, side_of_vector)).normalize()
-            adjustment = car_to_target.angle(self.vector) * distance_remaining / 3.14
+            adjustment = car_to_target.angle2D(self.vector) * distance_remaining / 3.14
             final_target = target + (car_to_target_perp * adjustment)
         else:
             final_target = target
@@ -356,7 +479,7 @@ class GotoBoost(Routine):
             vector = (self.target - self.boost.location).normalize()
             side_of_vector = sign(vector.cross((0, 0, 1)).dot(car_to_boost))
             car_to_boost_perp = car_to_boost.cross((0, 0, side_of_vector)).normalize()
-            adjustment = car_to_boost.angle(vector) * distance_remaining / 3.14
+            adjustment = car_to_boost.angle2D(vector) * distance_remaining / 3.14
             final_target = self.boost.location + (car_to_boost_perp * adjustment)
             car_to_target = (self.target - drone.location).magnitude()
         else:
@@ -436,7 +559,7 @@ class JumpShot(Routine):
 
         # The adjustment causes the car to circle around the dodge point in an effort to line up with the shot vector
         # The adjustment slowly decreases to 0 as the bot nears the time to jump
-        adjustment = car_to_dodge_point.angle(self.shot_vector) * distance_remaining / 2.0  # size of adjustment
+        adjustment = car_to_dodge_point.angle2D(self.shot_vector) * distance_remaining / 2.0  # size of adjustment
         adjustment *= (cap(self.jump_threshold - (acceleration_required[2]), 0.0,
                            self.jump_threshold) / self.jump_threshold)  # factoring in how close to jump we are
         # we don't adjust the final target if we are already jumping

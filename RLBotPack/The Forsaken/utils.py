@@ -9,7 +9,7 @@ from objects import Vector3
 if TYPE_CHECKING:
     from hive import MyHivemind
     from objects import CarObject, BoostObject
-    from routines import AerialShot, JumpShot
+    from routines import AerialShot, JumpShot, Aerial
 
 
 # This file is for small utilities for math and movement
@@ -169,7 +169,7 @@ def closest_foe(agent: MyHivemind, location: Vector3, return_distance=False) -> 
         return closest
 
 
-def shot_valid(agent: MyHivemind, shot: Union[AerialShot, JumpShot], threshold: float = 45) -> bool:
+def shot_valid(agent: MyHivemind, shot: Union[AerialShot, JumpShot, Aerial], threshold: float = 45) -> bool:
     # Returns True if the ball is still where the shot anticipates it to be
     # First finds the two closest slices in the ball prediction to shot's intercept_time
     # threshold controls the tolerance we allow the ball to be off by
