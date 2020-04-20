@@ -1,5 +1,3 @@
-import traceback
-import random
 from typing import Dict
 from rlbot.agents.hivemind.drone_agent import DroneAgent
 from rlbot.agents.hivemind.python_hivemind import PythonHivemind
