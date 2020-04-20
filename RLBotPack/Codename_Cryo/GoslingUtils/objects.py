@@ -72,7 +72,7 @@ class GoslingAgent(BaseAgent):
         white = self.renderer.white()
         for i in range(len(self.stack) - 1, -1, -1):
             text = self.stack[i].__class__.__name__
-            self.renderer.draw_string_2d(10 +(250 *self.index), 50 + (50 * (len(self.stack) - i)), 2, 2, text, white)
+            self.renderer.draw_string_2d(10 +(250 *self.index), 100 + (50 * (len(self.stack) - i)), 2, 2, text, white)
 
     def clear(self):
         # Shorthand for clearing the stack of all routines
@@ -93,6 +93,11 @@ class GoslingAgent(BaseAgent):
             self.stack = []
         # Tells us when to go for kickoff
         self.kickoff_flag = packet.game_info.is_round_active and packet.game_info.is_kickoff_pause
+        self.my_score = packet.teams[self.team].score
+        if self.team == 0:
+            self.foe_score = packet.teams[1].score
+        else:
+            self.foe_score = packet.teams[0].score
 
     def get_output(self, packet):
         # Reset controller
@@ -130,7 +135,7 @@ class car_object:
         self.supersonic = False
         self.jumped = False
         self.doublejumped = False
-        self.team = 0
+        self.team = 0 # doesn't work
         self.boost = 0
         self.index = index
         if packet != None:
