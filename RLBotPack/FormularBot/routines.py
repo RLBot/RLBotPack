@@ -247,7 +247,7 @@ class Aerial():
 
         if T <= 0 or not shot_valid(agent, self, threshold = 150):
             agent.pop()
-            agent.push(recovery(self.ball.location))
+            agent.push(recovery(agent.ball.location))
 
     def is_viable(self, agent: CarObject, time: float):
         T = self.intercept_time - time
@@ -325,10 +325,9 @@ class aerial_shot():
         agent.line(final_target-Vector3(0,0,100),final_target+Vector3(0,0,100),[0,255,0])
 
         angles = defaultPD(agent,local_final_target)
-        
         if self.jump_time == 0:
             defaultThrottle(agent, speed_required)
-            agent.controller.boost = False if abs(angles[1]) > 0.3 or agent.me.airborne else agent.controller.boost
+            agent.controller.boost = False if agent.me.airborne or (abs(angles[1]) > 0.3 and car_to_ball.magnitude() < 1000) else agent.controller.boost
             agent.controller.handbrake = True if abs(angles[1]) > 2.3 else agent.controller.handbrake
             if acceleration_required[2] > self.jump_threshold:
                 #Switch into the jump when the upward acceleration required reaches our threshold, hopefully we have aligned already...
@@ -549,8 +548,7 @@ class jump_shot():
         defaultThrottle(agent, speed_required,self.direction)
 
         agent.line(agent.me.location, agent.me.location + (self.shot_vector*200), [255,255,255])
-
-        agent.controller.boost = False if abs(angles[1]) > 0.3 or agent.me.airborne else agent.controller.boost
+        agent.controller.boost = False if agent.me.airborne or (abs(angles[1]) > 0.3 and car_to_ball.magnitude() < 1000) else agent.controller.boost
         agent.controller.handbrake = True if abs(angles[1]) > 2.3 and self.direction == 1 else agent.controller.handbrake
 
         if not self.jumping:
@@ -719,10 +717,9 @@ class short_shot():
         if abs(agent.me.location[1]) > 5150: final_target[0] = cap(final_target[0],-750,750)
         
         agent.line(final_target-Vector3(0,0,100),final_target+Vector3(0,0,100),[255,255,255])
-        
         angles = defaultPD(agent, agent.me.local(final_target-agent.me.location))
         defaultThrottle(agent, 2300 if distance > 1600 else 2300-cap(1600*abs(angles[1]),0,2050))
-        agent.controller.boost = False if agent.me.airborne or abs(angles[1]) > 0.3 else agent.controller.boost
+        agent.controller.boost = False if agent.me.airborne or (abs(angles[1]) > 0.3 and distance < 1000) else agent.controller.boost
         agent.controller.handbrake = True if abs(angles[1]) > 2.3 else agent.controller.handbrake
 
         if abs(angles[1]) < 0.05 and (eta < 0.45 or distance < 150):
