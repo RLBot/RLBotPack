@@ -1,4 +1,5 @@
 from GoslingUtils.routines import *
+from GoslingUtils.tools import *
 from src.utils import *
 from math import atan2, pi
 from src.Extra_routines import *
@@ -18,6 +19,13 @@ class Attacking(State):
         agent.debug_stack()
 
     def generate_stack(self, agent):
+        if agent.aerialing and agent.stopped_aerial:
+            self.stopped_aerial = False
+            if not self.follow_up(agent):
+                agent.aerialing = False
+                agent.push(recovery())
+            return
+
         if agent.cheat and not len(agent.stack):
             agent.cheat_attack_time = agent.time
             return self.take_shot(agent)
@@ -215,3 +223,59 @@ class Attacking(State):
             if type(routine) == steal_boost:
                 return True
         return False
+
+    def follow_up(self, agent):
+        self.attempted_shot = True
+        left_post_reduced = Vector3(agent.foe_goal.left_post)
+        right_post_reduced = Vector3(agent.foe_goal.right_post)
+        if agent.team == 0:
+            left_post_reduced[0] -= 250
+            right_post_reduced[0] += 250
+        if agent.team == 1:
+            left_post_reduced[0] += 250
+            right_post_reduced[0] -= 250
+
+        counter = 2
+
+        targets = {"1": (left_post_reduced, right_post_reduced),
+                   "2": (agent.foe_goal.left_post, agent.foe_goal.right_post)}
+
+        # infield pass
+        if abs(agent.ball.location[0]) > 1000 and len(agent.friends):
+            counter += 1
+            side_left = Vector3(0, agent.ball.location[1], 0)
+            side_right = Vector3(0, agent.ball.location[1], 0)
+            if agent.ball.location[0] > 0:
+                if agent.team == 0:
+                    side_left[1] += 1000
+                    side_right[1] -= 500
+                else:
+                    side_left[1] += 500
+                    side_right[1] -= 1000
+            else:
+                if agent.team == 0:
+                    side_right[1] += 1000
+                    side_left[1] -= 500
+                else:
+                    side_right[1] += 500
+                    side_left[1] -= 1000
+            if abs(agent.ball.location[1] > 4500):
+                # infield pass is 3rd option
+                targets[str(counter)] = (side_left, side_right)
+                counter += 1
+            else:
+                # infield pass is 4th option
+                targets[str(counter + 1)] = (side_left, side_right)
+        if (counter < 3): counter = 3
+        if abs(agent.ball.location[0]) > 4098 - 1152:
+            forward_left = Vector3(agent.ball.location[0] - 500 * side(agent.team),
+                                   agent.ball.location[1] - 5000 * side(agent.team),
+                                   0)
+            forward_right = Vector3(agent.ball.location[0] + 500 * side(agent.team),
+                                    agent.ball.location[1] - 5000 * side(agent.team),
+                                    0)
+        else:
+            forward_left = Vector3(0, 0, 0)
+            forward_right = Vector3(0, 0, 0)
+        targets[str(counter)] = (forward_left, forward_right)
+        return determine_follow_up_shot(agent, targets, counter)

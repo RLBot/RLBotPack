@@ -29,13 +29,6 @@ class CodenameCryo(GoslingAgent):
 
     def run(agent):
         agent.debug_rendering()
-
-        for bp in agent.boosts:
-            if bp.large:
-                agent.line(bp.location - Vector3(0, 0, 500), bp.location + Vector3(0, 0, 500), [0, 255, 0])
-            else:
-                agent.line(bp.location - Vector3(0, 0, 500), bp.location + Vector3(0, 0, 500), [0, 0, 255])
-
         # """
         # celebrations
         if agent.my_last_score != agent.my_score and agent.my_last_score != -1:

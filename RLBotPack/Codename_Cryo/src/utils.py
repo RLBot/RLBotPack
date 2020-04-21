@@ -1,5 +1,4 @@
 from GoslingUtils.utils import *
-from GoslingUtils.tools import *
 
 
 def is_closest_kickoff(agent, own_car):
@@ -164,44 +163,6 @@ def is_ball_on_back_wall(agent, enemy=True):
             return True
         return False
     return False
-
-
-def determine_shot(agent, target, targets, target_count, defensive=False, center=False):
-    if agent.ball.location[2] > 300 or agent.ball.velocity.magnitude() > 0:
-        hits = find_hits(agent, targets)
-        if len(hits):
-            pick_the_fastest = []
-            for i in range(1, 1 + target_count):
-                if len(hits[str(i)]):
-                    shot = hits[str(i)][0]
-                    # dont go for hits were we have to crawl to
-                    hit_location = shot.ball_location
-                    hit_time = shot.intercept_time
-                    time_delta = hit_time - agent.time
-                    location_delta = (agent.me.location - hit_location).magnitude()
-                    avg_speed = location_delta / time_delta
-                    # print(agent.index, location_delta, time_delta, avg_speed, agent.me.boost)
-                    # sorted_foes = agent.foes[:]
-                    # sorted_foes.sort(key=lambda car: (hit_location - car.location).magnitude())
-                    # closest_enemy_distance = (hit_location - sorted_foes[0].location).magnitude()
-                    pick_the_fastest.append(shot)
-                    if (avg_speed < 700):
-                        continue
-                    # max_boost_needed
-                    if not defensive:
-                        if len(agent.stack): agent.pop()
-                        agent.push(shot)
-                        return True
-            if len(pick_the_fastest):
-                pick_the_fastest.sort(key=lambda shot: shot.intercept_time)
-                if len(agent.stack): agent.pop()
-                agent.push(pick_the_fastest[0])
-                return defensive
-    if center: return False
-    if len(agent.stack): agent.pop()
-    shot = short_shot(target)
-    agent.push(shot)
-    return not center
 
 
 def is_ahead_of_ball(agent):
@@ -376,7 +337,7 @@ def is_ball_centering(agent, friendly=False):
     struct = agent.get_ball_prediction_struct()
     for i in range(15, struct.num_slices, 10):
         ball_location = Vector3(struct.slices[i].physics.location)
-        if abs(ball_location[0]) < 1200:
+        if abs(ball_location[0]) < 1500:
             if ball_location[1] * side(agent.team) < -3000 and not friendly:
                 if ball_location[2] < 1500:
                     return True
@@ -434,3 +395,4 @@ def is_last_one_back(agent):
         if car.location[1] * side(agent.team) > my_y:
             return False
     return True
+
