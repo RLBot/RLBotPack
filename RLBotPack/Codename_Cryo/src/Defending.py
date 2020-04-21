@@ -1,4 +1,5 @@
 from GoslingUtils.routines import *
+from GoslingUtils.tools import *
 from src.utils import *
 from math import atan2,pi
 
@@ -17,7 +18,13 @@ class Defending(State):
         agent.debug_stack()
 
     def generate_stack(self, agent):
-        if len(agent.stack) < 1 or type(agent.stack[-1]) == goto:
+        if agent.aerialing and agent.stopped_aerial:
+            self.stopped_aerial = False
+            if not self.follow_up(agent):
+                agent.aerialing = False
+                agent.push(recovery())
+
+        elif len(agent.stack) < 1 or type(agent.stack[-1]) == goto:
             # rotate to zone
             if len(agent.friends):
                 # get back on defense if all bots ahead of ball
@@ -136,3 +143,41 @@ class Defending(State):
         path = Vector3(x, y, z)
         if len(agent.stack): agent.pop()
         agent.push(goto(path, agent.ball.location, True))
+
+    def follow_up(self, agent):
+        forward_left = Vector3(agent.ball.location[0] - 2000 * side(agent.team),
+                               agent.ball.location[1] - 5000 * side(agent.team),
+                               0)
+        forward_right = Vector3(agent.ball.location[0] + 2000 * side(agent.team),
+                                agent.ball.location[1] - 5000 * side(agent.team),
+                                0)
+        side_left = Vector3(agent.ball.location[0], agent.ball.location[1], 0)
+        side_right = Vector3(agent.ball.location[0], agent.ball.location[1], 0)
+        if agent.me.location[0] > agent.ball.location[0]:
+            side_left[0] -= 3000
+            side_right[0] -= 3000
+            if agent.team == 0:
+                side_left[1] += 5000
+            else:
+                side_right[1] -= 5000
+        else:
+            side_left[0] += 3000
+            side_right[0] += 3000
+            if agent.team == 0:
+                side_right[1] += 5000
+            else:
+                side_left[1] -= 5000
+        if len(agent.foes) > 1:
+            if abs(agent.ball.location[0]) < 2500 or abs(agent.ball.location[1] > 4500):
+                targets = {"3": (agent.foe_goal.left_post, agent.foe_goal.right_post),
+                           "2": (forward_left, forward_right),
+                           "1": (side_left, side_right)}
+            else:
+                targets = {"3": (agent.foe_goal.left_post, agent.foe_goal.right_post),
+                           "1": (forward_left, forward_right),
+                           "2": (side_left, side_right)}
+        else:
+            targets = {"1": (agent.foe_goal.left_post, agent.foe_goal.right_post),
+                       "2": (forward_left, forward_right),
+                       "3": (side_left, side_right)}
+        return determine_follow_up_shot(agent, targets, 3)

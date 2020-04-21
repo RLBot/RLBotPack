@@ -82,7 +82,7 @@ class GetBoost(State):
                     (boost.location[1] < agent.ball.location[1] and agent.team == 1)):
                 continue
             if abs(boost.location[0]) < 3000:
-                print("wrong boost, skipping")
+                print("@Tarehart there are ghost boosts!")
                 continue
             if (agent.me.location - boost.location).magnitude() < closest_distance:
                 closest_distance = (agent.me.location - boost.location).magnitude()
