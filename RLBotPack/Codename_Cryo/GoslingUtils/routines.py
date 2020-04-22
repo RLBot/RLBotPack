@@ -5,6 +5,18 @@ from GoslingUtils.utils import *
 
 # This file holds all of the mechanical tasks, called "routines", that the bot can do
 
+gravity: Vector3 = Vector3(0, 0, -650)
+# Aerial constants
+max_speed: float = 2300
+boost_accel: float = 1060
+throttle_accel: float = 200 / 3
+boost_per_second: float = 30
+
+# Jump constants
+jump_speed: float = 291.667
+jump_acc = 1458.3333
+jump_min_duration = 0.025
+jump_max_duration = 0.2
 
 class atba():
     # An example routine that just drives towards the ball at max speed
@@ -594,3 +606,110 @@ class avoid_demo():
             agent.pop()
         elif elapsed > 1:
             agent.push(recovery())
+
+
+class aerial():
+
+    def __init__(self, ball_location: Vector3, intercept_time: float, on_ground: bool, target: Vector3 = None):
+        self.ball_location = ball_location
+        self.intercept_time = intercept_time
+        self.target = target
+        self.jumping = on_ground
+        self.time = -1
+        self.jump_time = -1
+        self.counter = 0
+
+    def run(self, agent):
+        agent.stopped_aerial = False
+        if self.time == -1:
+            elapsed = 0
+            self.time = agent.time
+        else:
+            elapsed = agent.time - self.time
+        T = self.intercept_time - agent.time
+        xf = agent.me.location + agent.me.velocity * T + 0.5 * gravity * T ** 2
+        vf = agent.me.velocity + gravity * T
+        if self.jumping:
+            if self.jump_time == -1:
+                jump_elapsed = 0
+                self.jump_time = agent.time
+            else:
+                jump_elapsed = agent.time - self.jump_time
+            tau = jump_max_duration - jump_elapsed
+            if jump_elapsed == 0:
+                vf += agent.me.up * jump_speed
+                xf += agent.me.up * jump_speed * T
+
+            vf += agent.me.up * jump_acc * tau
+            xf += agent.me.up * jump_acc * tau * (T - 0.5 * tau)
+
+            vf += agent.me.up * jump_speed
+            xf += agent.me.up * jump_speed * (T - tau)
+
+            if jump_elapsed < jump_max_duration:
+                agent.controller.jump = True
+            elif elapsed >= jump_max_duration and self.counter < 3:
+                agent.controller.jump = False
+                self.counter += 1
+            elif elapsed < 0.3:
+                agent.controller.jump = True
+            else:
+                self.jumping = jump_elapsed <= 0.3
+        else:
+            agent.controller.jump = 0
+
+        delta_x = self.ball_location - xf
+        direction = delta_x.normalize()
+        if delta_x.magnitude() > 50:
+            defaultPD(agent, agent.me.local(delta_x))
+        else:
+            if self.target is not None:
+                defaultPD(agent, agent.me.local(self.target))
+            else:
+                defaultPD(agent, agent.me.local(self.ball_location - agent.me.location))
+
+        if jump_max_duration <= elapsed < 0.3 and self.counter == 3:
+            agent.controller.roll = 0
+            agent.controller.pitch = 0
+            agent.controller.yaw = 0
+            agent.controller.steer = 0
+
+        if agent.me.forward.angle3D(direction) < 0.3:
+            if delta_x.magnitude() > 50:
+                agent.controller.boost = 1
+                agent.controller.throttle = 0
+            else:
+                agent.controller.boost = 0
+                agent.controller.throttle = cap(0.5 * throttle_accel * T ** 2, 0, 1)
+        else:
+            agent.controller.boost = 0
+            agent.controller.throttle = 0
+
+        if T <= 0 or not shot_valid(agent, self, threshold=150):
+            agent.pop()
+            agent.stopped_aerial = True
+            #agent.push(recovery()))
+
+    def is_viable(self, agent, time: float):
+        T = self.intercept_time - time
+        xf = agent.me.location + agent.me.velocity * T + 0.5 * gravity * T ** 2
+        vf = agent.me.velocity + gravity * T
+        if not agent.me.airborne:
+            vf += agent.me.up * (2 * jump_speed + jump_acc * jump_max_duration)
+            xf += agent.me.up * (jump_speed * (2 * T - jump_max_duration) + jump_acc * (
+                    T * jump_max_duration - 0.5 * jump_max_duration ** 2))
+
+        delta_x = self.ball_location - xf
+        f = delta_x.normalize()
+        phi = f.angle3D(agent.me.forward)
+        turn_time = 0.7 * (2 * math.sqrt(phi / 9))
+
+        tau1 = turn_time * cap(1 - 0.3 / phi, 0, 1)
+        required_acc = (2 * delta_x.magnitude()) / ((T - tau1) ** 2)
+        ratio = required_acc / boost_accel
+        tau2 = T - (T - tau1) * math.sqrt(1 - cap(ratio, 0, 1))
+        velocity_estimate = vf + boost_accel * (tau2 - tau1) * f
+        boos_estimate = (tau2 - tau1) * 30
+        enough_boost = boos_estimate < 0.95 * agent.me.boost
+        enough_time = abs(ratio) < 0.9
+        return velocity_estimate.magnitude() < 0.9 * max_speed and enough_boost and enough_time

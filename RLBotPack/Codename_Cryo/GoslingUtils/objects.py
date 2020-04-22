@@ -61,6 +61,7 @@ class GoslingAgent(BaseAgent):
 
     def pop(self):
         # Shorthand for removing a routine from the stack, returns the routine
+        if len(self.stack) < 1: return
         return self.stack.pop()
 
     def line(self, start, end, color=None):
@@ -410,6 +411,10 @@ class Vector3:
     def angle(self, value):
         # Returns the angle between this Vector3 and another Vector3
         return math.acos(round(self.flatten().normalize().dot(value.flatten().normalize()), 4))
+
+    def angle3D(self, value) -> float:
+        # Returns the angle between this Vector3 and another Vector3
+        return math.acos(round(self.normalize().dot(value.normalize()), 4))
 
     def rotate(self, angle):
         # Rotates this Vector3 by the given angle in radians
