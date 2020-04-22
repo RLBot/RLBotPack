@@ -12,6 +12,8 @@ from src.Fun_Stuff import *
 #   Should bot go for aerial
 #   Is ball in position to be aerialed
 #   make jump_shot hit the ball faster
+#   dont flip at ground shots (except 50/50's)
+#   wall shots
 class CodenameCryo(GoslingAgent):
     def initialize_agent(self):
         super().initialize_agent()

@@ -1,4 +1,5 @@
 from GoslingUtils.routines import *
+from src.utils import *
 
 #This file is for strategic tools
 
@@ -71,6 +72,77 @@ def find_hits(agent,targets):
                                     hits[pair].append(jump_shot(ball_location,intercept_time,best_shot_vector,slope))
                                 if ball_location[2] > 300 and ball_location[2] < 600 and slope > 1.0 and (ball_location[2]-250) * 0.14 > agent.me.boost:
                                     hits[pair].append(aerial_shot(ball_location,intercept_time,best_shot_vector,slope))
+                                if ball_location.z > 600:
+                                    shot = aerial(ball_location - 92 * best_shot_vector, intercept_time, True,
+                                                    target=best_shot_vector)
+                                    if shot.is_viable(agent, agent.time) and should_aerial(agent, shot):
+                                        hits[pair].append(shot)
                             elif backward_flag and ball_location[2] <= 280 and slope > 0.25:
                                 hits[pair].append(jump_shot(ball_location,intercept_time,best_shot_vector,slope,-1))
     return hits
+
+
+def determine_shot(agent, target, targets, target_count, defensive=False, center=False):
+    if agent.ball.velocity.magnitude() > 0:
+        hits = find_hits(agent, targets)
+        if len(hits):
+            pick_the_fastest = []
+            for i in range(1, 1 + target_count):
+                if len(hits[str(i)]):
+                    shot = hits[str(i)][0]
+                    # dont go for hits were we have to crawl to
+                    hit_location = shot.ball_location
+                    hit_time = shot.intercept_time
+                    time_delta = hit_time - agent.time
+                    location_delta = (agent.me.location - hit_location).magnitude()
+                    avg_speed = location_delta / time_delta
+                    # print(agent.index, location_delta, time_delta, avg_speed, agent.me.boost)
+                    # sorted_foes = agent.foes[:]
+                    # sorted_foes.sort(key=lambda car: (hit_location - car.location).magnitude())
+                    # closest_enemy_distance = (hit_location - sorted_foes[0].location).magnitude()
+                    pick_the_fastest.append(shot)
+                    if (avg_speed < 700):
+                        continue
+                    # max_boost_needed
+                    if not defensive:
+                        if len(agent.stack): agent.pop()
+                        agent.push(shot)
+                        if type(shot) == aerial: agent.aerialing = True
+                        return True
+            if len(pick_the_fastest):
+                pick_the_fastest.sort(key=lambda shot: shot.intercept_time)
+                if len(agent.stack): agent.pop()
+                agent.push(pick_the_fastest[0])
+                if type(shot) == aerial: agent.aerialing = True
+                return defensive
+    if center: return False
+    if len(agent.stack): agent.pop()
+    shot = short_shot(target)
+    agent.push(shot)
+    return not center
+
+
+def determine_follow_up_shot(agent, targets, target_count):
+    if agent.ball.velocity.magnitude() > 0:
+        hits = find_hits(agent, targets)
+        if len(hits):
+            for i in range(1, 1 + target_count):
+                if len(hits[str(i)]):
+                    for shot in hits[str(i)]:
+                        if type(shot) != aerial:
+                            continue
+                        else:
+                            agent.aerialing = False
+                            if len(agent.stack): agent.pop()
+                            agent.push(shot)
+                            return True
+    return False
+
+
+def should_aerial(agent, shot:aerial):
+    if shot.ball_location[1] * side(agent.team) > agent.me.location[1] * side(agent.team) and agent.me.location[1] * side(agent.team) < 4500:
+        if is_ball_going_towards_goal(agent) and is_last_one_back(agent):
+            return True
+        else:
+            return False
+    return True

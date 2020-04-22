@@ -163,7 +163,5 @@ def detect_demo(agent):
             can_demo = car.supersonic or (distance_required < distance_to_target and boost_required < car.boost)
             if (aim_point - my_future_location).magnitude()  and can_demo:
                 if time_to_target < 0.75:
-                    return False\
-                        .as_integer_ratio()\
-                        , car
+                    return False, car #disabled
     return False, None
