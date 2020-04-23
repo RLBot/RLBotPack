@@ -1,5 +1,5 @@
 from rlutilities.linear_algebra import vec3
-from utils.math import signclamp
+from utils.math import abs_clamp
 
 
 class Arena:
@@ -9,8 +9,8 @@ class Arena:
     @classmethod
     def clamp(cls, pos: vec3, offset: float = 0) -> vec3:
         return vec3(
-            signclamp(pos[0], cls.size[0] - offset),
-            signclamp(pos[1], cls.size[1] - offset),
+            abs_clamp(pos[0], cls.size[0] - offset),
+            abs_clamp(pos[1], cls.size[1] - offset),
             pos[2]
         )
 

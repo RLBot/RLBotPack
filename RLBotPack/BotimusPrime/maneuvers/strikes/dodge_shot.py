@@ -1,22 +1,14 @@
-from maneuvers.kit import *
-
 from maneuvers.strikes.dodge_strike import DodgeStrike
-from rlutilities.simulation import Field, sphere
+from rlutilities.simulation import Car, Ball
+from utils.arena import Arena
+from utils.intercept import Intercept
+from utils.vector_math import ground_direction
+
 
 class DodgeShot(DodgeStrike):
 
-    max_base_height = 250
-
     def intercept_predicate(self, car: Car, ball: Ball):
-        # max_height = align(car, ball, self.target) * 60 + self.max_base_height
-        max_height = 300
-        contact_ray = Field.collide(sphere(ball.position, max_height))
-        return (
-            norm(contact_ray.direction) > 0
-            and ball.position[2] < max_height + 50
-            and (Arena.inside(ball.position, 100) or distance(ball, self.target) < 1000)
-            and abs(car.position[0]) < Arena.size[0] - 300
-        )
+        return ball.position[2] < 300
 
     def configure(self, intercept: Intercept):
         super().configure(intercept)

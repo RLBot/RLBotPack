@@ -1,7 +1,10 @@
 from rlutilities.simulation import Input
 
-class Jump:
 
+class Jump:
+    """
+    This class is from the old RLUtilities, made by chip
+    """
     def __init__(self, duration):
 
         self.duration = duration
@@ -11,6 +14,9 @@ class Jump:
         self.counter = 0
 
         self.finished = False
+
+    def interruptible(self) -> bool:
+        return False
 
     def step(self, dt):
 

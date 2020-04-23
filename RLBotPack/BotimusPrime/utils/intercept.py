@@ -1,30 +1,34 @@
-from rlutilities.simulation import Car, Ball
-from rlutilities.mechanics import Aerial
-from rlutilities.linear_algebra import look_at
+import math
+from typing import Optional
 
-from utils.vector_math import *
-from utils.math import *
-from utils.misc import *
+from rlutilities.linear_algebra import norm, angle_between, dot
+from rlutilities.simulation import Car, Ball
+from utils.math import clamp
+
+from utils.vector_math import distance, direction, ground
 
 
 class Intercept:
     def __init__(self, car: Car, ball_predictions, predicate: callable = None, backwards=False):
-        self.ball: Ball = None
+        self.ball: Optional[Ball] = None
+        self.car: Car = car
         self.is_viable = True
 
-        #find the first reachable ball slice that also meets the predicate
+        # find the first reachable ball slice that also meets the predicate
         speed = 1000 if backwards else estimate_max_car_speed(car)
-        # for ball in ball_predictions:
-        for ball in ball_predictions:
-            if estimate_time(car, ball.position, speed, -1 if backwards else 1) < ball.time - car.time \
-            and (predicate is None or predicate(car, ball)):
+
+        for i in range(0, len(ball_predictions)):
+            ball = ball_predictions[i]
+            time = estimate_time(car, ball.position, speed, -1 if backwards else 1)
+            if time < ball.time - car.time and (predicate is None or predicate(car, ball)):
                 self.ball = ball
                 break
 
-        #if no slice is found, use the last one
+        # if no slice is found, use the last one
         if self.ball is None:
             if not ball_predictions:
                 self.ball = Ball()
+                self.ball.time = math.inf
             else:
                 self.ball = ball_predictions[-1]
             self.is_viable = False
@@ -33,33 +37,18 @@ class Intercept:
         self.ground_pos = ground(self.ball.position)
         self.position = self.ball.position
 
-class AerialIntercept:
-    def __init__(self, car: Car, ball_predictions, predicate: callable = None):
-        self.ball: Ball = None
-        self.is_viable = True
 
-        #find the first reachable ball slice that also meets the predicate
-        test_car = Car(car)
-        test_aerial = Aerial(car)
-        
-        for ball in ball_predictions:
-            test_aerial.target = ball.position
-            test_aerial.arrival_time = ball.time
+def estimate_max_car_speed(car: Car):
+    return clamp(max(norm(car.velocity), 1300) + car.boost * 100, 1600, 2300)
 
-            # fake our car state :D
-            dir_to_target = ground_direction(test_car.position, test_aerial.target)
-            test_car.velocity = dir_to_target * max(norm(test_car.velocity), 1200)
-            test_car.orientation = look_at(dir_to_target, vec3(0,0,1))
 
-            if test_aerial.is_viable() and (predicate is None or predicate(car, ball)):
-                self.ball = ball
-                break
-
-        #if no slice is found, use the last one
-        if self.ball is None:
-            self.ball = ball_predictions[-1]
-            self.is_viable = False
-
-        self.time = self.ball.time
-        self.ground_pos = ground(self.ball.position)
-        self.position = self.ball.position
+def estimate_time(car: Car, target, speed, dd=1) -> float:
+    dist = distance(car, target)
+    if dist < 100:
+        return 0
+    travel = dist / speed
+    turning = angle_between(car.forward() * dd, direction(car, target)) / math.pi * 2
+    if turning < 1:
+        turning **= 2
+    acceleration = (speed * dd - dot(car.velocity, car.forward())) / 2100 * 0.2 * dd / max(car.boost / 20, 1)
+    return travel + acceleration + turning * 0.7
