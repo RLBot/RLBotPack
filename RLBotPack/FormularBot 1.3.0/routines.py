@@ -444,7 +444,7 @@ class goto_boost():
         car_to_boost = self.boost.location - agent.me.location
         distance_remaining = car_to_boost.flatten().magnitude()
 
-        agent.line(self.boost.location - Vector3(0,0,500),self.boost.location + Vector3(0,0,500),[0,255,0])
+        agent.line(self.boost.location - Vector3(0,0,500),self.boost.location + Vector3(0,0,500),[0,255,255])
 
         if self.target != None:
             vector = (self.target - self.boost.location).normalize()
@@ -548,6 +548,7 @@ class jump_shot():
         defaultThrottle(agent, speed_required,self.direction)
 
         agent.line(agent.me.location, agent.me.location + (self.shot_vector*200), [255,255,255])
+
         agent.controller.boost = False if agent.me.airborne or (abs(angles[1]) > 0.3 and car_to_ball.magnitude() < 1000) else agent.controller.boost
         agent.controller.handbrake = True if abs(angles[1]) > 2.3 and self.direction == 1 else agent.controller.handbrake
 
@@ -656,13 +657,41 @@ class kickoff():
                         else:
                             agent.controller.yaw = -1  
 
-            elif elapsed < 0.5 and self.kickoff == 'back_right' or self.kickoff == 'back_left' and elapsed < 0.5:
-                #Drives towards central boost before driving towards ball
-                relative_target = agent.boosts[7 if side(agent.team) == -1 else 26].location - agent.me.location
-                local_target = agent.me.local(relative_target)
-                defaultPD(agent,local_target)
+            elif self.kickoff == 'back_right' or self.kickoff == 'back_left':
+                #Fast off_centre kickoff
                 defaultThrottle(agent,2300)
                 agent.controller.boost = True
+                if elapsed < 0.65:
+                    relative_target = agent.boosts[7 if side(agent.team) == -1 else 26].location - agent.me.location
+                    local_target = agent.me.local(relative_target)
+                    defaultPD(agent,local_target)
+                if elapsed > 0.65 and elapsed < 0.7:
+                    agent.controller.jump = True
+                elif elapsed > 0.65 and self.counter < 3:
+                    agent.controller.jump = False
+                    self.counter += 1
+                elif elapsed > 0.65 and self.counter < 4:
+                    agent.controller.jump = True
+                    agent.controller.pitch = -1
+                    #Faces central 
+                    if self.kickoff == 'back_left':
+                        agent.controller.yaw = -1
+                    else:
+                        agent.controller.yaw = 1                 
+                    self.counter += 1
+                elif self.counter == 4:
+                    agent.controller.jump = False
+                    self.counter += 1
+                elif self.counter > 4:
+                    #Once landed flips into the ball
+                    if not agent.me.airborne:
+                        agent.push(flip(agent.me.local(agent.ball.location - agent.me.location)))
+                    else:
+                        if self.kickoff == 'back_right':
+                            agent.controller.yaw = 0.85
+                        else:
+                            agent.controller.yaw = -0.85
+
 
             else:
                 target = agent.ball.location + Vector3(0,200*side(agent.team),0)
