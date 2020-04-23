@@ -1,5 +1,7 @@
 from typing import List
 
+from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
+
 from rlutilities.simulation import Game, Car, Ball, Pad
 from rlutilities.linear_algebra import vec3
 
@@ -21,51 +23,37 @@ class Goal:
 
 class GameInfo(Game):
 
-    def __init__(self, index, team):
-        super().__init__(index, team)
+    def __init__(self, team):
+        super().__init__(team)
         self.my_goal = Goal(team)
         self.their_goal = Goal(1 - team)
 
+        self.ball_predictions: List[Ball] = []
         self.about_to_score = False
         self.about_to_be_scored_on = False
         self.time_of_goal = -1
 
-        self.ball_predictions: List[Ball] = list()
-
-        self.teammates: List[Car] = []
-        self.opponents: List[Car] = []
         self.large_boost_pads: List[Pad] = []
 
-    def read_packet(self, packet, field_info):
+    def read_packet(self, packet: GameTickPacket, field_info: FieldInfoPacket):
         self.read_game_information(packet, field_info)
-        self.teammates = self.get_teammates()
-        self.opponents = self.get_opponents()
-        self.large_boost_pads = self.get_large_boost_pads()
+        self.large_boost_pads = self._get_large_boost_pads(field_info)
+
+        # invert large boost pad timers
+        for pad in self.large_boost_pads:
+            pad.timer = 10.0 - pad.timer
         
-    def get_large_boost_pads(self) -> List[Pad]:
-        return [self.pads[3], 
-                self.pads[4], 
-                self.pads[15],
-                self.pads[18],
-                self.pads[29],
-                self.pads[30]]
+    def _get_large_boost_pads(self, field_info: FieldInfoPacket) -> List[Pad]:
+        return [self.pads[i] for i in range(field_info.num_boosts) if field_info.boost_pads[i].is_full_boost]
 
-    def get_teammates(self) -> List[Car]:
-        cars: List[Car] = []
-        for i in range(self.num_cars):
-            if self.cars[i].team == self.team and self.cars[i].id != self.id:
-                cars.append(self.cars[i])
-        return cars
+    def get_teammates(self, car: Car) -> List[Car]:
+        return [self.cars[i] for i in range(self.num_cars)
+                if self.cars[i].team == self.team and self.cars[i].id != car.id]
 
-    def get_opponents(self) -> List[Car]:
-        cars: List[Car] = []
-        for i in range(self.num_cars):
-            if self.cars[i].team != self.team:
-                cars.append(self.cars[i])
-        return cars
+    def get_opponents(self, car: Car) -> List[Car]:
+        return [self.cars[i] for i in range(self.num_cars) if self.cars[i].team != car.team]
 
-    def predict_ball(self, num_steps, dt):
-
+    def predict_ball(self, time_limit=6.0, dt=1/120):
         self.about_to_score = False
         self.about_to_be_scored_on = False
         self.time_of_goal = -1
@@ -73,7 +61,7 @@ class GameInfo(Game):
         self.ball_predictions = []
         prediction = Ball(self.ball)
 
-        for _ in range(0, num_steps):
+        while prediction.time < self.ball.time + time_limit:
             prediction.step(dt)
             self.ball_predictions.append(Ball(prediction))
 

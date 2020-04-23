@@ -1,12 +1,17 @@
-from maneuvers.kit import *
-
+from maneuvers.maneuver import Maneuver
 from maneuvers.driving.drive import Drive
+from rlutilities.linear_algebra import vec3, norm, normalize
+from rlutilities.simulation import Car, Ball
+from utils.drawing import DrawingTool
+from utils.math import clamp, sign
+from utils.vector_math import distance, ground_distance, direction, local, ground, world
+
 
 class Carry(Maneuver):
-    '''
+    """
     Carry the ball on roof towards a target.
     Finishes if the ball hits the floor.
-    '''
+    """
     def __init__(self, car: Car, ball: Ball, target: vec3):
         super().__init__(car)
 
@@ -35,7 +40,7 @@ class Carry(Maneuver):
 
         if abs(shift[1]) > abs(max_shift[1]) or shift[0] < 0:
             shift = max_shift
-        shift *= 30
+        shift *= clamp(car.boost, 30, 50)
 
         shift[1] *= clamp(norm(car.velocity)/1000, 1, 2)
 
