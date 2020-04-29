@@ -30,6 +30,7 @@ class Aerial():
     controls: rlutilities.simulation.Input
     finished: bool
     reorient_distance: float
+    single_jump: bool
     target: vec3
     target_orientation: Optional[mat3]
     throttle_distance: float

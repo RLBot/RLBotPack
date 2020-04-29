@@ -1,10 +1,19 @@
-from maneuvers.kit import *
-
 from maneuvers.driving.drive import Drive
 from maneuvers.jumps.half_flip import HalfFlip
+from maneuvers.maneuver import Maneuver
+from rlutilities.linear_algebra import vec3, norm, dot, vec2
 from rlutilities.mechanics import Wavedash, Dodge
+from rlutilities.simulation import Car
+from utils.arena import Arena
+from utils.drawing import DrawingTool
+from utils.intercept import estimate_max_car_speed, estimate_time
+from utils.vector_math import ground, distance, ground_distance, angle_to, direction
+
 
 class Travel(Maneuver):
+    DODGE_DURATION = 1.5
+    HALFFLIP_DURATION = 2
+    WAVEDASH_DURATION = 1.3
 
     def __init__(self, car: Car, target: vec3 = vec3(0, 0, 0), waste_boost=False):
         super().__init__(car)
@@ -16,59 +25,71 @@ class Travel(Maneuver):
         self._time_on_ground = 0
         self.driving = True
 
-        self.dodge_duration = 1.5
-        self.halflip_duration = 2
-        self.wavedash_duration = 1.3
-
         # decide whether to start driving backwards and halfflip later
-        forward_est = estimate_time(car, target, estimate_max_car_speed(car))
-        backwards_est = estimate_time(car, target, 1400, -1) + 0.5
-        backwards = backwards_est < forward_est \
-                    and (distance(car, target) > 3000 or distance(car, target) < 300) \
-                    and car.position[2] < 200
+        forward_estimate = estimate_time(car, self.target, estimate_max_car_speed(car))
+        backwards_estimate = estimate_time(car, self.target, 1400, -1) + 0.5
+        backwards = (
+                backwards_estimate < forward_estimate
+                and (distance(car, self.target) > 3000 or distance(car, self.target) < 300)
+                and car.position[2] < 200
+        )
 
         self.drive = Drive(car, self.target, 2300, backwards)
         self.action = self.drive
+
+    def interruptible(self) -> bool:
+        return self.driving and self.car.on_ground
 
     def step(self, dt):
         car = self.car
         target = ground(self.target)
 
-        car_vel = norm(car.velocity)
-        time_left = (distance(car, target) - self.finish_distance) / max(car_vel + 500, 1400)
-        vf = dot(car.forward(), car.velocity)
+        car_speed = norm(car.velocity)
+        time_left = (ground_distance(car, target) - self.finish_distance) / max(car_speed + 500, 1400)
+        forward_speed = dot(car.forward(), car.velocity)
 
         if self.driving and car.on_ground:
             self.action.target_pos = target
             self._time_on_ground += dt
-            
-            if self._time_on_ground > 0.2 and car.position[2] < 200 and angle_to(car, target, vf < 0) < 0.1:
 
-                if vf > 0:
-                    if car_vel > 1000 and (not self.waste_boost or car.boost < 10):
-                        if time_left > self.dodge_duration:
+            # check if it's a good idea to dodge, wavedash or halfflip
+            if (
+                self._time_on_ground > 0.2 and car.position[2] < 200
+                and angle_to(car, target, forward_speed < 0) < 0.1
+            ):
+                # if going forward, use a dodge or a wavedash
+                if forward_speed > 0:
+                    use_boost_instead = self.waste_boost and car.boost > 20
+
+                    if car_speed > 1200 and not use_boost_instead:
+                        if time_left > self.DODGE_DURATION:
                             dodge = Dodge(car)
                             dodge.duration = 0.05
                             dodge.direction = vec2(direction(car, target))
                             self.action = dodge
                             self.driving = False
 
-                        elif time_left > self.wavedash_duration:
+                        elif time_left > self.WAVEDASH_DURATION:
                             wavedash = Wavedash(car)
                             wavedash.direction = vec2(direction(car, target))
                             self.action = wavedash
                             self.driving = False
 
-                elif time_left > self.halflip_duration and car_vel > 800:
+                # if going backwards, use a halfflip
+                elif time_left > self.HALFFLIP_DURATION and car_speed > 800:
                     self.action = HalfFlip(car, self.waste_boost and time_left > 3)
                     self.driving = False
-                    
 
         self.action.step(dt)
         self.controls = self.action.controls
 
+        # make sure we're not boosting airborne
         if self.driving and not car.on_ground:
             self.controls.boost = False
+
+        # make sure we're not stuck turtling
+        if not car.on_ground:
+            self.controls.throttle = 1
 
         if self.action.finished and not self.driving:
             self.driving = True
@@ -76,14 +97,12 @@ class Travel(Maneuver):
             self.action = self.drive
             self.drive.backwards = False
 
-        if distance(car, target) < self.finish_distance and self.driving:
+        if ground_distance(car, target) < self.finish_distance and self.driving:
             self.finished = True
-
-        if not self.waste_boost and car.boost < 70:
-            self.controls.boost = 0
 
     def render(self, draw: DrawingTool):
         if self.driving:
             self.action.render(draw)
+
         draw.color(draw.orange)
-        draw.square(self.target, clamp(distance(self.car, self.target) / 10, 100, 1000))
+        draw.crosshair(self.target)

@@ -1,9 +1,12 @@
-from maneuvers.kit import *
 from maneuvers.jumps.jump import Jump
+from maneuvers.maneuver import Maneuver
+from rlutilities.linear_algebra import vec3, dot, normalize, sgn
 
 
 class AirDodge(Maneuver):
-
+    """
+    This class is from the old RLUtilities, made by chip
+    """
     def __init__(self, car, duration=0.0, target=None):
         super().__init__(car)
         self.target: vec3 = target
@@ -17,6 +20,8 @@ class AirDodge(Maneuver):
         self.state_timer = 0.0
         self.total_timer = 0.0
 
+    def interruptible(self) -> bool:
+        return False
 
     def step(self, dt):
 
@@ -62,6 +67,4 @@ class AirDodge(Maneuver):
             self.counter += 1
             self.state_timer += dt
 
-        self.finished = (self.jump.finished and
-                         self.state_timer > recovery_time and
-                         self.counter >= 6)
+        self.finished = self.jump.finished and self.state_timer > recovery_time and self.counter >= 6
