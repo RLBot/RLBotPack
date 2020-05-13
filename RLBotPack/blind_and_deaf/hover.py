@@ -33,4 +33,4 @@ class Hover:
         self.controls = self.turn.controls
         self.controls.boost = delta_target[2] - self.car.velocity[2] * 0.5 > 0 and self.car.forward()[2] > 0.2
         self.controls.throttle = not self.car.on_ground
-        self.controls.jump = 25 < self.car.position[2] < 80 or self.car.on_ground
+        self.controls.jump = self.car.position[2] < 30 and self.info.time % 1.0 < 0.5
