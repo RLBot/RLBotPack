@@ -112,7 +112,7 @@ class TwitchBroker(BaseScript):
         recent_menus = []
         stop_list = set()
 
-        overlay_data = OverlayData('', [], [])
+        overlay_data = OverlayData('', [], [], [])
         self.write_json_for_overlay(overlay_data)
 
         while True:
@@ -128,7 +128,7 @@ class TwitchBroker(BaseScript):
                 sleep(0.1)
                 continue
             self.menu_id = generate_menu_id()
-            overlay_data = generate_menu(all_actions, self.menu_id, recent_commands)
+            overlay_data = generate_menu(all_actions, self.menu_id, recent_commands, packet)
             self.write_json_for_overlay(overlay_data)
             recent_menus.insert(0, overlay_data)
             if len(recent_menus) > self.broker_settings.num_old_menus_to_honor + 1:

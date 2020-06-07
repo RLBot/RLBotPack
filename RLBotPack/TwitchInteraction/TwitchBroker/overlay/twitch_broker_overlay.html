@@ -25,15 +25,40 @@
     let previousMessage = null;
     let latestCommandId = null;
 
+    function getPlayerNameMarkup(player) {
+        const teamClass = player.team === 0 ? 'blue' :'orange';
+        return '<span class="player-name ' + teamClass + '">' + player.name + '</span>'
+    }
+
+    // Player data should be sorted by name length (descending) so we avoid false matches based on substring.
+    function highlightPlayerNames(description, playerData) {
+        for (let i = 0; i < playerData.length; i++) {
+            let player = playerData[i];
+            if (description.indexOf(player.name) >= 0) {
+                return description.replace(player.name, getPlayerNameMarkup(player));
+            }
+        }
+        return description;
+    }
+
     setInterval(function() {
         $.get('twitch_broker_overlay.json', function(data) {
-            const dataString = JSON.stringify(data);
+            let dataString = data;
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            } else {
+                dataString = JSON.stringify(data);
+            }
+
             if (dataString !== previousData) {
 
                 overlayDiv.empty();
                 if (data.sections.length === 0) {
                     overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'))
                 }
+
+                // Sort the names by descending length
+                const sortedPlayers = data.players.sort(function(a, b) {return b.name.length - a.name.length});
 
                 for (let i = 0; i < data.sections.length; i++) {
 
@@ -45,9 +70,10 @@
                     for (let j = 0; j < section.actions.length; j++) {
                         const numberedAction = section.actions[j];
                         const action = numberedAction.action;
+                        const description = highlightPlayerNames(action.description, sortedPlayers);
                         sectionDiv.append('<div class="action"><span class="menu-id-prefix">' + data.menu_id +
                             '</span><span class="opt-number">' + numberedAction.number +
-                            '</span>' + action.description + '</div>');
+                            '</span>' + description + '</div>');
                     }
 
                     overlayDiv.append(sectionDiv);

@@ -5,6 +5,7 @@ import itertools
 from dataclasses import dataclass
 from typing import List
 
+from rlbot.utils.structures.game_data_struct import GameTickPacket, PlayerInfo
 from rlbot_action_client.models import BotAction
 from twitchbroker.action_and_server_id import AvailableActionsAndServerId, ActionAndServerId
 
@@ -34,10 +35,14 @@ def generate_menu_id():
     return ''.join(random.choice(string.ascii_uppercase) for _ in range(2))
 
 
-def generate_menu(list: List[AvailableActionsAndServerId], menu_id: str, recent_commands: List[CommandAcknowledgement]):
+def generate_menu(list: List[AvailableActionsAndServerId], menu_id: str,
+                  recent_commands: List[CommandAcknowledgement], packet: GameTickPacket) -> 'OverlayData':
+
+    raw_players = [packet.game_cars[i] for i in range(packet.num_cars)]
+    players = [PlayerData(p.name, p.team) for p in raw_players if p.name]
     counter = itertools.count(1)
     return OverlayData(menu_id=menu_id, sections=[create_section(s, counter) for s in list],
-                       recent_commands=recent_commands)
+                       recent_commands=recent_commands, players=players)
 
 
 @dataclass
@@ -48,10 +53,17 @@ class CommandSection:
 
 
 @dataclass
+class PlayerData:
+    name: str
+    team: int
+
+
+@dataclass
 class OverlayData:
     menu_id: str
     sections: List[CommandSection]
     recent_commands: List[CommandAcknowledgement]
+    players: List[PlayerData]
 
     def retrieve_choice(self, choice_num: int) -> ActionAndServerId:
         for section in self.sections:

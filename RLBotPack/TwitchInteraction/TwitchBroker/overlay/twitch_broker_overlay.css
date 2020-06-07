@@ -61,3 +61,15 @@ div.jq-toast-single {
     font-size: 1em;
     color: black;
 }
+
+.player-name {
+    font-weight: bold;
+}
+
+.player-name.blue {
+    color: #1E90FF;
+}
+
+.player-name.orange {
+    color: #FF8C00;
+}
