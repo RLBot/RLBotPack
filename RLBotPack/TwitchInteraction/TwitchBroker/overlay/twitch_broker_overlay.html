@@ -25,22 +25,6 @@
     let previousMessage = null;
     let latestCommandId = null;
 
-    function getPlayerNameMarkup(player) {
-        const teamClass = player.team === 0 ? 'blue' :'orange';
-        return '<span class="player-name ' + teamClass + '">' + player.name + '</span>'
-    }
-
-    // Player data should be sorted by name length (descending) so we avoid false matches based on substring.
-    function highlightPlayerNames(description, playerData) {
-        for (let i = 0; i < playerData.length; i++) {
-            let player = playerData[i];
-            if (description.indexOf(player.name) >= 0) {
-                return description.replace(player.name, getPlayerNameMarkup(player));
-            }
-        }
-        return description;
-    }
-
     setInterval(function() {
         $.get('twitch_broker_overlay.json', function(data) {
             let dataString = data;
@@ -70,10 +54,9 @@
                     for (let j = 0; j < section.actions.length; j++) {
                         const numberedAction = section.actions[j];
                         const action = numberedAction.action;
-                        const description = highlightPlayerNames(action.description, sortedPlayers);
                         sectionDiv.append('<div class="action"><span class="menu-id-prefix">' + data.menu_id +
                             '</span><span class="opt-number">' + numberedAction.number +
-                            '</span>' + description + '</div>');
+                            '</span>' + action.description + '</div>');
                     }
 
                     overlayDiv.append(sectionDiv);
