@@ -1,5 +1,6 @@
 from random import random
 from threading import Thread
+from time import sleep
 from typing import List
 
 from rlbot.agents.base_script import BaseScript
@@ -7,12 +8,11 @@ from rlbot.utils.game_state_util import CarState, GameState, Physics, Vector3
 from rlbot.utils.structures.game_data_struct import PlayerInfo, Rotator
 from rlbot_action_server.bot_action_broker import BotActionBroker, run_action_server, find_usable_port
 from rlbot_action_server.bot_holder import set_bot_action_broker
+from rlbot_action_server.formatting_utils import highlight_player_name
 from rlbot_action_server.models import BotAction, AvailableActions, ActionChoice, ApiResponse
 from rlbot_twitch_broker_client import Configuration, RegisterApi, ApiClient, ActionServerRegistration
 from rlbot_twitch_broker_client.defaults import STANDARD_TWITCH_BROKER_PORT
-from time import sleep
 from urllib3.exceptions import MaxRetryError
-
 from util.orientation import Orientation, look_at_orientation
 from util.vec import Vec3
 
@@ -97,9 +97,9 @@ class CarBotherer(BaseScript):
     def get_actions_currently_available(self) -> List[AvailableActions]:
         actions = []
         for player in self.known_players:
-            actions.append(BotAction(description=f'Flip {player.name}', action_type=FLIP_CAR,
+            actions.append(BotAction(description=f'Flip {highlight_player_name(player)}', action_type=FLIP_CAR,
                                      data={PLAYER_NAME: player.name}))
-            actions.append(BotAction(description=f'Nudge {player.name}', action_type=NUDGE_CAR,
+            actions.append(BotAction(description=f'Nudge {highlight_player_name(player)}', action_type=NUDGE_CAR,
                                      data={PLAYER_NAME: player.name}))
 
         return [AvailableActions("Car Botherer", None, actions)]
