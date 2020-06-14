@@ -26,6 +26,7 @@ class CommandAcknowledgement:
 
 def create_section(act_and_server: AvailableActionsAndServerId, counter: itertools.count):
     return CommandSection(header=act_and_server.available_actions.entity_name,
+                          entity_name=act_and_server.available_actions.entity_name,
                           action_server_id=act_and_server.action_server_id,
                           actions=[NumberedAction(next(counter), a) for a in
                                    act_and_server.available_actions.available_actions])
@@ -48,6 +49,7 @@ def generate_menu(list: List[AvailableActionsAndServerId], menu_id: str,
 @dataclass
 class CommandSection:
     header: str
+    entity_name: str  # Probably the same as the header for now.
     action_server_id: str
     actions: List[NumberedAction]
 
@@ -69,7 +71,7 @@ class OverlayData:
         for section in self.sections:
             for action in section.actions:
                 if action.number == choice_num:
-                    return ActionAndServerId(action.action, section.action_server_id)
+                    return ActionAndServerId(action.action, section.entity_name, section.action_server_id)
         return None
 
     def num_actions(self) -> int:

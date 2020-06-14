@@ -6,6 +6,7 @@ from rlbot_action_client.models import BotAction, AvailableActions
 @dataclass
 class ActionAndServerId:
     bot_action: BotAction
+    entity_name: str
     action_server_id: str
 
 
