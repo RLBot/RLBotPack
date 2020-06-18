@@ -1,6 +1,8 @@
 from tools import  *
 from objects import *
 from routines import *
+from rlbot.utils.structures.quick_chats import QuickChats
+
 
 class FormularBot(GoslingAgent):
     def run(agent):
@@ -11,7 +13,7 @@ class FormularBot(GoslingAgent):
         my_goal_to_ball,my_ball_distance = (agent.ball.location - agent.friend_goal.location).normalize(True)
         goal_to_me = agent.me.location - agent.friend_goal.location
         my_distance = my_goal_to_ball.dot(goal_to_me)
-        me_onside = my_distance + 80 < my_ball_distance
+        me_onside = my_distance + 70 < my_ball_distance
 
         close = (agent.me.location - agent.ball.location).magnitude() < 1500
         very_close = (agent.me.location - agent.ball.location).magnitude() < 500
@@ -27,7 +29,7 @@ class FormularBot(GoslingAgent):
         shots = find_hits(agent,targets)
 
         allies = agent.friends
-        cally_to_ball = "none"
+        ally_to_ball = "none"
         ally_to_ball_distance = 99999
         ally_to_friendly_goal = "none"
         ally_to_friendly_goal_distance = 99999
@@ -60,8 +62,10 @@ class FormularBot(GoslingAgent):
             kickoff_position = 'back_left'
         elif x_position == 255 or x_position == 256:
             kickoff_position = 'back_right'
-        else:
+        elif x_position == 0:
             kickoff_position = 'back_centre'
+        else:
+            kickoff_position = 'unknown'
 
         #Shoots if onside and (closest to ball or ball within 4000 of foe goal and between -1250 and 1250 x or ball is within 3000 of own goal)
         if me_onside and (closest_to_ball or (distance_ball_foe_goal < 4000 and -1250 < agent.ball.location.x < 1250) or distance_ball_friendly_goal < 3000):
@@ -75,7 +79,7 @@ class FormularBot(GoslingAgent):
         else:
             goalie = False
         
-        #Only go for kickoff if closest or joint closeset and on left side
+        #Only go for kickoff if closest or joint closest and on left side
         if agent.kickoff_flag and (closest_to_ball or (joint_closest_to_ball and (kickoff_position == 'diagonal_left' or kickoff_position == 'back_left'))):
             go_for_kickoff = True
         else:
@@ -84,6 +88,8 @@ class FormularBot(GoslingAgent):
 
         #Decision making code
         if len(agent.stack) < 1:
+            if go_for_kickoff and joint_closest_to_ball and len(agent.friends) > 0:
+                agent.send_quick_chat(QuickChats.CHAT_EVERYONE,QuickChats.Information_IGotIt)
             if go_for_kickoff:
                 stack = 'kickoff'
                 agent.push(kickoff(kickoff_position))
@@ -94,7 +100,6 @@ class FormularBot(GoslingAgent):
                 stack = 'shooting'
                 if len(shots["goal"]) > 0:
                     agent.push(shots["goal"][0])
-                    #send(random.choice(chat_ids)) - TODO
                 elif len(shots["upfield"]) > 0 and abs(agent.friend_goal.location.y - agent.ball.location.y) < 8490:
                     agent.push(shots["upfield"][0])
                 else:  
