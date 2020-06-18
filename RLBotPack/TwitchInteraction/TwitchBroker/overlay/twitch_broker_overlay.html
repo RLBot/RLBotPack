@@ -1,0 +1,103 @@
+<!--TODO: Suggestions from Parzival:-->
+<!--Change the background color of divisions that already played, same for ones that are scheduled-->
+<!--Add time zone abbreviation-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>title</title>
+    <script
+            src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous"></script>
+    <script src=https://cdnjs.cloudflare.com/ajax/libs/jquery-toast-plugin/1.3.2/jquery.toast.min.js></script>
+    <link rel="stylesheet" href="twitch_broker_overlay.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-toast-plugin/1.3.2/jquery.toast.min.css" />
+
+</head>
+<body>
+
+    <div id="overlay_div"></div>
+
+<script>
+    const overlayDiv = $('#overlay_div');
+    let previousData = null;
+    let previousMessage = null;
+    let latestCommandId = null;
+
+    setInterval(function() {
+        $.get('twitch_broker_overlay.json', function(data) {
+            let dataString = data;
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            } else {
+                dataString = JSON.stringify(data);
+            }
+
+            if (dataString !== previousData) {
+
+                overlayDiv.empty();
+                if (data.sections.length === 0) {
+                    overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'))
+                }
+
+                // Sort the names by descending length
+                const sortedPlayers = data.players.sort(function(a, b) {return b.name.length - a.name.length});
+
+                for (let i = 0; i < data.sections.length; i++) {
+
+                    const sectionDiv = $('<div class="section"></div>');
+                    const section = data.sections[i];
+                    overlayDiv.append(sectionDiv);
+                    sectionDiv.append('<div class="section-header">' + section.header + '</div>');
+
+                    for (let j = 0; j < section.actions.length; j++) {
+                        const numberedAction = section.actions[j];
+                        const action = numberedAction.action;
+                        sectionDiv.append('<div class="action"><span class="menu-id-prefix">' + data.menu_id +
+                            '</span><span class="opt-number">' + numberedAction.number +
+                            '</span>' + action.description + '</div>');
+                    }
+
+                    overlayDiv.append(sectionDiv);
+                }
+
+
+                if (data.recent_commands) {
+                    let previousCmdIndex = -1;
+                    for (let i = 0; i < data.recent_commands.length; i++) {
+                        let cmd = data.recent_commands[i];
+                        if (cmd.id === latestCommandId) {
+                            previousCmdIndex = i;
+                            break;
+                        }
+                    }
+
+                    for (let i = previousCmdIndex + 1; i < data.recent_commands.length; i++) {
+                        let cmd = data.recent_commands[i];
+                        // https://kamranahmed.info/toast
+                        $.toast({
+                            heading: cmd.username,
+                            text: cmd.description,
+                            position: { top: 35, left: 400},
+                            showHideTransition: 'fade',
+                            hideAfter: 4000,
+                            loader: false,
+                            allowToastClose: false,
+                            stack: 3,
+                            icon: cmd.status,
+                        });
+                        latestCommandId = cmd.id;
+                    }
+                }
+                previousData = dataString;
+            }
+        }).fail(function(err) {
+            overlayDiv.empty();
+            overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'));
+        });
+    }, 500);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,3 @@
+rlbot_action_client>=1.1.0
+rlbot_twitch_broker_server
+twitchio
