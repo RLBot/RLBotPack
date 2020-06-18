@@ -17,7 +17,6 @@ throttle_accel: float = 200 / 3
 boost_per_second: float = 30
 
 # Jump constants
-
 jump_speed: float = 291.667
 jump_acc = 1458.3333
 jump_min_duration = 0.025
@@ -36,17 +35,29 @@ class ball_chase():
 class goto_friendly_goal():
     #Drives towards friendly goal. If touching or over goal line stops moving and faces enemy goal
     def run(agent):
-        if abs(agent.me.location.y) < 5000:
-            relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
-            defaultPD(agent,agent.me.local(relative))
-            angles = defaultPD(agent, agent.me.local(relative))
-            if abs(agent.me.location.y) < 4900:
-                defaultThrottle(agent,2300)
+        if side(agent.team) == -1:
+            if agent.me.location.y > -5000:
+                relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
+                defaultPD(agent,agent.me.local(relative))
+                angles = defaultPD(agent, agent.me.local(relative))
+                if agent.me.location.y > -4900:
+                    defaultThrottle(agent,2300)
+            else:
+                relative = agent.foe_goal.location - agent.me.location
+                defaultPD(agent,agent.me.local(relative))
+                angles = defaultPD(agent, agent.me.local(relative))
         else:
-            relative = agent.foe_goal.location - agent.me.location
-            defaultPD(agent,agent.me.local(relative))
-            angles = defaultPD(agent, agent.me.local(relative))
-        
+            if agent.me.location.y < 5000:
+                relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
+                defaultPD(agent,agent.me.local(relative))
+                angles = defaultPD(agent, agent.me.local(relative))
+                if agent.me.location.y < 4900:
+                    defaultThrottle(agent,2300)
+            else:
+                relative = agent.foe_goal.location - agent.me.location
+                defaultPD(agent,agent.me.local(relative))
+                angles = defaultPD(agent, agent.me.local(relative))
+            
         if abs(angles[1]) > 2.88 and abs(angles[1]) < 3.4:
             agent.push(half_flip())
 
@@ -175,6 +186,10 @@ class go_centre():
         if relative_target.magnitude() > 350:
             defaultPD(agent, local_target)
             defaultThrottle(agent, 2300)
+            angles = defaultPD(agent, agent.me.local(relative_target))
+            if abs(angles[1]) > 1:
+                agent.controller.handbrake = True
+                agent.controller.boost = False
         else:
         #If close to target, stop moving and face towards ball
             defaultThrottle(agent, 0)
@@ -473,8 +488,8 @@ class goto_boost():
         else:
             adjustment = 9999
             car_to_target = 0
-            final_target = self.boost.location
-
+            final_target = self.boost.location.copy()
+        
         #Some adjustment to the final target to ensure it's inside the field and we don't try to dirve through any goalposts to reach it
         if abs(agent.me.location[1]) > 5150: final_target[0] = cap(final_target[0],-750,750)
 
@@ -694,9 +709,44 @@ class kickoff():
                             agent.controller.yaw = 0.85
                         else:
                             agent.controller.yaw = -0.85
-
+            
+            elif self.kickoff == 'back_centre':
+                #Fast back_centre kickoff
+                defaultThrottle(agent,2300)
+                if self.counter < 5:
+                    agent.controller.boost = True
+                if elapsed < 0.45:
+                    relative_target = agent.ball.location - agent.me.location
+                    local_target = agent.me.local(relative_target)
+                    defaultPD(agent,local_target)
+                elif elapsed < 1:
+                    relative_target = agent.boosts[31 if side(agent.team) == -1 else 2].location - agent.me.location
+                    local_target = agent.me.local(relative_target)
+                    defaultPD(agent,local_target)
+                elif elapsed > 1 and elapsed < 1.05:
+                    agent.controller.jump = True
+                elif elapsed > 1 and self.counter < 3:
+                    agent.controller.jump = False
+                    self.counter += 1
+                elif elapsed > 1 and self.counter < 4:
+                    agent.controller.jump = True
+                    agent.controller.pitch = -1
+                    #Faces central 
+                    agent.controller.yaw = -1               
+                    self.counter += 1
+                elif self.counter == 4:
+                    agent.controller.jump = False
+                    self.counter += 1
+                elif self.counter > 4:
+                    #Once landed flips into the ball
+                    if agent.me.airborne:
+                        agent.controller.boost = False
+                        agent.controller.yaw = 0
+                    else:
+                        agent.push(flip(agent.me.local(agent.ball.location - agent.me.location)))                    
 
             else:
+                #kickoff for non-football gamemodes (heatseaker, dropshot etc) - just drives towards ball and flips
                 target = agent.ball.location + Vector3(0,200*side(agent.team),0)
                 local_target = agent.me.local(target - agent.me.location)
                 defaultPD(agent, local_target)

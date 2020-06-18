@@ -32,10 +32,6 @@ class GoslingAgent(BaseAgent):
         self.controller = SimpleControllerState()
         #a flag that tells us when kickoff is happening
         self.kickoff_flag = False
-
-        self.last_time = 0
-        self.my_score = 0
-        self.foe_score = 0
         
     def get_ready(self,packet):
         #Preps all of the objects that will be updated during play
@@ -84,6 +80,7 @@ class GoslingAgent(BaseAgent):
             self.stack = []
         #Tells us when to go for kickoff
         self.kickoff_flag = packet.game_info.is_round_active and packet.game_info.is_kickoff_pause
+        self.kickoff_finished = packet.game_info.is_round_active and not packet.game_info.is_kickoff_pause
     def get_output(self,packet):
         #Reset controller
         self.controller.__init__()
