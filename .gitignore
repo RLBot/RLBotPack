@@ -2,3 +2,4 @@ __pycache__/
 desktop.ini
 .idea/
 RLBot_Core_Interface.dll
+*.iml
