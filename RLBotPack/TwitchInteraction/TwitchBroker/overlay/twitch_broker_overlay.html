@@ -41,9 +41,6 @@
                     overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'))
                 }
 
-                // Sort the names by descending length
-                const sortedPlayers = data.players.sort(function(a, b) {return b.name.length - a.name.length});
-
                 for (let i = 0; i < data.sections.length; i++) {
 
                     const sectionDiv = $('<div class="section"></div>');
@@ -54,9 +51,23 @@
                     for (let j = 0; j < section.actions.length; j++) {
                         const numberedAction = section.actions[j];
                         const action = numberedAction.action;
+                        const vote_tracker = data.vote_trackers[action.description];
+                        let vote_markup = '';
+                        if (vote_tracker) {
+                            const num_votes = vote_tracker.voters.length;
+                            let vote_tokens = '';
+                            for (let v = 0; v < vote_tracker.votes_needed; v++) {
+                                if (v < num_votes) {
+                                    vote_tokens += '<span class="vote-token vote-filled"></span>';
+                                } else {
+                                    vote_tokens += '<span class="vote-token"></span>';
+                                }
+                            }
+                            vote_markup = '<div class="vote-bar">' + vote_tokens + '</div>';
+                        }
                         sectionDiv.append('<div class="action"><span class="menu-id-prefix">' + data.menu_id +
                             '</span><span class="opt-number">' + numberedAction.number +
-                            '</span>' + action.description + '</div>');
+                            '</span>' + action.description + vote_markup + '</div>');
                     }
 
                     overlayDiv.append(sectionDiv);
