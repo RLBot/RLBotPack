@@ -1,9 +1,25 @@
-[
-	["Kamael"],
-	["Self-driving car"],
-	["Wildfire", "Wildfire"],
-	["Bumblebee", "Bumblebee", "Bumblebee"],
-	["Kamael", "Kamael", "Kamael"],
-	["Codename Cryo", "Codename Cryo", "Codename Cryo"],
-	["ReliefBot", "ReliefBot", "ReliefBot"]
-]
+{
+	"recommendations": [
+		{
+			"bots": ["Kamael"]
+		},
+		{
+			"bots": ["Self-driving car"]
+		},
+		{
+			"bots": ["Wildfire", "Wildfire"]
+		},
+		{
+			"bots": ["Bumblebee", "Bumblebee", "Bumblebee"]
+		},
+		{
+			"bots": ["Kamael", "Kamael", "Kamael"]
+		},
+		{
+			"bots": ["Codename Cryo", "Codename Cryo", "Codename Cryo"]
+		},
+		{
+			"bots": ["ReliefBot", "ReliefBot", "ReliefBot"]
+		}
+	]
+}
