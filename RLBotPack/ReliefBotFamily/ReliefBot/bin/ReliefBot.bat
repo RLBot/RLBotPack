@@ -63,7 +63,7 @@ set CMD_LINE_ARGS=%*
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\ReliefBot.jar;%APP_HOME%\lib\dll;%APP_HOME%\lib\framework-2.0.1.jar;%APP_HOME%\lib\kotlin-stdlib-jdk8-1.3.71.jar;%APP_HOME%\lib\ejml-fdense-0.38.jar;%APP_HOME%\lib\jna-platform-4.5.1.jar;%APP_HOME%\lib\jna-4.5.1.jar;%APP_HOME%\lib\flatbuffers-java-1.9.0.1.jar;%APP_HOME%\lib\kotlin-stdlib-jdk7-1.3.71.jar;%APP_HOME%\lib\kotlin-stdlib-1.3.71.jar;%APP_HOME%\lib\ejml-core-0.38.jar;%APP_HOME%\lib\jsr305-3.0.2.jar;%APP_HOME%\lib\kotlin-stdlib-common-1.3.71.jar;%APP_HOME%\lib\annotations-13.0.jar
+set CLASSPATH=.;%APP_HOME%/lib/*
 
 @rem Execute ReliefBot
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %RELIEF_BOT_OPTS%  -classpath "%CLASSPATH%" tarehart.rlbot.ReliefBotMainKt %CMD_LINE_ARGS%
