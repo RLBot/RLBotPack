@@ -131,6 +131,8 @@ class Kamael(BaseAgent):
         self.stubbornessTimer = 0
         self.stubbornessMax = 600
         self.stubbornessMin = 5
+        if self.ignore_kickoffs:
+            self.stubbornessMin = 100
         self.stubborness = self.stubbornessMin
         self.activeState = PreemptiveStrike(self)
         self.contestedTimeLimit = 0.5
@@ -836,7 +838,7 @@ class Kamael(BaseAgent):
         self.log.clear()
         self.preprocess(packet)
 
-        if len(self.allies) > 0:
+        if len(self.allies) > 0 and not self.ignore_kickoffs:
             # if self.team == 0:
             #     team_synergy(self)
             # else:
