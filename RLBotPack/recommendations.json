@@ -1,0 +1,25 @@
+{
+	"recommendations": [
+		{
+			"bots": ["Kamael"]
+		},
+		{
+			"bots": ["Self-driving car"]
+		},
+		{
+			"bots": ["Wildfire", "Wildfire"]
+		},
+		{
+			"bots": ["Bumblebee", "Bumblebee", "Bumblebee"]
+		},
+		{
+			"bots": ["Kamael", "Kamael", "Kamael"]
+		},
+		{
+			"bots": ["Codename Cryo", "Codename Cryo", "Codename Cryo"]
+		},
+		{
+			"bots": ["ReliefBot", "ReliefBot", "ReliefBot"]
+		}
+	]
+}
