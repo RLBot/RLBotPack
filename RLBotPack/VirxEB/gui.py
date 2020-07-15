@@ -17,7 +17,7 @@ class Gui(Thread):
 
         team = "Blue" if self.agent.team == 0 else "Red"
 
-        bot_name = f"VirxEB ({self.agent.index}) ({team})"
+        bot_name = f"{self.agent.name} ({team})"
 
         root.title(bot_name)
 
