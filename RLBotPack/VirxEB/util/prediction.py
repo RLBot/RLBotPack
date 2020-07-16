@@ -54,7 +54,10 @@ class Prediction(Thread):
                     if self.agent.ball_to_goal > 4250 and self.agent.predictions['self_to_ball'] == min(self.agent.predictions['teammates_to_ball']):
                         self.agent.playstyle = self.agent.playstyles.Offensive
                     elif self.agent.ball_to_goal > 3750 and self.agent.predictions['self_to_ball'] == max(self.agent.predictions['teammates_to_ball']):
-                        self.agent.playstyle = self.agent.playstyles.Defensive
+                        if len_friends == 1:
+                            self.agent.playstyle = self.agent.playstyles.Neutral
+                        else:
+                            self.agent.playstyle = self.agent.playstyles.Defensive
                     else:
                         self.agent.playstyle = self.agent.playstyles.Neutral
                 elif self.agent.playstyle != self.agent.playstyles.Neutral:
