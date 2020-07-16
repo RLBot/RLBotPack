@@ -97,8 +97,8 @@ def quadratic(a, b, c):
     inside = math.sqrt((b*b) - (4*a*c))
     if a != 0:
         return (-b + inside)/(2*a), (-b - inside)/(2*a)
-    else:
-        return -1, -1
+
+    return -1, -1
 
 
 def shot_valid(agent, shot, threshold=45, target=None):
@@ -108,7 +108,7 @@ def shot_valid(agent, shot, threshold=45, target=None):
 
     # First finds the two closest slices in the ball prediction to shot's intercept_time
     # threshold controls the tolerance we allow the ball to be off by
-    slices = agent.get_ball_prediction_struct().slices
+    slices = agent.predictions['ball_struct'].slices
     soonest = 0
     latest = len(slices)-1
     while len(slices[soonest:latest+1]) > 2:
@@ -125,7 +125,7 @@ def shot_valid(agent, shot, threshold=45, target=None):
     # Determining exactly where the ball will be at the given shot's intercept_time
     predicted_ball_location = Vector(*soonest) + (slopes * time_from_soonest)
     # Comparing predicted location with where the shot expects the ball to be
-    return (target - predicted_ball_location).magnitude() < threshold
+    return target.dist(predicted_ball_location) < threshold
 
 
 def side(x):
@@ -139,10 +139,11 @@ def sign(x):
     # returns the sign of a number, -1, 0, +1
     if x < 0:
         return -1
-    elif x > 0:
+
+    if x > 0:
         return 1
-    else:
-        return 0
+
+    return 0
 
 
 def steerPD(angle, rate):
@@ -183,7 +184,7 @@ def get_weight(agent, shot=None, index=None):
         return agent.max_shot_weight - math.ceil(index / 2)
 
     if shot is not None:
-        for shot_list in (agent.offensive_shots, agent.defensive_shots[0], agent.defensive_shots[1]):
+        for shot_list in (agent.offensive_shots, agent.defensive_shots):
             try:
                 return agent.max_shot_weight - math.ceil(shot_list.index(shot) / 2)
             except ValueError:

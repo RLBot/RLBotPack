@@ -98,7 +98,7 @@ class Aerial():
         if self.time is -1:
             elapsed = 0
             self.time = agent.time
-            agent.print(f"Enter aerial - Hit ball {round(agent.me.location.dist(self.target) * 1000) / 1000}uu's away in {self.intercept_time - self.time}s")
+            agent.print(f"Enter aerial - Hit ball {round(agent.me.location.dist(self.target) * 1000) / 1000}uu's away in {round((self.intercept_time - self.time) * 1000) / 1000}s")
         else:
             elapsed = agent.time - self.time
 
@@ -142,7 +142,6 @@ class Aerial():
         agent.line(agent.me.location, self.target, agent.renderer.white())
         agent.line(self.target - Vector(z=100), self.target + Vector(z=100), agent.renderer.red())
         agent.line(agent.me.location, direction, agent.renderer.green())
-        agent.dbg_2d(f"Delta_x.norm(): {delta_x.norm()}")
 
         if delta_x.norm() > 50:
             defaultPD(agent, agent.me.local(delta_x))
@@ -162,7 +161,12 @@ class Aerial():
         else:
             agent.controller.boost = agent.controller.throttle = 0
 
-        if T <= 0 or not shot_valid(agent, self, target=self.target):
+        still_valid = shot_valid(agent, self, threshold=250, target=self.target)
+
+        if T <= 0 or not still_valid:
+            if not still_valid:
+                agent.print("Aerial is no longer valid")
+
             agent.pop()
             agent.shooting = False
             agent.shot_weight = -1
@@ -192,6 +196,7 @@ class Aerial():
         enough_boost = boost_estimate < 0.95 * agent.me.boost
         enough_time = abs(ratio) < 0.9
         enough_speed = velocity_estimate.normalize(True)[1] < 0.9 * max_speed
+
         return enough_speed and enough_boost and enough_time
 
 
