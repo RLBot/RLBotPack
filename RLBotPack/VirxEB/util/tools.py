@@ -22,9 +22,8 @@ def find_hits(agent, targets, cap_=6):
         max_jump_hit_height = 300
         max_aerial_height = 500
 
-    # Begin looking at slices 0.25s into the future
-    # The number of slices
-    i = 15
+    # Begin looking at slices 0.2s into the future
+    i = 10
     while i < struct.num_slices:
         # Gather some data about the slice
         intercept_time = struct.slices[i].game_seconds
@@ -101,7 +100,7 @@ def find_risky_hits(agent, targets, cap_=4):
     if struct is None:
         return hits
 
-    i = 15  # Begin by looking 0.5 seconds into the future
+    i = 10  # Begin by looking 0.2 seconds into the future
     while i < struct.num_slices:
         intercept_time = struct.slices[i].game_seconds
         time_remaining = intercept_time - agent.time
@@ -115,7 +114,7 @@ def find_risky_hits(agent, targets, cap_=4):
 
             i += 15 - cap(int(ball_velocity//150), 0, 13)
 
-            if ball_location.z < 592:
+            if ball_location.z < 300:
                 continue
 
             car_to_ball = ball_location - agent.me.location
@@ -138,7 +137,7 @@ def find_risky_hits(agent, targets, cap_=4):
                             slope = find_slope(best_shot_vector, car_to_ball)
                             ball_intercept = ball_location - 92 * best_shot_vector
 
-                            if ball_intercept.z >= 500 and slope > 1:
+                            if slope > 1:
                                 aerial = Aerial(ball_intercept, intercept_time)
                                 if aerial.is_viable(agent):
                                     hits[pair].append(aerial)
