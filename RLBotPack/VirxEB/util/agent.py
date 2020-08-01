@@ -28,8 +28,6 @@ class VirxERLU(BaseAgent):
             self.gui = Gui(self)
             self.print("Starting the GUI...")
             self.gui.start()
-        elif self.name in {"VirxEB", "VirxEB-dev"}:
-            print(f"\nThis is a tournament! YAY!!! Thanks for letting me, VirxEB, participate. Just for you, my brothers and I will start in minimal output mode.\n")
 
         self.predictions = {
             "closest_enemy": 0,
