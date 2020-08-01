@@ -8,7 +8,8 @@ from typing import SupportsFloat
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 
 from gui import Gui
-from util.prediction import Prediction
+from match_comms import MatchComms
+from prediction import Prediction
 
 
 class Playstyle(Enum):
@@ -17,14 +18,54 @@ class Playstyle(Enum):
     Offensive = 1
 
 
-class GoslingAgent(BaseAgent):
-    def __init__(self, name, team, index):
-        super().__init__(name, team, index)
-        self.print("Initalizing 2 threads...")
-        self.gui = Gui(self)
-        self.prediction = Prediction(self)
-
+class VirxERLU(BaseAgent):
+    # Massive thanks to ddthj/GoslingAgent (GitHub repo) for the basis of VirxERLU
     def initialize_agent(self):
+        self.tournament = True
+        self.print("Initalizing thread(s)...")
+
+        if not self.tournament:
+            self.gui = Gui(self)
+            self.print("Starting the GUI...")
+            self.gui.start()
+        elif self.name in {"VirxEB", "VirxEB-dev"}:
+            print(f"\nThis is a tournament! YAY!!! Thanks for letting me, VirxEB, participate. Just for you, my brothers and I will start in minimal output mode.\n")
+
+        self.predictions = {
+            "closest_enemy": 0,
+            "own_goal": False,
+            "goal": False,
+            "ball_struct": None,
+            "team_from_goal": (),
+            "team_to_ball": (),
+            "self_from_goal": 0,
+            "self_to_ball": 0,
+            "done": False
+        }
+
+        self.goalie = False
+        self.air_bud = False
+
+        self.debug = [[], []]
+        self.debugging = False
+        self.debug_lines = True
+        self.debug_3d_bool = True
+        self.debug_stack_bool = True
+        self.debug_2d_bool = False
+        self.show_coords = False
+        self.debug_ball_path = False
+        self.debug_ball_path_precision = 10
+
+        self.disable_driving = False
+
+        self.prediction = Prediction(self)
+        self.print("Starting the predictive service...")
+        self.prediction.start()
+
+        self.match_comms = None
+
+        self.print("Building game information")
+
         mutators = self.get_match_settings().MutatorSettings()
 
         gravity = [
@@ -61,13 +102,14 @@ class GoslingAgent(BaseAgent):
 
         self.stack = []
         self.time = 0
+        self.prev_time = 0
 
         self.ready = False
 
         self.controller = SimpleControllerState()
 
         self.kickoff_flag = False
-        self.kickoff_done = False
+        self.kickoff_done = True
 
         self.last_time = 0
         self.my_score = 0
@@ -84,38 +126,21 @@ class GoslingAgent(BaseAgent):
 
         self.odd_tick = 0  # Use this for thing that can be run at 30 or 60 tps instead of 120
 
-        self.debug = [[], []]
-        self.debugging = False
-        self.debug_lines = True
-        self.debug_3d_bool = True
-        self.debug_stack_bool = True
-        self.debug_2d_bool = False
-        self.show_coords = False
-        self.debug_ball_path = False
-        self.debug_ball_path_precision = 10
+    def retire(self):
+        # Stop the currently running threads
+        if not self.tournament:
+            self.gui.stop()
 
-        self.disable_driving = False
+        if len(self.friends) > 0:
+            self.match_comms.stop()
 
-        self.print("Starting the GUI...")
-        self.gui.start()
-
-        self.print("Starting the predictive service...")
-        self.predictions = {
-            "closest_enemy": 0,
-            "own_goal": False,
-            "goal": False,
-            "ball_struct": None,
-            "teammates_from_goal": (),
-            "teammates_to_ball": (),
-            "self_from_goal": 0,
-            "self_to_ball": 0
-        }
-
-        self.prediction.start()
+        self.prediction.stop()
 
     @staticmethod
     def is_hot_reload_enabled():
-        return True
+        # The tkinter GUI isn't compatible with hot reloading
+        # Use the Continue and Spawn option in the GUI instead
+        return False
 
     def get_ready(self, packet):
         field_info = self.get_field_info()
@@ -124,36 +149,48 @@ class GoslingAgent(BaseAgent):
         self.ball.update(packet)
 
         foe_team = -1 if self.team == 1 else 1
+        team = -foe_team
 
         self.defensive_shots = (
-            (
-                (self.foe_goal.left_post, self.foe_goal.right_post),  # Weight -> 3
-                (Vector(3100, foe_team * 3250, 100), Vector(2900, foe_team * 3250, 100)),  # Weight -> 2
-                (Vector(-3100, foe_team * 3250, 100), Vector(-2900, foe_team * 3250, 100)),  # Weight -> 2
-                (Vector(-3600, z=100), Vector(-2900, z=100)),  # Weight -> 1
-                (Vector(3600, z=100), Vector(2900, z=100)),  # Weight -> 1
-            )
+            (self.foe_goal.left_post, self.foe_goal.right_post),  # Weight -> 4
+            (Vector(4000, foe_team * 3250, 100), Vector(2750, foe_team * 3250, 100)),  # Weight -> 3
+            (Vector(-4000, foe_team * 3250, 100), Vector(-2750, foe_team * 3250, 100)),  # Weight -> 3
+            (Vector(-3600, z=100), Vector(-1000, z=500)),  # Weight -> 2
+            (Vector(3600, z=100), Vector(1000, z=500))  # Weight -> 2
         )
 
-        # (self.friend_goal.right_post, self.friend_goal.left_post) => Weight -> 0
+        self.panic_shots = (
+            (Vector(3100 * team, team * 3620, 100), Vector(3100 * team, team * 5120, 100)),  # Weight -> 1
+            (Vector(-3100 * team, team * 3620, 100), Vector(-3100 * team, team * 5120, 100))  # Weight -> 1
+        )
+
+        # () => Weight -> 0
         # Short short => Weight -> -1
 
         self.offensive_shots = (
-            (self.foe_goal.left_post, self.foe_goal.right_post),  # Weight -> 3
-            (Vector(foe_team * 893, foe_team * 5120, 100), Vector(foe_team * 893, foe_team * 4720, 320)),  # Weight -> 2
-            (Vector(-foe_team * 893, foe_team * 5120, 100), Vector(-foe_team * 893, foe_team * 4720, 320))  # Weight -> 2
+            (self.foe_goal.left_post, self.foe_goal.right_post),  # Weight -> 4
+            (Vector(foe_team * 893, foe_team * 5120, 100), Vector(foe_team * 893, foe_team * 4720, 320)),  # Weight -> 3
+            (Vector(-foe_team * 893, foe_team * 5120, 100), Vector(-foe_team * 893, foe_team * 4720, 320))  # Weight -> 3
         )
 
-        self.max_shot_weight = 3
+        self.best_shot = (Vector(foe_team * 650, foe_team * 5125, 320), Vector(-foe_team * 650, foe_team * 5125, 320))
+
+        self.max_shot_weight = 4
 
         self.init()
 
         self.ready = True
+        self.print("Built")
 
     def refresh_player_lists(self, packet):
         # Useful to keep separate from get_ready because humans can join/leave a match
         self.friends = tuple(car_object(i, packet) for i in range(packet.num_cars) if packet.game_cars[i].team is self.team and i != self.index)
         self.foes = tuple(car_object(i, packet) for i in range(packet.num_cars) if packet.game_cars[i].team != self.team)
+
+        if len(self.friends) > 0 and self.match_comms is None:
+            self.match_comms = MatchComms(self)
+            self.print("Starting the match communication handler...")
+            self.match_comms.start()
 
     def push(self, routine):
         self.stack.append(routine)
@@ -174,8 +211,9 @@ class GoslingAgent(BaseAgent):
             self.renderer.draw_line_3d(start, end, color if type(color) != list else self.renderer.create_color(255, *color))
 
     def print(self, item):
-        team = "Blue" if self.team == 0 else "Red"
-        print(f"{self.name} ({team}): {item}")
+        if not self.tournament:
+            team = "Blue" if self.team == 0 else "Red"
+            print(f"{self.name} ({team}): {item}")
 
     def dbg_3d(self, item):
         self.debug[0].append(str(item))
@@ -188,6 +226,7 @@ class GoslingAgent(BaseAgent):
         self.shot_weight = -1
         self.shot_time = -1
         self.stack = []
+        return 'asdf'  # This is here in case I call this instead of is_clear() - It should throw an error if I do
 
     def is_clear(self):
         return len(self.stack) < 1
@@ -232,38 +271,63 @@ class GoslingAgent(BaseAgent):
                 self.get_ready(packet)
             self.preprocess(packet)
 
-            if self.game.round_active:
+            if self.me.demolished:
+                if not self.is_clear():
+                    self.clear()
+            elif self.game.round_active and self.predictions['done']:
+                self.dbg_3d(self.playstyle.name)
                 self.run()  # Run strategy code; This is a very expensive function to run
 
                 # run the routine on the end of the stack
                 if not self.is_clear():
                     self.stack[-1].run(self)
 
-            if self.debugging:
-                if self.debug_3d_bool:
-                    if self.debug_stack_bool:
-                        self.debug[0] = itertools.chain(self.debug[0], ("STACK:",), (item.__class__.__name__ for item in reversed(self.stack)))
+                if self.is_clear() or self.stack[0].__class__.__name__ not in {'Aerial', 'jump_shot', 'block_ground_shot'}:
+                    self.shooting = False
+                    self.shot_weight = -1
+                    self.shot_time = -1
 
-                    self.renderer.draw_string_3d(self.me.location.tuple(), 2, 2, "\n".join(self.debug[0]), self.renderer.team_color(alt_color=True))
+                if self.debugging:
+                    if self.debug_3d_bool:
+                        if self.debug_stack_bool:
+                            self.debug[0] = itertools.chain(self.debug[0], ("STACK:",), (item.__class__.__name__ for item in reversed(self.stack)))
 
-                    self.debug[0] = []
+                        self.renderer.draw_string_3d(self.me.location.tuple(), 2, 2, "\n".join(self.debug[0]), self.renderer.team_color(alt_color=True))
 
-                if self.debug_2d_bool:
-                    if self.show_coords:
-                        self.debug[1].insert(0, str(self.me.location.int()))
+                        self.debug[0] = []
 
-                    self.renderer.draw_string_2d(20, 300, 2, 2, "\n".join(self.debug[1]), self.renderer.team_color(alt_color=True))
-                    self.debug[1] = []
-            else:
-                self.debug = [[], []]
+                    if self.debug_2d_bool:
+                        if self.show_coords:
+                            self.debug[1].insert(0, str(self.me.location.int()))
 
-            if self.disable_driving:
-                return SimpleControllerState()
-            else:
-                return self.controller
+                        if not self.is_clear() and self.stack[0].__class__.__name__ in {'Aerial', 'jump_shot', 'block_ground_shot'}:
+                            self.dbg_2d(round(self.stack[0].intercept_time - self.time, 4))
+
+                        self.renderer.draw_string_2d(20, 300, 2, 2, "\n".join(self.debug[1]), self.renderer.team_color(alt_color=True))
+                        self.debug[1] = []
+
+                    if self.debug_ball_path:
+                        if self.predictions['ball_struct'] is not None:
+                            for i in range(0, self.predictions['ball_struct'].num_slices - (self.predictions['ball_struct'].num_slices % self.debug_ball_path_precision) - self.debug_ball_path_precision, self.debug_ball_path_precision):
+                                self.line(
+                                    self.predictions['ball_struct'].slices[i].physics.location,
+                                    self.predictions['ball_struct'].slices[i + self.debug_ball_path_precision].physics.location
+                                )
+                else:
+                    self.debug = [[], []]
+
+            self.prev_time = self.time
+            return SimpleControllerState() if self.disable_driving else self.controller
         except Exception:
+            print(self.name)
             print_exc()
             return SimpleControllerState()
+
+    def handle_match_comm(self, bot, team, msg):
+        pass
+
+    def test(self):
+        pass
 
     def run(self):
         pass
@@ -280,7 +344,7 @@ class car_object:
     # and are updated by GoslingAgent as the game runs
     def __init__(self, index, packet=None):
         self.location = Vector()
-        self.orientation = Matrix3(0, 0, 0)
+        self.orientation = Matrix3()
         self.velocity = Vector()
         self.angular_velocity = Vector()
         self.demolished = False
@@ -298,8 +362,8 @@ class car_object:
 
     def update(self, packet):
         car = packet.game_cars[self.index]
-        self.location.x, self.location.y, self.location.z = car.physics.location.x, car.physics.location.y, car.physics.location.z
-        self.velocity.x, self.velocity.y, self.velocity.z = car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z
+        self.location = Vector(car.physics.location.x, car.physics.location.y, car.physics.location.z)
+        self.velocity = Vector(car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z)
         self.orientation = Matrix3(car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll)
         self.angular_velocity = self.orientation.dot(car.physics.angular_velocity)
         self.demolished = car.is_demolished
@@ -334,8 +398,8 @@ class ball_object:
 
     def update(self, packet):
         ball = packet.game_ball
-        self.location.x, self.location.y, self.location.z = ball.physics.location.x, ball.physics.location.y, ball.physics.location.z
-        self.velocity.x, self.velocity.y, self.velocity.z = ball.physics.velocity.x, ball.physics.velocity.y, ball.physics.velocity.z
+        self.location = Vector(ball.physics.location.x, ball.physics.location.y, ball.physics.location.z)
+        self.velocity = Vector(ball.physics.velocity.x, ball.physics.velocity.y, ball.physics.velocity.z)
         self.latest_touched_time = ball.latest_touch.time_seconds
         self.latest_touched_team = ball.latest_touch.team
 
@@ -355,10 +419,10 @@ class goal_object:
     # This is a simple object that creates/holds goalpost locations for a given team (for soccer on standard maps only)
     def __init__(self, team):
         team = 1 if team == 1 else -1
-        self.location = Vector(0, team * 5100, 320)  # center of goal line
-        # Posts are closer to x=750, but this allows the bot to be a little more accurate
-        self.left_post = Vector(team * 725, team * 5100, 320)
-        self.right_post = Vector(-team * 725, team * 5100, 320)
+        self.location = Vector(0, team * 5120, 320)  # center of goal line
+        # Posts are closer to x=893, but this allows the bot to be a little more accurate
+        self.left_post = Vector(team * 800, team * 5125, 320)
+        self.right_post = Vector(-team * 800, team * 5125, 320)
 
 
 class game_object:
@@ -370,10 +434,6 @@ class game_object:
         self.round_active = False
         self.kickoff = False
         self.match_ended = False
-
-        team_side = 1 if team == 1 else -1
-        self.foe_left_field = Vector(team_side * 800, team_side * 5200, 320)
-        self.foe_right_field = Vector(-team_side * 800, team_side * 5200, 320)
 
     def update(self, packet):
         game = packet.game_info
@@ -394,7 +454,7 @@ class Matrix3:
     # If you have a distance between the car and some object, ie ball.location - car.location,
     # you can convert that to local coordinates by dotting it with this matrix
     # ie: local_ball_location = Matrix3.dot(ball.location - car.location)
-    def __init__(self, pitch, yaw, roll):
+    def __init__(self, pitch=0, yaw=0, roll=0):
         CP = math.cos(pitch)
         SP = math.sin(pitch)
         CY = math.cos(yaw)
@@ -416,7 +476,7 @@ class Matrix3:
         return Vector(self.forward.dot(vector), self.left.dot(vector), self.up.dot(vector))
 
 
-# With this new setup, Vector supports 2D and 3D Vectors, as well as calculations between them
+# With this new setup, Vector supports 1D, 2D and 3D Vectors, as well as calculations between them
 @dataclass
 class Vector:
     # These values can be ints or floats, with thier defaults being 0
@@ -433,16 +493,16 @@ class Vector:
         if hasattr(value, "x"):
             return self.tuple() == (value.x, value.y, value.z)
 
-        if isinstance(value, list) or isinstance(value, tuple):
+        if isinstance(value, tuple):
             return self.tuple() == value
+
+        if isinstance(value, list):
+            return self.list() == value
 
         return self.magnitude() == value
 
-    # Vector's support most operators (+-*/)
-    # If using an operator with another Vector, each dimension will be independent
-    # ie x+x, y+y, z+z
-    # If using an operator with only a value, each dimension will be affected by that value
-    # ie x+v, y+v, z+v
+    def __getitem__(self, value):
+        return self.tuple()[value]
 
     def __str__(self):
         # Vector's can be printed to console
@@ -473,11 +533,7 @@ class Vector:
         if hasattr(value, "x"):
             return Vector(self.x/value.x, self.y/value.y, self.z/value.z)
         return Vector(self.x/value, self.y/value, self.z/value)
-
-    def __rtruediv__(self, value):
-        if hasattr(value, "x"):
-            return Vector(value.x/self.x, value.y/self.y, value.z/self.z)
-        raise TypeError("unsupported rtruediv operands")
+    __rtruediv__ = __truediv__
 
     def int(self):
         return Vector(int(self.x), int(self.y), int(self.z))
@@ -488,9 +544,11 @@ class Vector:
     def list(self):
         return [self.x, self.y, self.z]
 
+    # Linear alegra functions
+
     def magnitude(self):
         # Magnitude() returns the length of the vector
-        return math.sqrt((self.x ** 2) + (self.y ** 2) + (self.z ** 2))
+        return math.sqrt(self.dot(self))
 
     def normalize(self, return_magnitude=False):
         # Normalize() returns a Vector that shares the same direction but has a length of 1.0
@@ -503,13 +561,6 @@ class Vector:
         if return_magnitude:
             return Vector(), 0
         return Vector()
-
-    def norm(self):
-        # Returns the Euclidean length of the given vector
-        # This isn't related to normalize!
-        return math.sqrt(self.dot(self))
-
-    # Linear algebra functions
 
     def dot(self, value):
         return self.x*value.x + self.y*value.y + self.z*value.z
@@ -530,12 +581,11 @@ class Vector:
         return Vector(*self.tuple())
 
     def angle(self, value):
-        # Returns the 2D angle between this Vector and another Vector
-        return math.acos(round(self.flatten().normalize().dot(value.flatten().normalize()), 4))
+        # Returns the 2D angle between this Vector and another Vector in radians
+        return self.flatten().angle3D(value.flatten())
 
     def angle3D(self, value):
-        # Returns the angle between this Vector and another Vector
-        # return math.acos(round(self.normalize().dot(value.normalize()), 4))
+        # Returns the angle between this Vector and another Vector in radians
         return math.acos(max(min(self.normalize().dot(value.normalize()), 1), -1))
 
     def rotate(self, angle):
