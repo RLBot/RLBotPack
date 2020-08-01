@@ -1,7 +1,6 @@
-import math
 from queue import Full
 
-from util.objects import Vector
+from util.agent import math, Vector
 
 
 def almost_equals(x, y, threshold):
@@ -46,7 +45,7 @@ def defaultThrottle(agent, target_speed, direction=1.0):
     car_speed = agent.me.local(agent.me.velocity).x
     t = (target_speed * direction) - car_speed
     agent.controller.throttle = cap((t**2) * sign(t)/1000, -1.0, 1.0)
-    agent.controller.boost = t > 150 and 1000 < car_speed and car_speed < 2275 and agent.controller.throttle == 1.0
+    agent.controller.boost = t > 150 and 1300 < car_speed and car_speed < 2300 and agent.controller.throttle == 1
     return car_speed
 
 
@@ -101,7 +100,7 @@ def quadratic(a, b, c):
     return -1, -1
 
 
-def shot_valid(agent, shot, threshold=45, target=None):
+def shot_valid(agent, shot, threshold=100, target=None):
     # Returns True if the ball is still where the shot anticipates it to be
     if target is None:
         target = shot.ball_location
@@ -184,6 +183,12 @@ def get_weight(agent, shot=None, index=None):
         return agent.max_shot_weight - math.ceil(index / 2)
 
     if shot is not None:
+        if shot is agent.best_shot:
+            return agent.max_shot_weight + 1
+
+        if shot in agent.panic_shots:
+            return agent.max_shot_weight
+
         for shot_list in (agent.offensive_shots, agent.defensive_shots):
             try:
                 return agent.max_shot_weight - math.ceil(shot_list.index(shot) / 2)
@@ -195,4 +200,4 @@ def peek_generator(generator):
     try:
         return next(generator)
     except StopIteration:
-        return None
+        return
