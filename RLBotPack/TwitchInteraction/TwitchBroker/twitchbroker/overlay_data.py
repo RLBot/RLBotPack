@@ -3,7 +3,7 @@ import string
 
 import itertools
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 from rlbot.utils.structures.game_data_struct import GameTickPacket, PlayerInfo
 from rlbot_action_client.models import BotAction
@@ -24,6 +24,21 @@ class CommandAcknowledgement:
     id: str
 
 
+
+@dataclass
+class VoteTracker:
+    votes_needed: int
+    original_menu_id: str
+    voters: List[str]
+
+    def register_vote(self, username):
+        if username not in self.voters:
+            self.voters.append(username)
+
+    def has_needed_votes(self):
+        return len(self.voters) >= self.votes_needed
+
+
 def create_section(act_and_server: AvailableActionsAndServerId, counter: itertools.count):
     return CommandSection(header=act_and_server.available_actions.entity_name,
                           entity_name=act_and_server.available_actions.entity_name,
@@ -37,13 +52,14 @@ def generate_menu_id():
 
 
 def generate_menu(list: List[AvailableActionsAndServerId], menu_id: str,
-                  recent_commands: List[CommandAcknowledgement], packet: GameTickPacket) -> 'OverlayData':
+                  recent_commands: List[CommandAcknowledgement], packet: GameTickPacket,
+                  vote_trackers: Dict[str, VoteTracker]) -> 'OverlayData':
 
     raw_players = [packet.game_cars[i] for i in range(packet.num_cars)]
     players = [PlayerData(p.name, p.team) for p in raw_players if p.name]
     counter = itertools.count(1)
     return OverlayData(menu_id=menu_id, sections=[create_section(s, counter) for s in list],
-                       recent_commands=recent_commands, players=players)
+                       recent_commands=recent_commands, players=players, vote_trackers=vote_trackers)
 
 
 @dataclass
@@ -66,6 +82,7 @@ class OverlayData:
     sections: List[CommandSection]
     recent_commands: List[CommandAcknowledgement]
     players: List[PlayerData]
+    vote_trackers: Dict[str, VoteTracker]
 
     def retrieve_choice(self, choice_num: int) -> ActionAndServerId:
         for section in self.sections:

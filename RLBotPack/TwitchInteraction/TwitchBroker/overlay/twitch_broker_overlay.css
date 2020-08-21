@@ -80,3 +80,21 @@ div.jq-toast-single.jq-icon-error {
 .player-name.orange {
     color: #FF8C00;
 }
+
+.vote-token {
+    width: 10px;
+    height: 10px;
+    border: solid 1px gray;
+    border-radius: 5px;
+    margin-right: 4px;
+    display: inline-block;
+}
+
+.vote-token.vote-filled {
+    background-color: #00c200;
+}
+
+.vote-bar {
+    display: inline-block;
+    margin-left: 10px;
+}
