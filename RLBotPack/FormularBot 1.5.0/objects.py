@@ -55,7 +55,7 @@ class GoslingAgent(BaseAgent):
         return self.stack.pop()
     def line(self,start,end,color=None):
         color = color if color != None else [255,255,255]
-        self.renderer.draw_line_3d(start,end,self.renderer.create_color(255,*color))
+        self.renderer.draw_line_3d(start.copy(),end.copy(),self.renderer.create_color(255,*color))
     def debug_stack(self):
         #Draws the stack on the screen
         white = self.renderer.white()
