@@ -13,15 +13,41 @@ class Gui(Thread):
         root = Tk()
 
         icon_path = path.join(path.dirname(path.abspath(__file__)), "./logo.png")
-        root.iconphoto(False, PhotoImage(file=icon_path))
+        root.iconphoto(True, PhotoImage(file=icon_path))
 
         team = "Blue" if self.agent.team == 0 else "Red"
 
-        bot_name = f"VirxEB ({self.agent.index}) ({team})"
+        root.title("VirxEC/VirxERLU")
 
-        root.title(bot_name)
+        root.geometry("255x300")
 
-        root.geometry("250x250")
+        title = ttk.Label(root, text=f"{self.agent.name} ({team}) hosted by VirxERLU")
+        title.pack()
+
+        author = ttk.Label(root, text=f"VirxEB by VirxEC (VirxEC/VirxEB)")
+        author.pack()
+
+        # Goalie
+
+        goalie_bool = BooleanVar()
+        goalie_bool.set(self.agent.goalie)
+
+        def set_goalie():
+            self.agent.goalie = goalie_bool.get()
+
+        goalie_btn = ttk.Checkbutton(root, text='Goalie', variable=goalie_bool, command=set_goalie)
+        goalie_btn.pack()
+
+        # Air bud
+
+        air_bud_bool = BooleanVar()
+        air_bud_bool.set(self.agent.air_bud)
+
+        def set_air_bud():
+            self.agent.air_bud = air_bud_bool.get()
+
+        air_bud_btn = ttk.Checkbutton(root, text='Air Bud', variable=air_bud_bool, command=set_air_bud)
+        air_bud_btn.pack()
 
         # Disable driving
 
@@ -126,6 +152,8 @@ class Gui(Thread):
         debug_ball_path_precision = ttk.Scale(root, orient=HORIZONTAL, from_=2, to=20, command=set_debug_ball_path_precision)
         debug_ball_path_precision.set(self.agent.debug_ball_path_precision)
         debug_ball_path_precision.pack()
+
+        self.stop = root.destroy
 
         try:
             root.mainloop()
