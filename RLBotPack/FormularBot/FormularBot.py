@@ -108,11 +108,6 @@ class FormularBot(GoslingAgent):
                 agent.push(goto_friendly_goal())
             elif shooting:
                 stack = 'shooting'
-                # if closest_ally_friendly_goal and distance_ball_friendly_goal < 2000:
-                #     if side_of_ball == 'left':
-                #         agent.push(short_shot(near_left_corner))
-                #     else:
-                #         agent.push(short_shot(near_right_corner))
                 if len(shots["goal"]) > 0:
                     agent.push(shots["goal"][0])
                 elif len(shots["upfield"]) > 0 and abs(agent.friend_goal.location.y - agent.ball.location.y) < 8490:
