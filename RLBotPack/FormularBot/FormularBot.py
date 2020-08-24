@@ -2,18 +2,6 @@ from tools import  *
 from objects import *
 from routines import *
 from rlbot.utils.structures.quick_chats import QuickChats
-# from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator, GameInfoState
-
-# car_state = CarState(boost_amount=100)
-
-# ball_state = BallState(Physics(location=Vector3(0,0,2000)))
-
-# game_info_state = GameInfoState(world_gravity_z=0, game_speed=1)
-
-# game_state = GameState(ball=ball_state, cars={agent.index: car_state}, game_info=game_info_state)
-
-# agent.set_game_state(game_state)
-
 
 class FormularBot(GoslingAgent):
     def run(agent):
@@ -107,24 +95,6 @@ class FormularBot(GoslingAgent):
         else:
             go_for_kickoff = False
 
-        # if agent.index == 0: 
-        #     print(agent.me.orientation[2][2])
-        #     print(me_onside2)
-        #     print(distance_ball_friendly_goal)
-        #     agent.debug_stack()
-        #     print(shooting,goalie)
-        #     print(closest_to_ball)
-        #     print(distance_to_ball,closest_ally_to_ball_distance)
-        #     print(close)
-        #     print(me_onside)
-        #     agent.line(agent.foe_goal.left_post,agent.foe_goal.right_post)
-        #     print(Vector3(agent.ball.location))
-        #     print(closest_ally_friendly_goal_distance,distance_to_friendly_goal)
-        #     agent.line(agent.friend_goal.location, agent.ball.location, [255,255,255])
-        #     my_point = agent.friend_goal.location + (my_goal_to_ball * my_distance)
-        #     agent.line(my_point - Vector3(0,0,100), my_point + Vector3(0,0,500), [0,255,0])
-        #     agent.line(Vector3(near_left_corner.x, near_left_corner.y, near_left_corner.z - 200), Vector3(near_left_corner.x, near_left_corner.y, near_left_corner.z + 200))
-        #     agent.line(Vector3(near_right_corner.x, near_right_corner.y, near_right_corner.z - 200), Vector3(near_right_corner.x, near_right_corner.y, near_right_corner.z + 200))
 
         #Decision making code
         if len(agent.stack) < 1:
@@ -212,6 +182,3 @@ class FormularBot(GoslingAgent):
                     agent.controller.boost = True
                 else:
                     agent.controller.boost = False
-
-        # if agent.index == 0:
-        #     print(stack)
