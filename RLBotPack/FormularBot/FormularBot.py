@@ -137,7 +137,7 @@ class FormularBot(GoslingAgent):
                     agent.push(get_nearest_big_boost)
 
         #Stack clearing code (decides when to clear stack and do something else)
-        if not(stack == 'kickoff') and not(stack == 'shooting' and me_onside) and not(stack == 'getting boost' and agent.me.boost < 20) and not(closest_ally_friendly_goal):
+        if not(stack == 'kickoff') and not(stack == 'shooting' and me_onside) and not(stack == 'getting boost' and agent.me.boost < 20):
             if go_for_kickoff:
                 if stack != 'kickoff':
                     agent.clear()
