@@ -939,7 +939,7 @@ def goal_selector_revised(agent, mode=0):  # 0 angles only, 1 enemy consideratio
     correctedAngles = [correctAngle(x + 90 * -sign(agent.team)) for x in shotAngles]
     dist = distance2D(targetVec, center)
 
-    if dist >= 4000 or dist:  # < 1200 and agent.team == 1:
+    if dist >= 5000 or dist:  # < 1200 and agent.team == 1:
         createBox(agent, center)
         return center, correctedAngles[1]
 
@@ -1958,13 +1958,13 @@ def ShellTime(agent, retreat_enabled=True):
         agent.ballGrounded = False
         return handleWallShot(agent)
 
-    if len(agent.enemies) < 2:
-        if carDistance < goalDistance:
-            # if agent.goalward:
-            if targetVec[2] > 93 + (agent.carHeight * 0.5):
-                if not agent.contested:
-                    if not offensive:
-                        return catch_ball(agent)
+    # if len(agent.enemies) < 2:
+    #     if carDistance < goalDistance:
+    #         # if agent.goalward:
+    #         if targetVec[2] > 93 + (agent.carHeight * 0.5):
+    #             if not agent.contested:
+    #                 if not offensive:
+    #                     return catch_ball(agent)
 
     if targetVec[2] >= agent.groundCutOff * 0.9 and agent.ballDelay < 0.5:
         return handleBounceShot(agent, waitForShot=False)
@@ -3519,13 +3519,14 @@ def lineupShot(agent, multi):
         return challenge[1]
 
     # tweak ball catch parameters. better with or without boost? Better if not contested? etc
-    # if len(agent.enemies) < 3:
+    # if len(agent.enemies) < 2:
     #     if carDistance < goalDistance:
     #         #if agent.goalward:
     #         if targetVec[2] > 93 + (agent.carHeight * .5):
     #             if not agent.contested:
     #                 if not offensive:
     #                     #if agent.team == 0:
+    #                     print(f"catching ball {agent.time}")
     #                     return catch_ball(agent)
 
     targetLoc = None
@@ -4178,17 +4179,14 @@ def relativeSpeed(vec_a, vec_b):
 
 
 def dirtyCarryCheck(agent):
-    # if agent.team == 0:
-    #     return False
-    maxRange = 145
+    # return False
+
+    maxRange = 150
     acceptableDistance = (
         findDistance(agent.me.location, agent.ball.location) <= maxRange
     )
-    # else:
-    #     maxRange = 125
-    #     acceptableDistance = distance2D(agent.me.location, agent.ball.location) <= maxRange
 
-    ballRadius = 92.5
+    ballRadius = 93
     # print("being called")
     if agent.onSurface:
         if abs(agent.ball.location[0]) < 3800:
@@ -4198,7 +4196,7 @@ def dirtyCarryCheck(agent):
                         if acceptableDistance:
                             if (
                                 agent.ball.location[2]
-                                >= ballRadius + agent.defaultElevation * 0.5
+                                >= ballRadius + agent.defaultElevation
                                 and agent.ball.location[2] < 250
                             ):
                                 if (
@@ -4270,16 +4268,21 @@ def catch_ball(agent):  # should be called from lineupshot()
     targetVec = agent.currentHit.pred_vector
 
     ball_velocity = agent.currentHit.pred_vel
-    xOff = clamp(maxOffset, -maxOffset, ball_velocity[0] / 50)
-    yOff = clamp(maxOffset, -maxOffset, ball_velocity[1] / 50)
+    if agent.currentHit.pred_vel.magnitude() > 0:
+        vel_offset = clamp(25, 1, agent.currentHit.pred_vel.magnitude() / 100)
+    else:
+        vel_offset = 0
 
     _direction = direction(targetVec, center)
-    targetLoc = targetVec + _direction.scale(maxOffset)
-    destination = targetLoc + Vector([xOff, yOff, 0])
+    targetLoc = (
+        targetVec
+        + _direction.scale(maxOffset)
+        + ball_velocity.flatten().normalize().scale(vel_offset)
+    )
     # print(f"catching {agent.time}")
     return driveController(
         agent,
-        destination,
+        targetLoc,
         agent.time + agent.currentHit.time_difference(),
         expedite=True,
     )
@@ -4494,11 +4497,8 @@ def carry_flick_new(agent, cradled=False):
 
 
 def carry_flick(agent, cradled=False):
-    # print(f"{agent.currentHit.hit_type} {agent.time}")
-    # print(f"caryying ball at {agent.ball.location[2]} height")
     center = Vector([0, 5500 * -sign(agent.team), 200])
     if agent.scorePred == None:
-        # center.data[1] = (agent.ball.location.data[1] + (5500 * -sign(agent.team)))/2
         if abs(agent.ball.location[1] + (1000 * -sign(agent.team))) < 5500:
             center.data[1] = agent.ball.location[1] + (1000 * -sign(agent.team))
 
@@ -4511,8 +4511,8 @@ def carry_flick(agent, cradled=False):
                     offsetCap = 45
     flick = False
 
-    if agent.hits[0] != None:
-        agent.currentHit = agent.hits[0]
+    if agent.hits[1] != None:
+        agent.currentHit = agent.hits[1]
 
     targetVec = agent.currentHit.pred_vector
     delay = agent.currentHit.time_difference()
@@ -4535,7 +4535,7 @@ def carry_flick(agent, cradled=False):
     ):
         if agent.ball.location[2] <= agent.carHeight + 118:
             cradled = True
-    if agent.enemyBallInterceptDelay <= 0.8 or agent.closestEnemyToBallDistance <= 800:
+    if agent.enemyBallInterceptDelay <= 0.8 or agent.closestEnemyToBallDistance <= 600:
         flick = True
 
     offset = clamp(
@@ -5098,7 +5098,7 @@ def driveController(
     #     * agent.boostAccelerationRate
     # ) / 120
 
-    boost_req = 8 * (agent.boostAccelerationRate / 120)
+    boost_req = 9 * (agent.boostAccelerationRate / 120)
 
     # if agent.team == 0:
     #     boost_req = 16 * (agent.boostAccelerationRate / 120)
@@ -5174,7 +5174,7 @@ def driveController(
         # west wall
         return 3
     """
-
+    wallFlip = False
     if agent.onWall and target[2] <= agent.defaultElevation:
         bot_wall = which_wall(agent.me.location)
         index = 0
@@ -5190,13 +5190,15 @@ def driveController(
         wall_angle_degrees = correctAngle(wall_angle_degrees)
 
         if abs(wall_angle_degrees) < 5:
-            if agent.me.location[2] < 2500 and agent.me.location[2] > 500:
+            if agent.me.location[2] < 2500 and agent.me.location[2] > 200:
                 agent.setJumping(-1)
                 # print("jumping off wall!")
+            elif agent.me.location[2] <= 200:
+                wallFlip = True
 
     boost = False
-
-    limit = clamp(1, 0.9, 0.9 + (len(agent.allies) * 0.05))
+    limit = 1
+    # limit = clamp(1, 0.9, 0.9 + (len(agent.allies) * 0.05))
     # if agent.team == 0: #the above limit won in testing, stop fucking with it.
     #     limit = 1
     steer, handbrake = rockSteer(angle, _distance, modifier=300, turnLimit=limit)
@@ -5207,7 +5209,7 @@ def driveController(
         steer = -steer
 
     if abs(angle_degrees) > 45 and abs(angle_degrees) < 135:
-        if _distance < 275 and _distance > 35:
+        if _distance < 250 and _distance > 40:
             if agent.currentSpd <= 600:
                 if not agent.dribbling and not agent.onWall:
                     if tta < 0.5:
@@ -5224,7 +5226,7 @@ def driveController(
         agent.currentSpd < maxPossibleSpeed and idealSpeed < maxPossibleSpeed
     ):
 
-        if _distance > 50:
+        if _distance > 50 or agent.dribbling:
             if decelerationSim(agent, tta):
                 throttle = 0
             else:
@@ -5261,7 +5263,7 @@ def driveController(
                 or flippant
             ):
                 if abs(angle_degrees) <= clamp(5, 0, _distance / 1000):
-                    if not agent.onWall:  # or not agent.wallShot:
+                    if not agent.onWall or wallFlip:  # or not agent.wallShot:
                         if agent.onSurface:
                             if goForward:
                                 agent.setJumping(1)
@@ -6264,61 +6266,66 @@ def findHits(agent, grounder_cutoff, jumpshot_cutoff, doubleCutOff, resolution=3
                             # print(f"found ground shot {agent.time}")
                 else:
                     if wall_shot == None:
-                        if agent.onWall and wallshot:
-                            distance = findDistance(agent.me.location, pred_vec)
-                            timeToTarget = inaccurateArrivalEstimator(
-                                agent, pred_vec, True, offset=_offset
-                            )
+                        _wall = which_wall(pred_vec)
+                        if not (
+                            (agent.team == 0 and _wall == 0)
+                            or (agent.team == 1 and _wall == 2)
+                        ):
+                            if agent.onWall and wallshot:
+                                distance = findDistance(agent.me.location, pred_vec)
+                                timeToTarget = inaccurateArrivalEstimator(
+                                    agent, pred_vec, True, offset=_offset
+                                )
 
-                            if timeToTarget < tth:
-                                if not checkAngles or (
-                                    checkAngles
-                                    and is_shot_scorable(pred_vec, leftPost, rightPost)[
-                                        2
-                                    ]
-                                ):
-                                    wall_shot = hit(
-                                        agent.time,
-                                        pred.game_seconds,
-                                        2,
-                                        pred_vec,
-                                        convertStructVelocityToVector(pred),
-                                        True,
-                                        timeToTarget,
-                                    )
-                                    agent.targetDistance = distance
-                                    agent.timeEstimate = timeToTarget
-
-                        else:
-                            if wallshot:
-                                (
-                                    timeToTarget,
-                                    distance,
-                                    valid,
-                                ) = new_ground_wall_estimator(agent, pred_vec)
                                 if timeToTarget < tth:
-                                    if valid:
-                                        if not checkAngles or (
-                                            checkAngles
-                                            and is_shot_scorable(
-                                                pred_vec, leftPost, rightPost
-                                            )[2]
-                                        ):
-                                            wall_shot = hit(
-                                                agent.time,
-                                                pred.game_seconds,
-                                                2,
-                                                pred_vec,
-                                                convertStructVelocityToVector(pred),
-                                                True,
-                                                timeToTarget,
-                                            )
-                                            agent.targetDistance = distance
-                                            agent.timeEstimate = timeToTarget
-                                        # print("wallshot valid")
-                                    else:
-                                        pass
-                                        # print("wallshot invalid")
+                                    if not checkAngles or (
+                                        checkAngles
+                                        and is_shot_scorable(
+                                            pred_vec, leftPost, rightPost
+                                        )[2]
+                                    ):
+                                        wall_shot = hit(
+                                            agent.time,
+                                            pred.game_seconds,
+                                            2,
+                                            pred_vec,
+                                            convertStructVelocityToVector(pred),
+                                            True,
+                                            timeToTarget,
+                                        )
+                                        agent.targetDistance = distance
+                                        agent.timeEstimate = timeToTarget
+
+                            else:
+                                if wallshot:
+                                    (
+                                        timeToTarget,
+                                        distance,
+                                        valid,
+                                    ) = new_ground_wall_estimator(agent, pred_vec)
+                                    if timeToTarget < tth:
+                                        if valid:
+                                            if not checkAngles or (
+                                                checkAngles
+                                                and is_shot_scorable(
+                                                    pred_vec, leftPost, rightPost
+                                                )[2]
+                                            ):
+                                                wall_shot = hit(
+                                                    agent.time,
+                                                    pred.game_seconds,
+                                                    2,
+                                                    pred_vec,
+                                                    convertStructVelocityToVector(pred),
+                                                    True,
+                                                    timeToTarget,
+                                                )
+                                                agent.targetDistance = distance
+                                                agent.timeEstimate = timeToTarget
+                                            # print("wallshot valid")
+                                        else:
+                                            pass
+                                            # print("wallshot invalid")
 
         if jumpshot == None:
             if (

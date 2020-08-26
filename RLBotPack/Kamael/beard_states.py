@@ -1308,18 +1308,18 @@ class PreemptiveStrike(baseState):
     def create_speed_flip_cancel(self, left=False):
         controls = []
         timers = []
-        first_controller = SimpleControllerState()
-        if left:
-            first_controller.steer = 1
-        else:
-            first_controller.steer = -1
-
-        first_controller.handbrake = True
-        first_controller.throttle = 1
-        first_controller.boost = True
-        first_controller.jump = False
-        controls.append(first_controller)
-        timers.append(self.agent.fakeDeltaTime * 2)
+        # first_controller = SimpleControllerState()
+        # if left:
+        #     first_controller.steer = 1
+        # else:
+        #     first_controller.steer = -1
+        #
+        # first_controller.handbrake = True
+        # first_controller.throttle = 1
+        # first_controller.boost = True
+        # first_controller.jump = False
+        # controls.append(first_controller)
+        # timers.append(self.agent.fakeDeltaTime * 1)
 
         second_controller = SimpleControllerState()
 
@@ -1341,7 +1341,7 @@ class PreemptiveStrike(baseState):
         third_controller.throttle = 1
         third_controller.pitch = 1
         controls.append(third_controller)
-        timers.append(self.agent.fakeDeltaTime * 4)
+        timers.append(self.agent.fakeDeltaTime * 2)
 
         fourth_controller = SimpleControllerState()
         yaw = 1
@@ -1355,7 +1355,7 @@ class PreemptiveStrike(baseState):
         fourth_controller.boost = True
         fourth_controller.throttle = 1
         controls.append(fourth_controller)
-        timers.append(0.2)
+        timers.append(0.05)
 
         fifth_controller = SimpleControllerState()
         fifth_controller.yaw = -yaw
@@ -1471,12 +1471,12 @@ class PreemptiveStrike(baseState):
     def wide_handler(self):
         # stage 1 - drive to boost pad
         if self.phase == 1:
-            if distance2D(self.agent.me.location, self.agent.ball.location) > 3025:
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 3150:
                 # return driveController(self.agent, self.enemyGoal+Vector([0,4000*sign(self.agent.team),0]),
                 return driveController(
                     self.agent,
                     self.agent.ball.location
-                    + Vector([0, sign(self.agent.team) * 350, 0]),
+                    + Vector([0, sign(self.agent.team) * 400, 0]),
                     0,
                     expedite=True,
                     flippant=False,
@@ -1513,16 +1513,16 @@ class PreemptiveStrike(baseState):
 
         # stage 4 - aim towards just offcenter of ball
         if self.phase == 4:
-            if distance2D(self.agent.me.location, self.agent.ball.location) > 500:
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 450:
                 if self.agent.me.location[0] > self.agent.ball.location[0]:
                     dummy_location = self.agent.ball.location + Vector(
-                        [20, 75 * sign(self.agent.team), 0]
+                        [75, 75 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal,self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(distance2D(self.agent.me.location,dummy_location)*.5)
                 else:
                     dummy_location = self.agent.ball.location + Vector(
-                        [-20, 75 * sign(self.agent.team), 0]
+                        [-75, 75 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
@@ -3519,9 +3519,10 @@ def soloStateManager_testing(agent):
             # print(agent.enemyBallInterceptDelay)
 
             if tempDelay >= agent.enemyBallInterceptDelay - agent.contestedTimeLimit:
-                if agent.enemyAttacking:
-                    # agent.enemyAttacking = True
-                    agent.contested = True
+                # if agent.enemyAttacking:
+                # agent.enemyAttacking = True
+                agent.contested = True
+                scared = True
 
             # else:
             #     print(f"{tempDelay} {agent.enemyBallInterceptDelay}")
@@ -3575,35 +3576,17 @@ def soloStateManager_testing(agent):
                             break
                     prev_hit = h
 
-                    hit = prev_hit
-                    agent.ballDelay = hit.time_difference()
+            goalward = ballHeadedTowardsMyGoal_testing(agent, hit)
+            agent.goalward = goalward
+            agent.currentHit = hit
+            agent.ballDelay = hit.prediction_time - agent.time
+            if scared and agent.team == 3:
+                if agent.activeState != BlessingOfSafety:
+                    agent.activeState = BlessingOfSafety(agent)
+                # print(f"We scared! {agent.time}")
+                return
 
-            # else:
-            #     if not agent.contested and not agent.ignore_kickoffs:
-            #         if hit.hit_type == 4:
-            #             if agent.hits[1] != None:
-            #                 if not butterZone(hit.pred_vector):
-            #                     temptime = agent.hits[1].prediction_time - agent.time
-            #                     if (
-            #                         temptime
-            #                         < agent.enemyBallInterceptDelay - agent.contestedTimeLimit
-            #                         # and hit.time_difference() > 1
-            #                     ):
-            #                         hit = agent.hits[1]
-            #
-            #         if hit.hit_type == 1:
-            #             if agent.hits[0] != None:
-            #                 if not butterZone(hit.pred_vector):
-            #                     temptime = agent.hits[0].prediction_time - agent.time
-            #                     if (
-            #                         temptime
-            #                         < agent.enemyBallInterceptDelay - agent.contestedTimeLimit
-            #                         # and hit.time_difference() > 1
-            #                     ):
-            #                         # if not ballHeadedTowardsMyGoal_testing(agent, agent.hits[0]):
-            #                         hit = agent.hits[0]
-
-            catchViable = False  # ballCatchViable(agent)
+            catchViable = False  # ballCatchViable(agent)# and agent.team == 1
 
             if hit.hit_type == 2:
                 agent.wallShot = True
@@ -3648,11 +3631,6 @@ def soloStateManager_testing(agent):
                 if agentType != AngelicEmbrace:
                     agent.activeState = AngelicEmbrace(agent)
                 return
-
-            goalward = ballHeadedTowardsMyGoal_testing(agent, hit)
-            agent.goalward = goalward
-            agent.currentHit = hit
-            agent.ballDelay = hit.prediction_time - agent.time
 
             boostOpportunity = inCornerWithBoost(agent)
             if boostOpportunity != False:
@@ -3723,6 +3701,8 @@ def soloStateManager_testing(agent):
                     agent.ballGrounded = False
                     if agent.activeState != Celestial_Arrest:
                         agent.activeState = Celestial_Arrest(agent)
+
+                    print(f"catching? {agent.time}")
                     agent.log.append(f"catching? {agent.time}")
                     return
 

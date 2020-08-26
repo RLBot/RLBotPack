@@ -602,6 +602,8 @@ class Kamael(BaseAgent):
         self.determineFacing()
         self.gravity = game.game_info.world_gravity_z
         self.dribbling = dirtyCarryCheck(self)
+        # if self.dribbling:
+        #     print(f"we dribbling {self.time}")
         self.findClosestToEnemies()
         self.resetCount += 1
         self.setJumpPhysics()
@@ -902,9 +904,10 @@ class Kamael(BaseAgent):
             )
 
             # if len(self.allies) < 1:
-            #     self.hits = [x for x in self.hits if x != None and (x.hit_type == 0 or is_shot_scorable(x.pred_vector, leftPost, rightPost)[2])]
-            #     self.hits = [x for x in self.hits if
-            #                  x != None and is_shot_scorable(x.pred_vector, leftPost, rightPost)[2]]
+            #     if not self.dribbling:
+            #         #self.hits = [x for x in self.hits if x != None and (x.hit_type == 0 or is_shot_scorable(x.pred_vector, leftPost, rightPost)[2])]
+            #         self.hits = [x for x in self.hits if
+            #                      x != None and is_shot_scorable(x.pred_vector, leftPost, rightPost)[2]]
 
             self.test_pred = predictionStruct(
                 convertStructLocationToVector(self.ballPred.slices[-1]),
