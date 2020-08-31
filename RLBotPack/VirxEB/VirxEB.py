@@ -34,63 +34,6 @@ class VirxEB(VirxERLU):
             self.playstyles.Neutral: 640
         }
 
-    def test(self):
-        # Go to nearest boost testing
-        """
-        if self.is_clear():
-            self.goto_nearest_boost()
-        """
-        # Block ground shot testing
-        """
-        if self.is_clear():
-            if abs(self.ball.location.y) > 1000 and abs(self.me.location.y) > abs(self.ball.location.y):
-                bgs = block_ground_shot()
-                if bgs.is_viable(self):
-                    self.push(bgs)
-                    return
-            else:
-                self.backcheck()
-        """
-        # Backcheck testing
-        """
-        self.dbg_2d(self.ball.location)
-
-        if self.is_clear():
-            self.backcheck()
-        """
-        # Shot testing
-        """
-        if self.shooting:
-            if self.odd_tick == 0:
-                self.smart_shot(self.best_shot, cap=6)
-        else:
-            if self.is_clear() and (self.me.boost < 90 or not self.smart_shot(self.best_shot, cap=6)) and self.me.location.dist(self.debug_vector) > 250:
-                self.push(face_target(ball=True))
-                self.push(goto(self.debug_vector, brake=True))
-
-            if self.ball.location.z < 250 and not self.predictions['goal']:
-                ball_state = BallState(Physics(location=Vector3(0, -4096 * side(self.team), self.ball.location.z), velocity=Vector3(0, 0, 2000), angular_velocity=Vector3(0, 0, 0)))
-                game_state = GameState(ball=ball_state)
-                self.set_game_state(game_state)
-        """
-        # Recovery testing
-        """
-        self.dbg_2d(f"Has jump: {not self.me.jumped}")
-        self.dbg_2d(f"Has dodge: {not self.me.doublejumped}")
-        if self.is_clear():
-            self.push(boost_upwards() if self.me.location.z < 17.1 else ball_recovery())
-        """
-        # Ceiling aerial testing
-        """
-        if not self.shooting and self.ball.location.z < 100 and not self.predictions['goal']:
-            ball_state = BallState(Physics(location=Vector3(self.debug_vector.x * side(self.team), self.debug_vector.y * side(self.team), self.ball.location.z), velocity=Vector3(0, 0, 2000), angular_velocity=Vector3(0, 0, 0)))
-            game_state = GameState(ball=ball_state)
-            self.set_game_state(game_state)
-
-        if self.is_clear():
-            self.push(ceiling_shot())
-        """
-
     def run(self):
         if not self.kickoff_done:
             if self.is_clear():

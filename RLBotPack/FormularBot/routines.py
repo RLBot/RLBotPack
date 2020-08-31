@@ -34,32 +34,24 @@ class ball_chase():
 
 class goto_friendly_goal():
     #Drives towards friendly goal. If touching or over goal line stops moving and faces enemy goal
-    def run(agent):
-        if side(agent.team) == -1:
-            if agent.me.location.y > -5000:
-                relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
-                defaultPD(agent,agent.me.local(relative))
-                angles = defaultPD(agent, agent.me.local(relative))
-                if agent.me.location.y > -4900:
+    def __init__(self):
+        self.step = 10
+    def run(self,agent):
+        if (agent.me.location.y > -5000 if side(agent.team) == -1 else agent.me.location.y < 5000):
+            relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
+            defaultPD(agent,agent.me.local(relative))
+            angles = defaultPD(agent, agent.me.local(relative))
+            if (agent.me.location.y > -4950 if side(agent.team) == -1 else agent.me.location.y < 4950):
+                if abs(angles[1]) > 2.88 and abs(angles[1]) < 3.4:
+                    defaultThrottle(agent,-2300)
+                    self.step = 10
+                else:
                     defaultThrottle(agent,2300)
-            else:
-                relative = agent.foe_goal.location - agent.me.location
-                defaultPD(agent,agent.me.local(relative))
-                angles = defaultPD(agent, agent.me.local(relative))
-        else:
-            if agent.me.location.y < 5000:
-                relative = Vector3(0,5120*side(agent.team),0) - agent.me.location
-                defaultPD(agent,agent.me.local(relative))
-                angles = defaultPD(agent, agent.me.local(relative))
-                if agent.me.location.y < 4900:
-                    defaultThrottle(agent,2300)
-            else:
-                relative = agent.foe_goal.location - agent.me.location
-                defaultPD(agent,agent.me.local(relative))
-                angles = defaultPD(agent, agent.me.local(relative))
-            
-        if abs(angles[1]) > 2.88 and abs(angles[1]) < 3.4:
+                    self.step = 0
+        elif self.step == 0:
             agent.push(half_flip())
+            self.step = 10
+
 
 
 class get_nearest_big_boost():
@@ -117,35 +109,38 @@ class wavedash_recovery():
 
 class demo_enemy_closest_ball():
     def run(agent):
-        if agent.me.boost < 10:
-            agent.push(get_nearest_big_boost)
-        else:  
-            try:
-                if len(agent.foes) > 0:
-                    enemies = agent.foes
-                    closest = enemies[0]
-                    closest_distance = (enemies[0].location - agent.ball.location).magnitude()
-                    x = 0
-                    y = 0
-                    for item in enemies:
-                        item_distance = (item.location - agent.ball.location).magnitude()
-                        if item_distance < closest_distance:
-                            closest = item
-                            closest_distance = item_distance
-                            y = x
-                        x =+ 1
-                        
-                    local_target = agent.me.local(agent.foes[y].location - agent.me.location)
-                    defaultPD(agent, local_target)
-                    defaultThrottle(agent, 2300)
-                    distance_remaining = local_target.flatten().magnitude()
+        if len(agent.foes) > 0:
+            enemies = agent.foes
+            closest = enemies[0]
+            closest_distance = (enemies[0].location - agent.ball.location).magnitude()
+            x = 0
+            y = 0
+            for item in enemies:
+                item_distance = (item.location - agent.ball.location).magnitude()
+                if item_distance < closest_distance:
+                    closest = item
+                    closest_distance = item_distance
+                    y = x
+                x =+ 1
                 
-                if distance_remaining < 2000 or agent.me.boost > 50 and distance_remaining < 5000:
+            local_target = agent.me.local(agent.foes[y].location - agent.me.location)
+            defaultPD(agent, local_target)
+            angles = defaultPD(agent, local_target)
+            agent.controller.handbrake = True if abs(angles[1]) > 1.5 else agent.controller.handbrake
+            defaultThrottle(agent, 2300)
+            distance_remaining = local_target.flatten().magnitude()
+            speed = math.sqrt(agent.me.velocity[0]**2+agent.me.velocity[1]**2+agent.me.velocity[2]**2)
+
+            if agent.me.boost < 10 and not(distance_remaining < 2000 and speed > 2100 and abs(angles[1] < 0.785398)):
+                agent.push(get_nearest_big_boost)
+            else:              
+                if (distance_remaining < 2000 or agent.me.boost * 75 > distance_remaining) and abs(angles[1]) < 0.785398:
                     agent.controller.boost = True
                 else:
                     agent.controller.boost = False
-            except:
-                print('There are no enemies to demo :(')
+        else:
+            print('There are no enemies to demo :(')
+
             
 
 class half_flip():
@@ -187,7 +182,7 @@ class go_centre():
             defaultPD(agent, local_target)
             defaultThrottle(agent, 2300)
             angles = defaultPD(agent, agent.me.local(relative_target))
-            if abs(angles[1]) > 1:
+            if abs(angles[1]) > 1.5:
                 agent.controller.handbrake = True
                 agent.controller.boost = False
         else:
@@ -500,7 +495,7 @@ class goto_boost():
         agent.controller.boost = self.boost.large if abs(angles[1]) < 0.3 else False
         if abs(angles[1]) > 2.88 and abs(angles[1]) < 3.4:
             agent.push(half_flip())
-        if abs(angles[1]) > 1:
+        elif abs(angles[1]) > 1:
             agent.controller.handbrake = True
             agent.controller.boost = False
         else:
