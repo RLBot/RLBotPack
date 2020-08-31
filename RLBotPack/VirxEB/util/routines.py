@@ -48,27 +48,65 @@ class atba:
 
 
 class wave_dash:
-    def __init__(self):
-        self.step = 0
+    def __init__(self, target=None):
+        self.step = -1
+        # 0 = forward, 1 = right, 2 = backwards, 3 = left
+        self.direction = 0
+        self.recovery = recovery()
+
+        if target is not None:
+            largest_direction = max(abs(target.x), abs(target.y))
+
+            dir_switch = {
+                abs(target.x): 0,
+                abs(target.y): 1
+            }
+
+            self.direction = dir_switch[largest_direction]
+
+            if (self.direction == 0 and target.x < 0) or (self.direction and target.y < 0):
+                self.direction += 2
 
     def run(self, agent):
-        if self.step <= 5:
-            self.step += 1
-            agent.controller.pitch = 1
-            agent.controller.yaw = agent.controller.role = 0
+        self.step += 1
 
-        if self.step <= 1:
-            agent.controller.jump = True
-        elif self.step <= 4:
-            agent.controller.jump = False
+        target_switch = {
+            0: agent.me.forward.flatten()*100 + Vector(z=50),
+            1: agent.me.forward.flatten()*100,
+            2: agent.me.forward.flatten()*100 - Vector(z=50),
+            3: agent.me.forward.flatten()*100
+        }
+
+        target_up = {
+            0: agent.me.local(Vector(z=1)),
+            1: agent.me.local(Vector(y=-50, z=1)),
+            2: agent.me.local(Vector(z=1)),
+            3: agent.me.local(Vector(y=50, z=1))
+        }
+
+        defaultPD(agent, agent.me.local(target_switch[self.direction]), up=target_up[self.direction])
+        if self.direction == 0:
+            agent.controller.throttle = 1
+        elif self.direction == 2:
+            agent.controller.throttle = -1
         else:
-            if (agent.me.location + (agent.me.velocity * 0.2)).z < 5:
-                agent.controller.jump = True
-                agent.controller.pitch = -1
-                agent.controller.yaw = agent.controller.role = 0
-                agent.pop()
-            elif not agent.me.airborne:
-                agent.pop()
+            agent.controller.handbrake = True
+
+        if self.step < 1:
+            agent.controller.jump = True
+        elif self.step < 4:
+            pass
+        elif not agent.me.airborne:
+            agent.pop()
+        elif agent.me.location.z + (agent.me.velocity.z * 0.2) < 5:
+            agent.controller.jump = True
+            agent.controller.yaw = 0
+            if self.direction in {0, 2}:
+                agent.controller.roll = 0
+                agent.controller.pitch = -1 if self.direction is 0 else 1
+            else:
+                agent.controller.roll = -1 if self.direction is 1 else 1
+                agent.controller.pitch = 0
 
 
 class double_jump:
@@ -156,7 +194,7 @@ class double_jump:
                 # Switch into the jump when the upward acceleration required reaches our threshold, and our lateral acceleration is negligible, and we're close enough to the point in time where the ball will be at the given location
                 self.jumping = True
             elif angle_to_target < 0.05 and velocity > 600 and velocity < speed_required - 500 and distance_remaining / velocity > 3:
-                agent.push(flip(local_final_target))
+                agent.push(wave_dash())
             elif angle_to_target >= 2 and distance_remaining > 1000 and velocity < 200 and distance_remaining / abs(velocity) > 2:
                 agent.push(flip(local_final_target, True))
             elif agent.me.airborne:
@@ -419,7 +457,7 @@ class goto:
 
         velocity = agent.me.local_velocity().x
         if angle_to_target < 0.05 and distance_remaining > 1920 and velocity > 600 and velocity < 2150 and distance_remaining / velocity > 2:
-            agent.push(flip(local_target))
+            agent.push(wave_dash())
         elif direction == -1 and distance_remaining > 1000 and velocity < 200 and distance_remaining / abs(velocity) > 2:
             agent.push(flip(local_target, True))
         elif agent.me.airborne:
@@ -649,7 +687,7 @@ class jump_shot:
                 # Switch into the jump when the upward acceleration required reaches our threshold, and our lateral acceleration is negligible
                 self.jumping = True
             elif angle_to_target < 0.05 and velocity > 600 and velocity < speed_required - 150 and distance_remaining / velocity > 3:
-                agent.push(flip(local_final_target))
+                agent.push(wave_dash())
             elif angle_to_target >= 2 and distance_remaining > 1000 and velocity < 200 and distance_remaining / abs(velocity) > 2:
                 agent.push(flip(local_final_target, True))
             elif agent.me.airborne:
