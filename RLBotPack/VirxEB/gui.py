@@ -19,7 +19,7 @@ class Gui(Thread):
 
         root.title("VirxEC/VirxERLU")
 
-        root.geometry("255x300")
+        root.geometry("255x390")
 
         title = ttk.Label(root, text=f"{self.agent.name} ({team}) hosted by VirxERLU")
         title.pack()
@@ -48,6 +48,17 @@ class Gui(Thread):
 
         air_bud_btn = ttk.Checkbutton(root, text='Air Bud', variable=air_bud_bool, command=set_air_bud)
         air_bud_btn.pack()
+
+        # Aerials
+
+        aerials_bool = BooleanVar()
+        aerials_bool.set(self.agent.aerials)
+
+        def set_aerials():
+            self.agent.aerials = aerials_bool.get()
+
+        aerials_btn = ttk.Checkbutton(root, text='Aerials', variable=aerials_bool, command=set_aerials)
+        aerials_btn.pack()
 
         # Disable driving
 
@@ -152,6 +163,22 @@ class Gui(Thread):
         debug_ball_path_precision = ttk.Scale(root, orient=HORIZONTAL, from_=2, to=20, command=set_debug_ball_path_precision)
         debug_ball_path_precision.set(self.agent.debug_ball_path_precision)
         debug_ball_path_precision.pack()
+
+        def set_debug_location(event):
+            self.agent.debug_vector.x, self.agent.debug_vector.y, self.agent.debug_vector.z = float(debug_vector_x.get()), float(debug_vector_y.get()), float(debug_vector_z.get())
+
+        debug_vector_x = ttk.Entry(root)
+        debug_vector_y = ttk.Entry(root)
+        debug_vector_z = ttk.Entry(root)
+        debug_vector_x.insert(0, str(self.agent.debug_vector.x))
+        debug_vector_y.insert(0, str(self.agent.debug_vector.y))
+        debug_vector_z.insert(0, str(self.agent.debug_vector.z))
+        debug_vector_x.bind("<Return>", set_debug_location)
+        debug_vector_y.bind("<Return>", set_debug_location)
+        debug_vector_z.bind("<Return>", set_debug_location)
+        debug_vector_x.pack()
+        debug_vector_y.pack()
+        debug_vector_z.pack()
 
         self.stop = root.destroy
 

@@ -1,4 +1,4 @@
-# VirxEB - Built on the RLBot framework
+# VirxEB & VirxERLU - Built on the RLBot framework
 
 + [RLBot](http://www.rlbot.org/)
 + [RLBot Youtube](https://www.youtube.com/channel/UCu8scB_k94Kh-iO979QTDJA)

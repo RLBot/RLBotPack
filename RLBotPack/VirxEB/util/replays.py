@@ -6,7 +6,7 @@ class back_kickoff:
         self.start_time = None
 
     def run(self, agent):
-        if self.start_time == None:
+        if self.start_time is None:
             self.start_time = agent.time
 
         time_elapsed = round(agent.time - self.start_time, 5)
@@ -26,64 +26,6 @@ class back_kickoff:
             agent.controller.boost = True
 
         if time_elapsed > 2.9333:
-            agent.pop()
-            agent.push(recovery())
-            agent.kickoff_done = True
-
-
-class left_kickoff:
-    def __init__(self):
-        self.start_time = None
-
-    def run(self, agent):
-        if self.start_time is None:
-            self.start_time = agent.time
-
-        time_elapsed = round(agent.time - self.start_time, 5)
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.0083) or (2.05 <= time_elapsed and time_elapsed <= 2.6167):
-            agent.controller.steer = agent.controller.yaw = -1
-
-        if (0.3333 <= time_elapsed and time_elapsed <= 0.4167) or (0.475 <= time_elapsed and time_elapsed <= 0.6417) or (2.0917 <= time_elapsed and time_elapsed <= 2.1667) or (2.2167 <= time_elapsed and time_elapsed <= 2.4083):
-            agent.controller.jump = True
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.3917) or (1.625 <= time_elapsed and time_elapsed <= 2.45):
-            agent.controller.boost = True
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.7667) or (1.5917 <= time_elapsed and time_elapsed <= 2.575):
-            agent.controller.throttle = 1
-            agent.controller.pitch = -1
-
-        if time_elapsed > 2.6167:
-            agent.pop()
-            agent.push(recovery())
-            agent.kickoff_done = True
-
-
-class right_kickoff:
-    def __init__(self):
-        self.start_time = None
-
-    def run(self, agent):
-        if self.start_time is None:
-            self.start_time = agent.time
-
-        time_elapsed = round(agent.time - self.start_time, 5)
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.0083) or (2.05 <= time_elapsed and time_elapsed <= 2.6167):
-            agent.controller.steer = agent.controller.yaw = 1
-
-        if (0.3333 <= time_elapsed and time_elapsed <= 0.4167) or (0.475 <= time_elapsed and time_elapsed <= 0.6417) or (2.0917 <= time_elapsed and time_elapsed <= 2.1667) or (2.2167 <= time_elapsed and time_elapsed <= 2.4083):
-            agent.controller.jump = True
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.3917) or (1.625 <= time_elapsed and time_elapsed <= 2.45):
-            agent.controller.boost = True
-
-        if (0.0 <= time_elapsed and time_elapsed <= 0.7667) or (1.5917 <= time_elapsed and time_elapsed <= 2.575):
-            agent.controller.throttle = 1
-            agent.controller.pitch = -1
-
-        if time_elapsed > 2.6167:
             agent.pop()
             agent.push(recovery())
             agent.kickoff_done = True

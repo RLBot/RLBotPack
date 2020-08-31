@@ -1,216 +1,405 @@
-import math
+import virxrlcu
+from util.routines import Aerial, jump_shot, double_jump
+from util.utils import Vector, math
 
-from util.routines import jump_shot, Aerial
-from util.utils import Vector, cap, find_slope, in_field, post_correction
 
+def find_jump_shot(agent, target, weight=None, cap_=6):
+    # Takes a tuple of (left,right) target pairs and finds routines that could hit the ball between those target pairs
+    # Only meant for routines that require a defined intercept time/place in the future
+    # Here we get the slices that need to be searched - by defining a cap or a weight, we can reduce the number of slices and improve search times
+    slices = get_slices(agent, cap_, weight=weight)
 
-def find_jump_shot(agent, target, cap_=6):
-    # find_hits takes a tuple of (left,right) target pairs and finds routines that could hit the ball between those target pairs
-    # find_hits is only meant for routines that require a defined intercept time/place in the future
-    # Improvements means that this is now up to 585x faster than the og version
-    struct = agent.predictions['ball_struct']
-
-    if struct is None:
+    if slices is None:
         return
 
-    # Begin looking at slices 0.15s into the future
-    i = 5
-    while i < struct.num_slices:
+    # Assemble data in a form that can be passed to C
+    target = (
+        target[0].tuple(),
+        target[1].tuple()
+    )
+
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
+
+    # Loop through the slices
+    for ball_slice in slices:
         # Gather some data about the slice
-        intercept_time = struct.slices[i].game_seconds
+        intercept_time = ball_slice.game_seconds
         time_remaining = intercept_time - agent.time
 
         if time_remaining <= 0:
-            return
-
-        ball_location = Vector(struct.slices[i].physics.location.x, struct.slices[i].physics.location.y, struct.slices[i].physics.location.z)
-
-        if abs(ball_location.y) > 5212:
-            break  # abandon search if ball is scored at/after this point
-
-        ball_velocity = Vector(struct.slices[i].physics.velocity.x, struct.slices[i].physics.velocity.y, struct.slices[i].physics.velocity.z).magnitude()
-
-        # determine the next slice we will look at, based on ball velocity (slower ball needs fewer slices)
-        i += 15 - cap(int(ball_velocity//150), 0, 13)
-
-        # If the ball is above what this function can handle, don't bother with any further processing and skip to the next slice
-        if ball_location.z > 350:
             continue
 
-        car_to_ball = ball_location - agent.me.location
-        # Adding a True to a vector's normalize will have it also return the magnitude of the vector
-        direction, distance = car_to_ball.normalize(True)
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
 
-        # How far the car must turn in order to face the ball, for forward and reverse
-        forward_angle = direction.angle(agent.me.forward)
-        backward_angle = math.pi - forward_angle
+        if abs(ball_location[1]) > 5212:
+            return  # abandon search if ball is scored at/after this point
 
-        # Accounting for the average time it takes to turn and face the ball
-        # Backward is slightly longer as typically the car is moving forward and takes time to slow down
-        forward_time = time_remaining - (forward_angle * 0.318)
-        backward_time = time_remaining - (backward_angle * 0.418)
+        # If the ball is above what this function can handle, don't bother with any further processing and skip to the next slice
+        if ball_location[2] > 300:
+            continue
 
-        # If the car only had to drive in a straight line, we ensure it has enough time to reach the ball (a few assumptions are made)
-        forward_flag = forward_time > 0 and (distance*1.05 / forward_time) < (2275 if agent.me.boost > distance/100 else 1400)
-        backward_flag = distance < 1500 and backward_time > 0 and (distance*1.05 / backward_time) < 1200
+        # Check if we can make a shot at this slice
+        # This operation is very expensive, so we use a custom C function to improve run time
+        shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
 
-        # Provided everything checks out, we begin to look at the target pairs
-        if forward_flag or backward_flag:
-            # First we correct the target coordinates to account for the ball's radius
-            # If swapped is True, the shot isn't possible because the ball wouldn't fit between the targets
-            left, right, swapped = post_correction(ball_location, target[0], target[1])
-            if not swapped:
-                # Now we find the easiest direction to hit the ball in order to land it between the target points
-                left_vector = (left - ball_location).normalize()
-                right_vector = (right - ball_location).normalize()
-                best_shot_vector = direction.clamp(left_vector, right_vector)
-
-                # Check to make sure our approach is inside the field
-                # Check if our shot is fast enough. This is equal to 500uu's per 1/2 second, for a max time of `cap` (defaut 6) seconds.
-                if in_field(ball_location - (200*best_shot_vector), 1) and is_fast_shot(agent.me.location, ball_location, intercept_time, agent.time, cap_):
-                    # The slope represents how close the car is to the chosen vector, higher = better
-                    # A slope of 1.0 would mean the car is 45 degrees off
-                    slope = find_slope(best_shot_vector, car_to_ball)
-                    if forward_flag and ball_location.z <= 275 and slope > 0:
-                        return jump_shot(ball_location, intercept_time, best_shot_vector)
-                    elif backward_flag and ball_location.z <= 250 and slope > 1.5 and intercept_time - agent.time < cap_ / 2:
-                        return jump_shot(ball_location, intercept_time, best_shot_vector, -1)
+        # If we found a viable shot, pass the data into the shot routine and return the shot
+        if shot['found'] == 1:
+            return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
 
 
 def find_any_jump_shot(agent, cap_=3):
-    struct = agent.predictions['ball_struct']
+    slices = get_slices(agent, cap_)
 
-    if struct is None:
+    if slices is None:
         return
 
-    i = 5
-    while i < struct.num_slices:
-        intercept_time = struct.slices[i].game_seconds
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
         time_remaining = intercept_time - agent.time
 
         if time_remaining <= 0:
-            return
-
-        ball_location = Vector(struct.slices[i].physics.location.x, struct.slices[i].physics.location.y, struct.slices[i].physics.location.z)
-
-        if abs(ball_location.y) > 5212:
-            break
-
-        ball_velocity = Vector(struct.slices[i].physics.velocity.x, struct.slices[i].physics.velocity.y, struct.slices[i].physics.velocity.z).magnitude()
-
-        i += 15 - cap(int(ball_velocity//150), 0, 13)
-
-        if ball_location.z > 350:
             continue
 
-        car_to_ball = ball_location - agent.me.location
-        direction, distance = car_to_ball.normalize(True)
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
 
-        forward_angle = direction.angle(agent.me.forward)
-        backward_angle = math.pi - forward_angle
+        if abs(ball_location[1]) > 5212:
+            return
 
-        forward_time = time_remaining - (forward_angle * 0.318)
-        backward_time = time_remaining - (backward_angle * 0.418)
+        if ball_location[2] > 300:
+            continue
 
-        forward_flag = forward_time > 0 and (distance*1.05 / forward_time) < (2275 if agent.me.boost > distance/100 else 1400)
-        backward_flag = distance < 1500 and backward_time > 0 and (distance*1.05 / backward_time) < 1200
+        shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
 
-        # our current direction IS our best shot vector, as we just want to get to the ball as fast as possible
-        if (forward_flag or backward_flag) and is_fast_shot(agent.me.location, ball_location, intercept_time, agent.time, cap_):
-            slope = find_slope(direction, car_to_ball)
-            if forward_flag and ball_location.z <= 275 and slope > 0:
-                return jump_shot(ball_location, intercept_time, direction)
-            elif backward_flag and ball_location.z <= 250 and slope > 1.5:
-                return jump_shot(ball_location, intercept_time, direction, -1)
+        if shot['found'] == 1:
+            return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
 
 
-def find_aerial(agent, target, cap_=4):
-    struct = agent.predictions['ball_struct']
+def find_double_jump(agent, target, weight=None, cap_=6):
+    slices = get_slices(agent, cap_, weight=weight, start_slice=30)
 
-    if struct is None:
+    if slices is None:
         return
 
-    max_aerial_height = math.inf
+    target = (
+        target[0].tuple(),
+        target[1].tuple()
+    )
 
-    if len(agent.friends) == 0 and len(agent.foes) == 1:
-        max_aerial_height = 643
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
 
-    i = 10  # Begin by looking 0.2 seconds into the future
-    while i < struct.num_slices:
-        intercept_time = struct.slices[i].game_seconds
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
+        time_remaining = intercept_time - agent.time - 0.3
+
+        if time_remaining <= 0:
+            continue
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212:
+            return
+
+        if ball_location[2] > 490 or ball_location[2] < 300:
+            continue
+
+        shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+
+        if shot['found'] == 1:
+            return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+
+
+def find_any_double_jump(agent, cap_=3):
+    slices = get_slices(agent, cap_, start_slice=30)
+
+    if slices is None:
+        return
+
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
+        time_remaining = intercept_time - agent.time - 0.3
+
+        if time_remaining <= 0:
+            continue
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212:
+            return
+
+        if ball_location[2] > 490 or ball_location[2] < 300:
+            continue
+
+        shot = virxrlcu.parse_slice_for_double_jump(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+
+        if shot['found'] == 1:
+            return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+
+
+def find_aerial(agent, target, weight=None, cap_=6):
+    slices = get_slices(agent, cap_, weight=weight)
+
+    if slices is None:
+        return
+
+    target = (
+        target[0].tuple(),
+        target[1].tuple()
+    )
+
+    me = (
+        agent.me.location.tuple(),
+        agent.me.velocity.tuple(),
+        agent.me.up.tuple(),
+        agent.me.forward.tuple(),
+        1 if agent.me.airborne else -1,
+        agent.me.boost
+    )
+
+    gravity = agent.gravity.tuple()
+
+    max_aerial_height = 643 if len(agent.friends) == 0 and len(agent.foes) == 1 else math.inf
+    min_aerial_height = 643 if max_aerial_height > 643 and agent.me.location.z >= 2044 - agent.me.hitbox.height * 1.1 else 500
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
         time_remaining = intercept_time - agent.time
 
         if time_remaining <= 0:
             return
 
-        ball_location = Vector(struct.slices[i].physics.location.x, struct.slices[i].physics.location.y, struct.slices[i].physics.location.z)
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
 
-        if abs(ball_location.y) > 5212:
-            break
+        if abs(ball_location[1]) > 5212:
+            return
 
-        ball_velocity = Vector(struct.slices[i].physics.velocity.x, struct.slices[i].physics.velocity.y, struct.slices[i].physics.velocity.z).magnitude()
+        if min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height:
+            continue
 
-        i += 15 - cap(int(ball_velocity//150), 0, 13)
+        shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me, *target, cap_)
 
-        # we don't actually need to calculate if we can get there; it is_viable function will do that for us
-        # we just need a few variables to find the best shot vector
-        car_to_ball = ball_location - agent.me.location
-        direction = car_to_ball.normalize()
-
-        left, right, swapped = post_correction(ball_location, target[0], target[1])
-        if not swapped:
-            left_vector = (left - ball_location).normalize()
-            right_vector = (right - ball_location).normalize()
-            best_shot_vector = direction.clamp(left_vector, right_vector)
-            # relax the in_field requirement
-            # reduce cap_ from 6 to 4 (by default)
-            if in_field(ball_location - (100*best_shot_vector), 1) and is_fast_shot(agent.me.location, ball_location, intercept_time, agent.time, cap_):
-                slope = find_slope(best_shot_vector, car_to_ball)
-                ball_intercept = ball_location - 92 * best_shot_vector
-
-                if slope > 0.5 and 275 < ball_intercept.z and ball_intercept.z < max_aerial_height:
-                    aerial = Aerial(ball_intercept, intercept_time)
-                    if aerial.is_viable(agent):
-                        return aerial
+        if shot['found'] == 1:
+            return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
 
 
 def find_any_aerial(agent, cap_=3):
-    struct = agent.predictions['ball_struct']
+    slices = get_slices(agent, cap_)
 
-    if struct is None:
+    if slices is None:
         return
 
-    max_aerial_height = math.inf
+    me = (
+        agent.me.location.tuple(),
+        agent.me.velocity.tuple(),
+        agent.me.up.tuple(),
+        agent.me.forward.tuple(),
+        1 if agent.me.airborne else -1,
+        agent.me.boost
+    )
 
-    if len(agent.friends) == 0 and len(agent.foes) == 1:
-        max_aerial_height = 643
+    gravity = agent.gravity.tuple()
 
-    i = 10  # Begin by looking 0.2 seconds into the future
-    while i < struct.num_slices:
-        intercept_time = struct.slices[i].game_seconds
+    max_aerial_height = 735 if len(agent.friends) == 0 and len(agent.foes) == 1 else math.inf
+    min_aerial_height = 551 if max_aerial_height > 643 and agent.me.location.z >= 2044 - agent.me.hitbox.height * 1.1 else 500
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
         time_remaining = intercept_time - agent.time
 
         if time_remaining <= 0:
             return
 
-        ball_location = Vector(struct.slices[i].physics.location.x, struct.slices[i].physics.location.y, struct.slices[i].physics.location.z)
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
 
-        if abs(ball_location.y) > 5212:
-            break
+        if abs(ball_location[1]) > 5212:
+            return
 
-        ball_velocity = Vector(struct.slices[i].physics.velocity.x, struct.slices[i].physics.velocity.y, struct.slices[i].physics.velocity.z).magnitude()
-
-        i += 15 - cap(int(ball_velocity//150), 0, 13)
-
-        if 275 > ball_location.z or ball_location.z > max_aerial_height:
+        if min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height:
             continue
 
-        # remove the need for a target to hit the ball to
-        if is_fast_shot(agent.me.location, ball_location, intercept_time, agent.time, cap_):
-            aerial = Aerial(ball_location, intercept_time)
-            if aerial.is_viable(agent):
-                return aerial
+        shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me, cap_)
+
+        if shot['found'] == 1:
+            return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
 
 
-def is_fast_shot(car_location, ball_intercept, intercept_time, current_time, cap_):
-    return intercept_time - current_time <= min(cap_, car_location.dist(ball_intercept) / 500)
+def find_shot(agent, target, weight=None, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True):
+    if not can_aerial and not can_double_jump and not can_jump:
+        agent.print("WARNING: All shots were disabled when find_shot was ran")
+        return
+
+    slices = get_slices(agent, cap_, weight=weight)
+
+    if slices is None:
+        return
+
+    target = (
+        target[0].tuple(),
+        target[1].tuple()
+    )
+
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
+
+    if can_aerial:
+        me_a = (
+            me[0],
+            me[1],
+            agent.me.up.tuple(),
+            agent.me.forward.tuple(),
+            1 if agent.me.airborne else -1,
+            me[2]
+        )
+
+        gravity = agent.gravity.tuple()
+
+        max_aerial_height = 643 if len(agent.friends) == 0 and len(agent.foes) == 1 else math.inf
+        min_aerial_height = 643 if max_aerial_height > 643 and agent.me.location.z >= 2044 - agent.me.hitbox.height * 1.1 else 500
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
+        time_remaining = intercept_time - agent.time
+
+        if time_remaining <= 0:
+            return
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212:
+            return
+
+        if can_jump and not (ball_location[2] > 300):
+            shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+
+            if shot['found'] == 1:
+                return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+        
+        if can_double_jump and not (ball_location[2] > 490 or ball_location[2] < 300):
+            shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+
+            if shot['found'] == 1:
+                return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+
+        if can_aerial and not (min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height):
+            shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me_a, *target, cap_)
+
+            if shot['found'] == 1:
+                return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
+
+
+def find_any_shot(agent, cap_=3, can_aerial=True, can_double_jump=True, can_jump=True):
+    if not can_aerial and not can_double_jump and not can_jump:
+        agent.print("WARNING: All shots were disabled when find_shot was ran")
+        return
+
+    slices = get_slices(agent, cap_)
+
+    if slices is None:
+        return
+
+    me = (
+        agent.me.location.tuple(),
+        agent.me.forward.tuple(),
+        agent.me.boost
+    )
+
+    if can_aerial:
+        me_a = (
+            me[0],
+            me[1],
+            agent.me.up.tuple(),
+            agent.me.forward.tuple(),
+            1 if agent.me.airborne else -1,
+            me[2]
+        )
+
+        gravity = agent.gravity.tuple()
+
+        max_aerial_height = 643 if len(agent.friends) == 0 and len(agent.foes) == 1 else math.inf
+        min_aerial_height = 643 if max_aerial_height > 643 and agent.me.location.z >= 2044 - agent.me.hitbox.height * 1.1 else 500
+
+    for ball_slice in slices:
+        intercept_time = ball_slice.game_seconds
+        time_remaining = intercept_time - agent.time
+
+        if time_remaining <= 0:
+            return
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212:
+            return
+
+        if can_jump and not (ball_location[2] > 300):
+            shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+
+            if shot['found'] == 1:
+                return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+        
+        if can_double_jump and not (ball_location[2] > 490 or ball_location[2] < 300):
+            shot = virxrlcu.parse_slice_for_double_jump(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+
+            if shot['found'] == 1:
+                return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
+
+        if can_aerial and not (min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height):
+            shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me_a, cap_)
+
+            if shot['found'] == 1:
+                return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
+
+
+def get_slices(agent, cap_, weight=None, start_slice=12):
+    # Get the struct
+    struct = agent.predictions['ball_struct']
+
+    # Make sure it isn't empty
+    if struct is None:
+        return
+
+    # If we're shooting, crop the struct
+    if agent.shooting:
+        # Get the time remaining
+        time_remaining = agent.stack[0].intercept_time - agent.time
+
+        # Convert the time remaining into number of slices, and take off the minimum gain accepted from the time
+        min_gain = 0.05 if weight is None or weight is agent.shot_weight else (agent.max_shot_weight - agent.shot_weight + 1) / 3
+        end_slice = min(math.ceil((time_remaining - min_gain) * 60), math.ceil(cap_ * 60))
+
+        # We can't end a slice index that's lower than the start index
+        if end_slice <= 12:
+            return
+
+        # Half the time, double the slices
+        if time_remaining <= 3:
+            return struct.slices[start_slice:end_slice]
+
+        return struct.slices[start_slice:end_slice:2]
+
+    # If we're not shooting, then cap the slices at the cap
+    end_slice = math.ceil(cap_ * 60)
+
+    # Start 0.2 seconds in, and skip every other data point
+    return struct.slices[start_slice:end_slice:2]
