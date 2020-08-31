@@ -17,10 +17,11 @@ def cap(x, low, high):
     return max(min(x, high), low)
 
 
-def defaultPD(agent, local_target, upside_down=False):
+def defaultPD(agent, local_target, upside_down=False, up=None):
     # points the car towards a given local target.
     # Direction can be changed to allow the car to steer towards a target while driving backwards
-    up = agent.me.local(Vector(z=-1 if upside_down else 1))  # where "up" is in local coordinates
+    if up is None:
+        up = agent.me.local(Vector(z=-1 if upside_down else 1))  # where "up" is in local coordinates
     target_angles = (
         math.atan2(local_target.z, local_target.x),  # angle required to pitch towards target
         math.atan2(local_target.y, local_target.x),  # angle required to yaw towards target
