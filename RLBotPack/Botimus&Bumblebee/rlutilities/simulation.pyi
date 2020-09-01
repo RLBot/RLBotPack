@@ -31,10 +31,10 @@ class Ball():
     restitution = 0.6000000238418579
 
     @overload
-    def __init__(self) -> None: 
+    def __init__(self, arg0: Ball) -> None: 
         pass
     @overload
-    def __init__(self, arg0: Ball) -> None: ...
+    def __init__(self) -> None: ...
     def hitbox(self) -> sphere: ...
     @overload
     def step(self, arg0: float) -> None: 
@@ -96,10 +96,10 @@ class ControlPoint():
 class Curve():
 
     @overload
-    def __init__(self, arg0: List[ControlPoint]) -> None: 
+    def __init__(self, arg0: List[vec3]) -> None: 
         pass
     @overload
-    def __init__(self, arg0: List[vec3]) -> None: ...
+    def __init__(self, arg0: List[ControlPoint]) -> None: ...
     def calculate_distances(self) -> None: ...
     def calculate_max_speeds(self, arg0: float, arg1: float) -> float: ...
     def calculate_tangents(self) -> None: ...
@@ -121,11 +121,11 @@ class Field():
 
     @staticmethod
     @overload
-    def collide(arg0: obb) -> ray: 
+    def collide(arg0: sphere) -> ray: 
         pass
     @staticmethod
     @overload
-    def collide(arg0: sphere) -> ray: ...
+    def collide(arg0: obb) -> ray: ...
     @staticmethod
     def raycast_any(arg0: ray) -> ray: ...
     @staticmethod
@@ -134,16 +134,15 @@ class Field():
     pass
 class Game():
     frametime = 0.008333333767950535
-    gravity = -650.0
     map = 'map_not_set'
 
-    def __init__(self, arg0: int) -> None: ...
+    def __init__(self) -> None: ...
     def read_game_information(self, arg0: object, arg1: object) -> None: ...
     @staticmethod
     def set_mode(arg0: str) -> None: ...
 
     ball: Ball
-    cars: List[Car[8]]
+    cars: List[Car[64]]
     frame: int
     frame_delta: int
     kickoff_pause: bool
@@ -152,7 +151,6 @@ class Game():
     overtime: bool
     pads: List[Pad]
     round_active: bool
-    team: int
     time: float
     time_delta: float
     time_remaining: float
@@ -225,8 +223,8 @@ class tri():
 
     pass
 @overload
-def intersect(arg0: sphere, arg1: obb) -> bool:
+def intersect(arg0: obb, arg1: sphere) -> bool:
     pass
 @overload
-def intersect(arg0: obb, arg1: sphere) -> bool:
+def intersect(arg0: sphere, arg1: obb) -> bool:
     pass
