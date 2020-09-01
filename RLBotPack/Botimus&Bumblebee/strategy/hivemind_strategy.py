@@ -7,9 +7,7 @@ from maneuvers.refuel import Refuel
 from maneuvers.general_defense import GeneralDefense
 from rlutilities.linear_algebra import norm
 from rlutilities.simulation import Pad
-from strategy.defense import Defense
-from strategy.kickoffs import KickoffStrategy
-from strategy.offense import Offense
+from strategy import offense, defense, kickoffs
 from tools.drawing import DrawingTool
 from tools.drone import Drone
 from tools.game_info import GameInfo
@@ -21,8 +19,6 @@ class HivemindStrategy:
     def __init__(self, info: GameInfo, logger):
         self.info: GameInfo = info
         self.logger = logger
-        self.offense: Offense = Offense(info)
-        self.defense: Defense = Defense(info)
 
         # the drone that is currently committed to hitting the ball
         self.drone_going_for_ball: Optional[Drone] = None
@@ -32,7 +28,7 @@ class HivemindStrategy:
 
     def set_kickoff_maneuvers(self, drones: List[Drone]):
         nearest_drone = min(drones, key=lambda drone: ground_distance(drone.car, self.info.ball))
-        nearest_drone.maneuver = KickoffStrategy.choose_kickoff(self.info, nearest_drone.car)
+        nearest_drone.maneuver = kickoffs.choose_kickoff(self.info, nearest_drone.car)
         self.drone_going_for_ball = nearest_drone
 
         self.boost_reservations.clear()
@@ -93,10 +89,10 @@ class HivemindStrategy:
                 align(best_intercept.car.position, best_intercept.ball, their_goal) > 0
                 or ground_distance(best_intercept, our_goal) > 6000
             ):
-                strike = self.offense.any_shot(best_intercept.car, their_goal, best_intercept)
+                strike = offense.any_shot(info, best_intercept.car, their_goal, best_intercept)
 
             else:  # otherwise try to clear
-                strike = self.defense.any_clear(best_intercept.car)
+                strike = defense.any_clear(info, best_intercept.car)
 
             self.drone_going_for_ball.maneuver = strike
 

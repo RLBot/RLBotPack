@@ -9,6 +9,7 @@ from maneuvers.kickoffs.kickoff import Kickoff
 from maneuvers.general_defense import GeneralDefense
 from maneuvers.refuel import Refuel
 from rlutilities.linear_algebra import vec3
+from strategy import teamplay_strategy
 from strategy.hivemind_strategy import HivemindStrategy
 from tools.drawing import DrawingTool
 from tools.drone import Drone
@@ -51,7 +52,10 @@ class Beehive(PythonHivemind):
             and self.info.ball.position[0] == 0 and self.info.ball.position[1] == 0
             and not any(isinstance(drone.maneuver, Kickoff) for drone in self.drones)
         ):
-            self.strategy.set_kickoff_maneuvers(self.drones)
+            if len(self.drones) == 1:
+                self.drones[0].maneuver = None
+            else:
+                self.strategy.set_kickoff_maneuvers(self.drones)
 
         # reset drone maneuvers when an opponent hits the ball
         touch = packet.game_ball.latest_touch
@@ -69,7 +73,10 @@ class Beehive(PythonHivemind):
         # if at least one drone doesn't have an active maneuver, execute strategy code
         if None in [drone.maneuver for drone in self.drones]:
             self.logger.debug("Setting maneuvers")
-            self.strategy.set_maneuvers(self.drones)
+            if len(self.drones) == 1:
+                self.drones[0].maneuver = teamplay_strategy.choose_maneuver(self.info, self.drones[0].car)
+            else:
+                self.strategy.set_maneuvers(self.drones)
 
         for drone in self.drones:
             if drone.maneuver is None:
@@ -89,7 +96,8 @@ class Beehive(PythonHivemind):
             if drone.maneuver.finished:
                 drone.maneuver = None
 
-        self.strategy.avoid_demos_and_team_bumps(self.drones)
+        if len(self.drones) > 1:
+            self.strategy.avoid_demos_and_team_bumps(self.drones)
 
         self.strategy.render(self.draw)
         self.draw.execute()
