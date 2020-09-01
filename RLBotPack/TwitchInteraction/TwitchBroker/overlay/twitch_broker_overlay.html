@@ -17,7 +17,7 @@
 </head>
 <body>
 
-    <div id="overlay_div"></div>
+<div id="overlay_div"></div>
 
 <script>
     const overlayDiv = $('#overlay_div');
@@ -37,9 +37,17 @@
             if (dataString !== previousData) {
 
                 overlayDiv.empty();
+                if (data.is_menu_active) {
+                    overlayDiv.removeClass('inactive-menu');
+                } else {
+                    overlayDiv.addClass('inactive-menu');
+                }
+
                 if (data.sections.length === 0) {
                     overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'))
                 }
+
+                overlayDiv.append($('<div class="menu-prefix">' + data.menu_id + '</div>'));
 
                 for (let i = 0; i < data.sections.length; i++) {
 
@@ -55,15 +63,24 @@
                         let vote_markup = '';
                         if (vote_tracker) {
                             const num_votes = vote_tracker.voters.length;
-                            let vote_tokens = '';
-                            for (let v = 0; v < vote_tracker.votes_needed; v++) {
-                                if (v < num_votes) {
-                                    vote_tokens += '<span class="vote-token vote-filled"></span>';
-                                } else {
-                                    vote_tokens += '<span class="vote-token"></span>';
+                            const vote_bar_opener = vote_tracker.five_second_warning ?
+                                '<div class="vote-bar five-warn">' : '<div class="vote-bar">';
+                            if (vote_tracker.votes_needed <= 4) {
+                                let vote_tokens = '';
+                                for (let v = 0; v < vote_tracker.votes_needed; v++) {
+                                    if (v < num_votes) {
+                                        vote_tokens += '<span class="vote-token vote-filled"></span>';
+                                    } else {
+                                        vote_tokens += '<span class="vote-token"></span>';
+                                    }
                                 }
+                                vote_markup = vote_bar_opener + vote_tokens + '</div>';
+                            } else {
+                                let vote_percent = num_votes * 100 / vote_tracker.votes_needed;
+                                let vote_meter_markup = '<div class="vote-progress-meter" style="width:' + vote_percent + '%"></div>';
+                                let vote_holder_markup = '<div class="vote-progress-holder">' +  vote_meter_markup + '</div>';
+                                vote_markup = vote_bar_opener + vote_holder_markup + '</div>';
                             }
-                            vote_markup = '<div class="vote-bar">' + vote_tokens + '</div>';
                         }
                         sectionDiv.append('<div class="action"><span class="menu-id-prefix">' + data.menu_id +
                             '</span><span class="opt-number">' + numberedAction.number +
@@ -88,15 +105,14 @@
                         let cmd = data.recent_commands[i];
                         // https://kamranahmed.info/toast
                         $.toast({
-                            heading: cmd.username,
+                            heading: cmd.voters.join(', '),
                             text: cmd.description,
-                            position: { top: 35, left: 400},
+                            position: { top: 100, left: 350},
                             showHideTransition: 'fade',
                             hideAfter: 4000,
                             loader: false,
                             allowToastClose: false,
                             stack: 3,
-                            icon: cmd.status,
                         });
                         latestCommandId = cmd.id;
                     }
@@ -107,7 +123,7 @@
             overlayDiv.empty();
             overlayDiv.append($('<div class="section"><div class="section-header">Ready</div></div>'));
         });
-    }, 500);
+    }, 200);
 </script>
 
 </body>

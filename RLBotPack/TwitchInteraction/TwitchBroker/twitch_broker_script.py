@@ -54,8 +54,14 @@ if __name__ == '__main__':
         for key, value in vote_conf.items():
             votes_needed[key] = int(value)
 
+    vote_scales = {}
+    if 'VotesNeededWhenOneVotePerSecond' in config:
+        vote_conf = config['VotesNeededWhenOneVotePerSecond']
+        for key, value in vote_conf.items():
+            vote_scales[key] = int(value)
+
     settings = MutableBrokerSettings(num_old_menus_to_honor=num_old_menus_to_honor, pause_on_menu=pause_on_menu,
-                                     votes_needed=votes_needed)
+                                     min_votes_needed=votes_needed, votes_needed_when_one_vote_per_second=vote_scales)
 
     # Open up http://127.0.0.1:7307/static/chat_form.html if you want to send test commands without
     # connecting to twitch.

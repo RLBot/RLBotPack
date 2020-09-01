@@ -11,6 +11,13 @@ body {
     float: left;
 }
 
+.menu-prefix {
+    font-size: 3em;
+    color: white;
+    text-shadow: 2px 2px 6px black;
+    font-weight: bold;
+}
+
 #message {
     display: inline-block;
     font-size: 1.6em;
@@ -24,11 +31,15 @@ body {
 }
 
 .section {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     background-color: rgba(255, 255, 255, 0.8);
     padding: 5px 10px;
     border-radius: 3px;
     box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.71);
+}
+
+.inactive-menu .section {
+    background-color: rgba(255, 255, 255, 0.25);
 }
 
 .section-header {
@@ -53,6 +64,10 @@ body {
     font-size: 1.1em;
 }
 
+.jq-toast-wrap {
+    width: 200px;
+}
+
 div.jq-toast-single {
     background-color: rgba(255, 255, 255, 0.8);
     border-radius: 3px;
@@ -74,27 +89,54 @@ div.jq-toast-single.jq-icon-error {
 }
 
 .player-name.blue {
-    color: #1E90FF;
+    color: #005fec;
 }
 
 .player-name.orange {
-    color: #FF8C00;
+    color: #de5c00;
 }
 
 .vote-token {
     width: 10px;
     height: 10px;
-    border: solid 1px gray;
-    border-radius: 5px;
-    margin-right: 4px;
+    border: solid 2px gray;
+    box-shadow: inset 1px 1px 3px #333;
+    border-radius: 10px;
+    margin-right: 1px;
     display: inline-block;
 }
 
-.vote-token.vote-filled {
+.vote-token.vote-filled, .five-warn .vote-token.vote-filled {
     background-color: #00c200;
+    box-shadow: none;
+    border-color: black;
+    animation: none;
 }
 
 .vote-bar {
     display: inline-block;
     margin-left: 10px;
+}
+
+.five-warn .vote-progress-holder, .five-warn .vote-token {
+    animation: flashred .2s infinite;
+    animation-direction: alternate;
+}
+
+@keyframes flashred {
+    from {background-color: initial;}
+    to {background-color: red;}
+}
+
+.vote-progress-holder {
+    width: 60px;
+    box-shadow: inset 1px 1px 3px #333;
+    border-radius: 10px;
+    border: solid 2px gray;
+}
+
+.vote-progress-meter {
+    background-color: #00c200;
+    height: 10px;
+    border-radius: 10px;
 }
