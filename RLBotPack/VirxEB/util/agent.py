@@ -24,7 +24,7 @@ class Playstyle(Enum):
 class VirxERLU(BaseAgent):
     # Massive thanks to ddthj/GoslingAgent (GitHub repo) for the basis of VirxERLU
     def initialize_agent(self):
-        self.tournament = True
+        self.tournament = False
         self.startup_time = time_ns()
 
         self.debug = [[], []]
@@ -51,12 +51,12 @@ class VirxERLU(BaseAgent):
             "closest_enemy": 0,
             "own_goal": False,
             "goal": False,
-            "ball_struct": None,
             "team_from_goal": (),
             "team_to_ball": (),
             "self_from_goal": 0,
             "self_to_ball": 0,
             "was_down": False,
+            "enemy_time_to_ball": 0,
             "done": False
         }
 
@@ -64,29 +64,39 @@ class VirxERLU(BaseAgent):
         self.print("Starting the predictive service...")
         self.prediction.start()
         self.match_comms = None
+        self.ball_prediction_struct = None
 
         self.print("Building game information")
 
         mutators = self.get_match_settings().MutatorSettings()
 
-        gravity = [
+        gravity = (
             Vector(z=-650),
             Vector(z=-325),
             Vector(z=-1137.5),
             Vector(z=-3250)
-        ]
+        )
 
         base_boost_accel = 991 + (2/3)
 
-        boost_accel = [
+        boost_accel = (
             base_boost_accel,
             base_boost_accel * 1.5,
             base_boost_accel * 2,
             base_boost_accel * 10
-        ]
+        )
+
+        boost_amount = (
+            "default",
+            "unlimited",
+            "slow recharge",
+            "fast recharge",
+            "no boost"
+        )
 
         self.gravity = gravity[mutators.GravityOption()]
         self.boost_accel = boost_accel[mutators.BoostStrengthOption()]
+        self.boost_amount = boost_amount[mutators.BoostOption()]
 
         self.friends = ()
         self.foes = ()
@@ -111,7 +121,7 @@ class VirxERLU(BaseAgent):
         self.kickoff_flag = False
         self.kickoff_done = True
         self.shooting = False
-        self.odd_tick = 0
+        self.odd_tick = -1
         self.best_shot_value = 92
 
         self.future_ball_location_slice = 180
@@ -179,6 +189,9 @@ class VirxERLU(BaseAgent):
         load_time = (time_ns() - self.startup_time) / 1e+6
         team = "Blue" if self.team == 0 else "Red"
         print(f"{self.name} ({team}): Built game info in {load_time} milliseconds")
+
+        if self.name in {"VirxEB", "ABot", "VirxEB-dev", "ABot-dev"}:
+            print(f"{self.name} ({team}): Check me out at https://www.virxcase.dev!!!")
 
     def refresh_player_lists(self, packet):
         # Useful to keep separate from get_ready because humans can join/leave a match
@@ -251,13 +264,13 @@ class VirxERLU(BaseAgent):
         self.kickoff_flag = self.game.round_active and self.game.kickoff
         self.ball_to_goal = self.friend_goal.location.flat_dist(self.ball.location)
 
-        self.predictions['ball_struct'] = self.get_ball_prediction_struct()
-        self.prediction.event.set()
-
         self.odd_tick += 1
 
         if self.odd_tick > 3:
             self.odd_tick = 0
+
+        self.ball_prediction_struct = self.get_ball_prediction_struct()
+        self.prediction.event.set()
 
     def get_output(self, packet):
         try:
@@ -281,6 +294,8 @@ class VirxERLU(BaseAgent):
                     print(self.name)
                     print_exc()
 
+                self.dbg_2d(f"Predicted enemy time to ball: {round(self.predictions['enemy_time_to_ball'] - self.time, 1)}")
+
                 if self.debugging:
                     if self.debug_3d_bool:
                         if self.debug_stack_bool:
@@ -300,8 +315,8 @@ class VirxERLU(BaseAgent):
                         self.renderer.draw_string_2d(20, 300, 2, 2, "\n".join(self.debug[1]), self.renderer.team_color(alt_color=True))
                         self.debug[1] = []
 
-                    if self.debug_ball_path and self.predictions['ball_struct'] is not None:
-                        self.polyline(tuple(Vector(ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z) for ball_slice in self.predictions['ball_struct'].slices[::self.debug_ball_path_precision]))
+                    if self.debug_ball_path and self.ball_prediction_struct is not None:
+                        self.polyline(tuple(Vector(ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z) for ball_slice in self.ball_prediction_struct.slices[::self.debug_ball_path_precision]))
                 else:
                     self.debug = [[], []]
 

@@ -1,6 +1,6 @@
 import virxrlcu
 from util.routines import Aerial, jump_shot, double_jump
-from util.utils import Vector, math
+from util.utils import Vector, math, side
 
 
 def find_jump_shot(agent, target, weight=None, cap_=6):
@@ -21,7 +21,13 @@ def find_jump_shot(agent, target, weight=None, cap_=6):
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     # Loop through the slices
@@ -44,7 +50,7 @@ def find_jump_shot(agent, target, weight=None, cap_=6):
 
         # Check if we can make a shot at this slice
         # This operation is very expensive, so we use a custom C function to improve run time
-        shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+        shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, *game_info, ball_location, *me, *target)
 
         # If we found a viable shot, pass the data into the shot routine and return the shot
         if shot['found'] == 1:
@@ -60,7 +66,13 @@ def find_any_jump_shot(agent, cap_=3):
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 1000000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     for ball_slice in slices:
@@ -78,7 +90,7 @@ def find_any_jump_shot(agent, cap_=3):
         if ball_location[2] > 300:
             continue
 
-        shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+        shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, *game_info, ball_location, *me)
 
         if shot['found'] == 1:
             return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
@@ -98,7 +110,13 @@ def find_double_jump(agent, target, weight=None, cap_=6):
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     for ball_slice in slices:
@@ -116,7 +134,7 @@ def find_double_jump(agent, target, weight=None, cap_=6):
         if ball_location[2] > 490 or ball_location[2] < 300:
             continue
 
-        shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+        shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, *game_info, ball_location, *me, *target)
 
         if shot['found'] == 1:
             return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
@@ -131,7 +149,13 @@ def find_any_double_jump(agent, cap_=3):
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     for ball_slice in slices:
@@ -149,7 +173,7 @@ def find_any_double_jump(agent, cap_=3):
         if ball_location[2] > 490 or ball_location[2] < 300:
             continue
 
-        shot = virxrlcu.parse_slice_for_double_jump(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+        shot = virxrlcu.parse_slice_for_double_jump(time_remaining, agent.best_shot_value, ball_location, *me)
 
         if shot['found'] == 1:
             return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
@@ -172,7 +196,7 @@ def find_aerial(agent, target, weight=None, cap_=6):
         agent.me.up.tuple(),
         agent.me.forward.tuple(),
         1 if agent.me.airborne else -1,
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000
     )
 
     gravity = agent.gravity.tuple()
@@ -195,8 +219,7 @@ def find_aerial(agent, target, weight=None, cap_=6):
         if min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height:
             continue
 
-        shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me, *target, cap_)
-
+        shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me, *target)
         if shot['found'] == 1:
             return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
 
@@ -213,7 +236,7 @@ def find_any_aerial(agent, cap_=3):
         agent.me.up.tuple(),
         agent.me.forward.tuple(),
         1 if agent.me.airborne else -1,
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000
     )
 
     gravity = agent.gravity.tuple()
@@ -236,7 +259,7 @@ def find_any_aerial(agent, cap_=3):
         if min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height:
             continue
 
-        shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me, cap_)
+        shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me)
 
         if shot['found'] == 1:
             return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
@@ -260,15 +283,21 @@ def find_shot(agent, target, weight=None, cap_=6, can_aerial=True, can_double_ju
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     if can_aerial:
         me_a = (
             me[0],
-            me[1],
+            agent.me.velocity.tuple(),
             agent.me.up.tuple(),
-            agent.me.forward.tuple(),
+            me[1],
             1 if agent.me.airborne else -1,
             me[2]
         )
@@ -291,19 +320,19 @@ def find_shot(agent, target, weight=None, cap_=6, can_aerial=True, can_double_ju
             return
 
         if can_jump and not (ball_location[2] > 300):
-            shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+            shot = virxrlcu.parse_slice_for_jump_shot_with_target(time_remaining, *game_info, ball_location, *me, *target)
 
             if shot['found'] == 1:
                 return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
         
-        if can_double_jump and not (ball_location[2] > 490 or ball_location[2] < 300):
-            shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, agent.best_shot_value, ball_location, *me, *target, cap_)
+        if can_double_jump and time_remaining >= 0.5 and not (ball_location[2] > 490 or ball_location[2] < 300):
+            shot = virxrlcu.parse_slice_for_double_jump_with_target(time_remaining, *game_info, ball_location, *me, *target)
 
             if shot['found'] == 1:
                 return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
 
         if can_aerial and not (min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height):
-            shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me_a, *target, cap_)
+            shot = virxrlcu.parse_slice_for_aerial_shot_with_target(time_remaining, *game_info, gravity, ball_location, me_a, *target)
 
             if shot['found'] == 1:
                 return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
@@ -322,15 +351,21 @@ def find_any_shot(agent, cap_=3, can_aerial=True, can_double_jump=True, can_jump
     me = (
         agent.me.location.tuple(),
         agent.me.forward.tuple(),
-        agent.me.boost
+        agent.me.boost if agent.boost_amount != 'unlimited' else 100000,
+        agent.me.local_velocity().x
+    )
+
+    game_info = (
+        agent.best_shot_value,
+        agent.boost_accel
     )
 
     if can_aerial:
         me_a = (
             me[0],
-            me[1],
+            agent.me.velocity.tuple(),
             agent.me.up.tuple(),
-            agent.me.forward.tuple(),
+            me[1],
             1 if agent.me.airborne else -1,
             me[2]
         )
@@ -353,19 +388,19 @@ def find_any_shot(agent, cap_=3, can_aerial=True, can_double_jump=True, can_jump
             return
 
         if can_jump and not (ball_location[2] > 300):
-            shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+            shot = virxrlcu.parse_slice_for_jump_shot(time_remaining, *game_info, ball_location, *me)
 
             if shot['found'] == 1:
                 return jump_shot(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
         
-        if can_double_jump and not (ball_location[2] > 490 or ball_location[2] < 300):
-            shot = virxrlcu.parse_slice_for_double_jump(time_remaining, agent.best_shot_value, ball_location, *me, cap_)
+        if can_double_jump and time_remaining >= 0.5 and not (ball_location[2] > 490 or ball_location[2] < 300):
+            shot = virxrlcu.parse_slice_for_double_jump(time_remaining, *game_info, ball_location, *me)
 
             if shot['found'] == 1:
                 return double_jump(Vector(*ball_location), intercept_time, Vector(*shot['best_shot_vector']), agent.best_shot_value)
 
         if can_aerial and not (min_aerial_height > ball_location[2] or ball_location[2] > max_aerial_height):
-            shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, agent.best_shot_value, agent.boost_accel, gravity, ball_location, me_a, cap_)
+            shot = virxrlcu.parse_slice_for_aerial_shot(time_remaining, *game_info, gravity, ball_location, me_a)
 
             if shot['found'] == 1:
                 return Aerial(Vector(*ball_location), Vector(*shot['ball_intercept']), intercept_time)
@@ -373,11 +408,16 @@ def find_any_shot(agent, cap_=3, can_aerial=True, can_double_jump=True, can_jump
 
 def get_slices(agent, cap_, weight=None, start_slice=12):
     # Get the struct
-    struct = agent.predictions['ball_struct']
+    struct = agent.ball_prediction_struct
 
     # Make sure it isn't empty
     if struct is None:
         return
+
+    ball_y = agent.ball.location.y * side(agent.team)
+    foes = tuple(foe for foe in agent.foes if not foe.demolished and foe.location.y * side(agent.team) < ball_y)
+    if not agent.predictions['own_goal'] and agent.ball_to_goal > 2560 and len(foes) > 0:
+        cap_ = min(agent.predictions['enemy_time_to_ball'] - agent.time, cap_)
 
     # If we're shooting, crop the struct
     if agent.shooting:
@@ -385,8 +425,8 @@ def get_slices(agent, cap_, weight=None, start_slice=12):
         time_remaining = agent.stack[0].intercept_time - agent.time
 
         # Convert the time remaining into number of slices, and take off the minimum gain accepted from the time
-        min_gain = 0.05 if weight is None or weight is agent.shot_weight else (agent.max_shot_weight - agent.shot_weight + 1) / 3
-        end_slice = min(math.ceil((time_remaining - min_gain) * 60), math.ceil(cap_ * 60))
+        min_gain = 0.05 if weight is None or weight is agent.shot_weight else (agent.max_shot_weight - agent.shot_weight + 1)
+        end_slice = math.ceil(min(time_remaining - min_gain, cap_) * 60)
 
         # We can't end a slice index that's lower than the start index
         if end_slice <= 12:

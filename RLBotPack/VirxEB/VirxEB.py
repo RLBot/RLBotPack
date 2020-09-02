@@ -7,7 +7,7 @@ from util.agent import Vector, VirxERLU, math
 from util.replays import back_kickoff
 from util.routines import (ball_recovery, block_ground_shot, corner_kickoff,
                            face_target, generic_kickoff, goto_boost, retreat,
-                           shadow, short_shot, goto)
+                           shadow, short_shot, goto, wave_dash)
 from util.tools import find_shot, find_any_shot
 from util.utils import (almost_equals, get_weight, peek_generator, send_comm,
                         side, cap)
@@ -34,6 +34,58 @@ class VirxEB(VirxERLU):
             self.playstyles.Neutral: 640
         }
 
+    def test(self):
+        # Block ground shot testing
+        """
+        if self.is_clear():
+            if abs(self.ball.location.y) > 1000 and abs(self.me.location.y) > abs(self.ball.location.y):
+                bgs = block_ground_shot()
+                if bgs.is_viable(self):
+                    self.push(bgs)
+                    return
+            else:
+                self.backcheck()
+        """
+        # Backcheck testing
+        """
+        self.dbg_2d(self.ball.location)
+
+        if self.is_clear():
+            self.backcheck()
+        """
+        # Shot testing
+        """
+        if self.shooting:
+            if self.odd_tick == 0:
+                self.smart_shot(self.best_shot, cap=6)
+        else:
+            if self.is_clear() and (self.me.boost < 90 or not self.smart_shot(self.best_shot, cap=6)) and self.me.location.dist(self.debug_vector) > 250:
+                self.push(face_target(ball=True))
+                self.push(goto(self.debug_vector, brake=True))
+
+            if self.ball.location.z < 250 and not self.predictions['goal']:
+                ball_state = BallState(Physics(location=Vector3(0, -4096 * side(self.team), self.ball.location.z), velocity=Vector3(0, 0, 2000), angular_velocity=Vector3(0, 0, 0)))
+                game_state = GameState(ball=ball_state)
+                self.set_game_state(game_state)
+        """
+        # Recovery testing
+        """
+        self.dbg_2d(f"Has jump: {not self.me.jumped}")
+        self.dbg_2d(f"Has dodge: {not self.me.doublejumped}")
+        if self.is_clear():
+            self.push(boost_upwards() if self.me.location.z < 17.1 else ball_recovery())
+        """
+        # Ceiling aerial testing
+        """
+        if not self.shooting and self.ball.location.z < 100 and not self.predictions['goal']:
+            ball_state = BallState(Physics(location=Vector3(self.debug_vector.x * side(self.team), self.debug_vector.y * side(self.team), self.ball.location.z), velocity=Vector3(0, 0, 2000), angular_velocity=Vector3(0, 0, 0)))
+            game_state = GameState(ball=ball_state)
+            self.set_game_state(game_state)
+
+        if self.is_clear():
+            self.push(ceiling_shot())
+        """
+
     def run(self):
         if not self.kickoff_done:
             if self.is_clear():
@@ -58,7 +110,7 @@ class VirxEB(VirxERLU):
                 ball_loc = self.ball.location * side(self.team)
                 self_loc = self.me.location * side(self.team)
 
-                ball_f = self.predictions['ball_struct'].slices[self.future_ball_location_slice].physics.location
+                ball_f = self.ball_prediction_struct.slices[self.future_ball_location_slice].physics.location
                 ball_f = Vector(ball_f.x, ball_f.y, ball_f.z)
 
                 if not self.predictions['own_goal'] and self_loc.y <= ball_loc.y - 50 and not self.shooting and (self.is_clear() or self.stack[0].__class__.__name__ == 'goto_boost') and abs(ball_loc.x) > 1024 and self.backcheck(clear_on_valid=True):
@@ -100,7 +152,7 @@ class VirxEB(VirxERLU):
                         if self_loc.y > ball_loc.y and team_to_ball[0] is self_to_ball and self.smart_shot(weight=self.max_shot_weight - 1):
                             return
 
-                        if (fake_own_goal or self.predictions['own_goal']) and abs(self_loc.x) < abs(ball_loc.x) - 100 and self_loc.y < ball_loc.y - 50:
+                        if len(self.friends) > 0 and (fake_own_goal or self.predictions['own_goal']) and abs(self_loc.x) < abs(ball_loc.x) - 100 and self_loc.y < ball_loc.y - 50:
                             bgs = block_ground_shot()
                             if bgs.is_viable(self):
                                 self.clear()
@@ -175,16 +227,15 @@ class VirxEB(VirxERLU):
                     self.goto_nearest_boost()
 
                     self.print("You can defend")
-            elif self.playstyle is self.playstyles.Offensive:
-                if msg.get("attacking"):
-                    if self.stack[0].__class__.__name__ == "corner_kickoff":
-                        self.print("Speed pinch kickoff!")
-                    elif msg['index'] < self.index:
-                        self.playstyle = self.playstyles.Neutral
-                        self.clear()
-                        self.goto_nearest_boost()
+            elif msg.get("attacking"):
+                if self.stack[0].__class__.__name__ == "corner_kickoff":
+                    self.print("Speed pinch kickoff!")
+                elif msg['index'] < self.index:
+                    self.playstyle = self.playstyles.Neutral
+                    self.clear()
+                    self.goto_nearest_boost()
 
-                        self.print("All yours")
+                    self.print("All yours")
 
     def handle_quick_chat(self, index, team, quick_chat):
         try:
@@ -210,7 +261,7 @@ class VirxEB(VirxERLU):
             self.clear()
 
         if self.is_clear():
-            ball = self.predictions['ball_struct'].slices[self.future_ball_location_slice].physics.location
+            ball = self.ball_prediction_struct.slices[self.future_ball_location_slice].physics.location
             ball = Vector(ball.x, ball.y, ball.z)
             if self.predictions['self_from_goal'] > 2560:
                 self.backcheck(simple=True)
@@ -233,7 +284,7 @@ class VirxEB(VirxERLU):
 
     def neutral_ground(self):
         if self.is_clear():
-            ball_loc = self.predictions['ball_struct'].slices[self.future_ball_location_slice].physics.location
+            ball_loc = self.ball_prediction_struct.slices[self.future_ball_location_slice].physics.location
             ball_loc = Vector(ball_loc.x, ball_loc.y, ball_loc.z)
             if self.predictions['self_to_ball'] > 3840:
                 self.backcheck(clear_on_valid=True)
@@ -442,6 +493,9 @@ class VirxEB(VirxERLU):
             can_double_jump = not self.me.airborne
             can_jump = can_double_jump and not self.air_bud
 
+            if cap is not None and len(self.friends) == 0:
+                cap /= 2
+
             shot = find_shot(self, target, weight=weight, cap_=6 if cap is None else cap, can_aerial=can_aerial, can_double_jump=can_double_jump, can_jump=can_jump) if target is not None else find_any_shot(self, cap_=3 if cap is None else cap, can_aerial=can_aerial, can_double_jump=can_double_jump, can_jump=can_jump)
 
             if shot is not None:
@@ -519,9 +573,15 @@ class VirxEB(VirxERLU):
         if kickoff_check(back):
             self.push(back_kickoff())
         elif kickoff_check(left):
-            self.push(corner_kickoff(-1))
+            if almost_equals(self.gravity.z, -650, 100):
+                self.push(corner_kickoff(-1))
+            else:
+                self.push(generic_kickoff())
         elif kickoff_check(right):
-            self.push(corner_kickoff(1))
+            if almost_equals(self.gravity.z, -650, 100):
+                self.push(corner_kickoff(1))
+            else:
+                self.push(generic_kickoff())
         elif kickoff_check(back_left) or kickoff_check(back_right):
             self.push(generic_kickoff())
         else:
@@ -543,9 +603,9 @@ class VirxEB(VirxERLU):
 
     def backcheck(self, simple=False, clear_on_valid=False):
         if self.is_clear() or clear_on_valid:
-            ball_slice = self.predictions['ball_struct'].slices[self.future_ball_location_slice].physics.location
+            ball_slice = self.ball_prediction_struct.slices[self.future_ball_location_slice].physics.location
             ball = Vector(ball_slice.x, ball_slice.y, ball_slice.z)
-            if self.playstyle is not self.playstyles.Defensive and not simple and ball.y * side(self.team) < (2560 if len(self.friends) > 0 else 0) and not self.predictions['own_goal']:
+            if ((self.playstyle is not self.playstyles.Defensive and not simple and ball.y * side(self.team) < 2560) or (len(self.friends) == 0 and ball.dist(self.friend_goal.location) > 2560)) and not self.predictions['own_goal'] and self.me.location.y * side(self.team) > ball.y * side(self.team):
                 if clear_on_valid:
                     self.clear()
 

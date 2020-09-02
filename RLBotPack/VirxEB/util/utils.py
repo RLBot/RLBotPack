@@ -97,7 +97,7 @@ def shot_valid(agent, shot, target=None):
 
     # First finds the two closest slices in the ball prediction to shot's intercept_time
     # threshold controls the tolerance we allow the ball to be off by
-    slices = agent.predictions['ball_struct'].slices
+    slices = agent.ball_prediction_struct.slices
     soonest = 0
     latest = len(slices)-1
     while len(slices[soonest:latest+1]) > 2:
@@ -215,7 +215,7 @@ def point_inside_quadrilateral_2d(point, quadrilateral):
 
 
 def valid_ceiling_shot(agent, cap_=5):
-    struct = agent.predictions['ball_struct']
+    struct = agent.ball_prediction_struct
 
     if struct is None:
         return
