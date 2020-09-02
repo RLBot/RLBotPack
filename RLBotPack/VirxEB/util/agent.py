@@ -24,7 +24,7 @@ class Playstyle(Enum):
 class VirxERLU(BaseAgent):
     # Massive thanks to ddthj/GoslingAgent (GitHub repo) for the basis of VirxERLU
     def initialize_agent(self):
-        self.tournament = False
+        self.tournament = True
         self.startup_time = time_ns()
 
         self.debug = [[], []]
