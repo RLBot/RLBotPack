@@ -56,20 +56,17 @@ class TripleRotations(BaseCoach):
         elif self.state == State.KICKOFF and done:
             new_state = State.ATTACKING
             self.current = Attack()
-            print(f'Coach Triple: Switched to {State.state[new_state]}')
 
         # Switch to defending if the threat becomes too big.
         elif total_score < self.threshold_defense:
             new_state = State.DEFENDING
             if new_state != self.state:
-                print(f'Coach Triple: Switched to {State.state[new_state]}')
                 self.current = Defense()
 
         # Switch to attacking if the situation becomes more favourable.
         elif total_score >= self.threshold_offense:
             new_state = State.ATTACKING
             if new_state != self.state:
-                print(f'Coach Triple: Switched to {State.state[new_state]}')
                 self.current = Attack()
         else:
             new_state = self.state
