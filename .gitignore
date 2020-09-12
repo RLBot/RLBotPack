@@ -3,3 +3,5 @@ desktop.ini
 .idea/
 RLBot_Core_Interface.dll
 *.iml
+rlbot.cfg
+RefreshEnv.cmd
