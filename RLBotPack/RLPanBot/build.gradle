@@ -1,0 +1,90 @@
+// This file controls gradle, which we are using to install and update the RLBot framework used by this example bot,
+// and also compile and run the java code used by this bot.
+
+apply plugin: 'java'
+apply plugin: 'application'
+
+sourceCompatibility = 1.8
+
+repositories {
+    jcenter()
+}
+
+mainClassName = 'rlbotexample.JavaExample'
+
+// This directory will be created and the interface dll copied into it at runtime.
+// The end result is that the interface dll will be available for loading.
+def dllDirectory = 'build/dll'
+applicationDefaultJvmArgs = ["-Djna.library.path=" + dllDirectory]
+
+dependencies {
+    // Fetch the framework jar file
+    compile 'org.rlbot.commons:framework:1.+'
+
+    // This is makes it easy to find the dll when running in intellij, where JVM args don't get passed from gradle.
+    runtime files(dllDirectory)
+}
+
+task checkPipUpgradeSafety {
+    doLast {
+        new ByteArrayOutputStream().withStream { os ->
+            def exitValue = exec {
+                commandLine "python", "-c", "from rlbot.utils import public_utils; print(public_utils.is_safe_to_upgrade());"
+                standardOutput = os
+                ignoreExitValue = true
+            }.exitValue
+
+            // If the exit value is nonzero, the command  probably failed because rlbot is not installed at all.
+            ext.isSafe = exitValue != 0 || os.toString().trim() == "True"
+        }
+    }
+}
+
+
+// Uses pip (the python package manager) to install all the python packages needed for this bot, as defined
+// in requirements.txt.
+task pipInstallRequirements {
+    dependsOn 'checkPipUpgradeSafety'
+
+    doLast {
+        if (checkPipUpgradeSafety.isSafe) {
+            exec {
+                commandLine "python", "-m", "pip", "install", "-r", "requirements.txt", "--upgrade"
+            }
+        } else {
+            println 'Skipping upgrade attempt because files are in use.'
+        }
+    }
+}
+
+task createDllDirectory {
+    mkdir dllDirectory
+}
+
+// Installs or updates RLBot. Empty task for now. It still does stuff because it "dependsOn" tasks that do things.
+task updateRLBot {
+    dependsOn 'pipInstallRequirements'
+    dependsOn 'createDllDirectory'
+}
+updateRLBot.dependsOn pipInstallRequirements
+
+applicationDistribution.exclude(dllDirectory)
+
+// You can run gradew.bat distZip to generate a zip file suitable for tournament submissions.
+// It will be generated in build/distributions
+distZip {
+    into ('python') {
+        from fileTree('src/main/python') {
+            exclude '__pycache__'
+        }
+    }
+}
+
+// This is the same as distZip, but not zipped. Handy for testing your tournament submission more rapidly.
+installDist {
+    into ('../python') {
+        from fileTree('src/main/python') {
+            exclude '__pycache__'
+        }
+    }
+}
