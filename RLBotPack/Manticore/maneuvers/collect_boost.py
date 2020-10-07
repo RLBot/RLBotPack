@@ -5,8 +5,8 @@ from typing import List
 from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.maneuver import Maneuver
-from util.info import BoostPad
-from util.vec import norm, proj_onto_size
+from utility.info import BoostPad
+from utility.vec import norm, proj_onto_size
 
 
 class CollectClosestBoostManeuver(Maneuver):

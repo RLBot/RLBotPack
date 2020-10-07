@@ -1,10 +1,10 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
 from controllers.aim_cone import AimCone
-from util import predict, rendering
-from util.info import Field
-from util.rlmath import clip01, lerp
-from util.vec import norm, Vec3, normalize
+from utility import predict, rendering
+from utility.info import Field
+from utility.rlmath import clip01, lerp
+from utility.vec import norm, Vec3, normalize
 
 
 class OffenceState:

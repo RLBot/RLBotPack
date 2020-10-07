@@ -1,6 +1,8 @@
 import math
 
-from util.rlmath import clip
+from rlbot.utils.game_state_util import Vector3
+
+from utility.rlmath import clip
 
 
 class Vec3:
@@ -39,6 +41,9 @@ class Vec3:
 
     def __str__(self):
         return "Vec3(" + str(self.x) + ", " + str(self.y) + ", " + str(self.z) + ")"
+
+    def to_desired_vec(self):
+        return Vector3(self.x, self.y, self.z)
 
 
 class Mat33:
@@ -336,6 +341,14 @@ def rotation_to_euler(rotation: Mat33) -> Vec3:
         math.atan2(rotation.get(1, 0), rotation.get(0, 0)),
         math.atan2(-rotation.get(2, 1), rotation.get(2, 2))
     )
+
+
+def looking_in_dir(dir: Vec3, up: Vec3 = Vec3(z=1.0)) -> Mat33:
+    forward = normalize(dir)
+    safeup = Vec3(x=1) if (abs(forward.z) == 1 and abs(up.z) == 1) else up
+    leftward = normalize(cross(safeup, forward))
+    upward = normalize(cross(forward, leftward))
+    return Mat33.from_columns(forward, leftward, upward)
 
 
 def rotate2d(vec: Vec3, ang: float) -> Vec3:

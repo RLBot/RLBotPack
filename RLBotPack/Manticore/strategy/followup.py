@@ -1,7 +1,7 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
-from util.rlmath import lerp, inv_lerp
-from util.vec import norm, normalize, proj_onto_size, proj_onto
+from utility.rlmath import lerp, inv_lerp
+from utility.vec import norm, normalize, proj_onto_size, proj_onto
 
 
 class FollowUpState:

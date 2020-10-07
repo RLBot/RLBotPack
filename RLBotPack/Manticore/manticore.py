@@ -8,18 +8,15 @@ from behaviour.follow_up import PrepareFollowUp
 from behaviour.save_goal import SaveGoal
 from behaviour.shoot_at_goal import ShootAtGoal
 from controllers.drive import DriveController
+from controllers.fly import FlyController
 from controllers.other import celebrate
 from controllers.shots import ShotController
 from maneuvers.kickoff import choose_kickoff_maneuver
 from strategy.analyzer import GameAnalyzer
-from strategy.defence import RotateOrDefendState
-from strategy.followup import FollowUpState
 from strategy.objective import Objective
-from strategy.offence import OffenceState
 from strategy.utility_system import UtilitySystem
-from util import rendering, predict
-from util.info import GameInfo
-from util.vec import Vec3
+from utility.info import GameInfo
+from utility.vec import Vec3
 
 RENDER = True
 
@@ -37,6 +34,7 @@ class Manticore(BaseAgent):
 
         self.drive = DriveController()
         self.shoot = ShotController()
+        self.fly = FlyController()
 
     def initialize_agent(self):
         self.info = GameInfo(self.index, self.team)
@@ -55,14 +53,15 @@ class Manticore(BaseAgent):
             self.info.read_field_info(self.get_field_info())
             if not self.info.field_info_loaded:
                 return SimpleControllerState()
+
+        self.renderer.begin_rendering()
+
         self.info.read_packet(packet)
         self.analyzer.update(self)
 
         # Check if match is over
         if packet.game_info.is_match_ended:
             return celebrate(self)  # Assume we won!
-
-        self.renderer.begin_rendering()
 
         controller = self.use_brain()
 
@@ -72,15 +71,13 @@ class Manticore(BaseAgent):
             state_color = {
                 Objective.GO_FOR_IT: self.renderer.lime(),
                 Objective.FOLLOW_UP: self.renderer.yellow(),
-                Objective.ROTATE_BACK_OR_DEF: self.renderer.red(),
+                Objective.ROTATING: self.renderer.red(),
                 Objective.UNKNOWN: self.renderer.team_color(alt_color=True)
             }[self.info.my_car.objective]
             if doing is not None:
                 self.renderer.draw_string_2d(330, 700 + self.index * 20, 1, 1, f"{self.name}:", self.renderer.team_color(alt_color=True))
                 self.renderer.draw_string_2d(500, 700 + self.index * 20, 1, 1, doing.__class__.__name__, state_color)
                 self.renderer.draw_rect_3d(self.info.my_car.pos + Vec3(z=60), 16, 16, True, state_color)
-            reach_pos = predict.ball_predict(self, self.info.my_car.reach_ball_time).pos
-            self.renderer.draw_line_3d(self.info.my_car.pos, reach_pos, self.renderer.white())
 
         self.renderer.end_rendering()
 

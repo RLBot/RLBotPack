@@ -2,9 +2,9 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from strategy.objective import Objective
 from strategy.utility_system import UtilityState
-from util.info import Field
-from util.rlmath import clip01, argmin
-from util.vec import norm
+from utility.info import Field
+from utility.rlmath import clip01, argmin
+from utility.vec import norm
 
 
 class DefendGoal(UtilityState):
@@ -22,18 +22,19 @@ class DefendGoal(UtilityState):
                 sum_pos += mate.pos + mate.vel * 0.5
             avg_pos = sum_pos / len(mates)
             team_committed01 = clip01(norm(avg_pos - bot.info.own_goal.pos) / Field.LENGTH2)
-            no_defence01 = clip01(argmin(mates, lambda mate: norm(mate.pos - bot.info.own_goal.pos))[1] / 800)
+            no_defence01 = clip01(argmin(mates, lambda mate: norm(mate.pos - bot.info.own_goal.pos))[1] / 1000)
 
         dist_to_ball01 = clip01(norm(car.pos - bot.info.ball.pos) / Field.LENGTH2)
 
         obj_bonus = {
-            Objective.UNKNOWN: 0,
+            Objective.UNKNOWN: 1.0,
             Objective.GO_FOR_IT: 0,
-            Objective.FOLLOW_UP: 0.1,
-            Objective.ROTATE_BACK_OR_DEF: 0.3,
+            Objective.FOLLOW_UP: 0,
+            Objective.ROTATING: 1.0,
+            Objective.SOLO: 1.0,
         }[car.objective]
 
-        return 0.9 * team_committed01 * dist_to_ball01 * no_defence01 + obj_bonus
+        return 0.85 * team_committed01 * dist_to_ball01 * no_defence01 * obj_bonus
 
     def run(self, bot) -> SimpleControllerState:
         return bot.drive.home(bot)

@@ -1,7 +1,7 @@
 from typing import List
 
-from util.rlmath import clip
-from util.vec import normalize, Vec3
+from utility.rlmath import clip
+from utility.vec import normalize, Vec3
 
 
 def curve_from_arrival_dir(src: Vec3, target: Vec3, arrival_direction: Vec3, w=1):

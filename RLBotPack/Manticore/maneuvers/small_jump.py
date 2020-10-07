@@ -2,8 +2,8 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.maneuver import Maneuver
 from maneuvers.recovery import RecoveryManeuver
-from util.rlmath import sign
-from util.vec import proj_onto_size, angle_between, dot, normalize
+from utility.rlmath import sign
+from utility.vec import proj_onto_size, angle_between, dot, normalize
 
 
 class SmallJumpManeuver(Maneuver):
@@ -54,7 +54,7 @@ class SmallJumpManeuver(Maneuver):
             if car.on_ground:
                 self.done = True
             else:
-                bot.plan = RecoveryManeuver(bot)
+                bot.plan = RecoveryManeuver()
                 self.done = True
             return self.controls
         elif ct >= self._t_second_unjump:

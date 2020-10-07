@@ -1,9 +1,9 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.maneuver import Maneuver
-from util.curves import curve_from_arrival_dir
-from util.rlmath import sign
-from util.vec import Vec3, norm, proj_onto_size
+from utility.curves import curve_from_arrival_dir
+from utility.rlmath import sign
+from utility.vec import Vec3, norm, proj_onto_size
 
 
 def choose_kickoff_maneuver(bot) -> Maneuver:
@@ -21,8 +21,10 @@ def choose_kickoff_maneuver(bot) -> Maneuver:
 
     boost_x = 3072
     boost_y = ts * 4096
+    left_boost_pad_loc = Vec3(boost_x, boost_y, 0)
+    right_boost_pad_loc = Vec3(-boost_x, boost_y, 0)
 
-    # Are we in the corner -> go for kickoff (If two bot's are in the corners, we assume lowest index goes for kickoff)
+    # Are we in the corner -> go for kickoff (If two bots are in the corners, we assume lowest index goes for kickoff)
     if is_my_kickoff_spawn(bot, right_corner_loc):
         tm_index = index_of_teammate_at_kickoff_spawn(bot, left_corner_loc)
         if 0 <= tm_index < bot.index:
@@ -41,31 +43,43 @@ def choose_kickoff_maneuver(bot) -> Maneuver:
             or 0 <= index_of_teammate_at_kickoff_spawn(bot, left_corner_loc):
         if bot.info.my_car.pos.x > 10:
             # go for left boost
-            return CollectSpecificBoostManeuver(Vec3(boost_x, boost_y, 0))
+            return CollectSpecificBoostManeuver(left_boost_pad_loc)
         if bot.info.my_car.pos.x < -10:
             # go for right boost
-            return CollectSpecificBoostManeuver(Vec3(-boost_x, boost_y, 0))
+            return CollectSpecificBoostManeuver(right_boost_pad_loc)
         if 0 <= index_of_teammate_at_kickoff_spawn(bot, back_right_loc):
             # go for left boost
-            return CollectSpecificBoostManeuver(Vec3(boost_x, boost_y, 0))
+            return CollectSpecificBoostManeuver(left_boost_pad_loc)
         else:
             # go for right boost
-            return CollectSpecificBoostManeuver(Vec3(-boost_x, boost_y, 0))
+            return CollectSpecificBoostManeuver(right_boost_pad_loc)
 
     # No teammate in the corner
     # Are we back right or left -> go for kickoff
-    if is_my_kickoff_spawn(bot, back_right_loc) \
-            or is_my_kickoff_spawn(bot, back_left_loc):
-        return KickoffManeuver()
+    # (If two bots are in the back corners, we assume lowest index goes for kickoff)
+    if is_my_kickoff_spawn(bot, back_left_loc):
+        tm_index = index_of_teammate_at_kickoff_spawn(bot, back_right_loc)
+        if 0 <= tm_index < bot.index:
+            # go for left boost
+            return CollectSpecificBoostManeuver(left_boost_pad_loc)
+        else:
+            return KickoffManeuver()
+    if is_my_kickoff_spawn(bot, back_right_loc):
+        tm_index = index_of_teammate_at_kickoff_spawn(bot, back_left_loc)
+        if 0 <= tm_index < bot.index:
+            # go for right boost
+            return CollectSpecificBoostManeuver(right_boost_pad_loc)
+        else:
+            return KickoffManeuver()
 
     # No teammate in the corner
     # Is a teammate back right or left -> collect boost
     if 0 <= index_of_teammate_at_kickoff_spawn(bot, back_right_loc):
         # go for left boost
-        return CollectSpecificBoostManeuver(Vec3(boost_x, boost_y, 0))
+        return CollectSpecificBoostManeuver(left_boost_pad_loc)
     elif 0 <= index_of_teammate_at_kickoff_spawn(bot, back_left_loc):
         # go for right boost
-        return CollectSpecificBoostManeuver(Vec3(-boost_x, boost_y, 0))
+        return CollectSpecificBoostManeuver(right_boost_pad_loc)
 
     # We have no teammates
     return KickoffManeuver()

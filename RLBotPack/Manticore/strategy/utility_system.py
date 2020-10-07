@@ -2,7 +2,7 @@ from typing import List
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-from util.rlmath import argmax
+from utility.rlmath import argmax
 
 
 class UtilityState:

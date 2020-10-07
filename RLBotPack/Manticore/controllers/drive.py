@@ -6,10 +6,10 @@ from controllers.other import turn_radius, is_heading_towards
 from maneuvers.dodge import DodgeManeuver
 from maneuvers.halfflip import HalfFlipManeuver
 from maneuvers.recovery import RecoveryManeuver
-from util import rendering
-from util.info import Field, is_near_wall, Goal
-from util.rlmath import lerp, sign, clip
-from util.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
+from utility import rendering
+from utility.info import Field, is_near_wall, Goal
+from utility.rlmath import lerp, sign, clip
+from utility.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
 
 
 class DriveController:
@@ -21,9 +21,12 @@ class DriveController:
         self.dodge_cooldown = 0.27
         self.recovery = None
 
-    def start_dodge(self, bot):
+    def start_dodge(self, bot, towards_ball: bool = False):
         if self.dodge is None:
-            self.dodge = DodgeManeuver(bot, self.last_point)
+            if towards_ball:
+                self.dodge = DodgeManeuver(bot, lambda b: b.info.ball.pos)
+            else:
+                self.dodge = DodgeManeuver(bot, self.last_point)
 
     def towards_point(self, bot, point: Vec3, target_vel=1430, slide=False, boost_min=101, can_keep_speed=True, can_dodge=True, wall_offset_allowed=125) -> SimpleControllerState:
         REQUIRED_ANG_FOR_SLIDE = 1.65
@@ -42,7 +45,7 @@ class DriveController:
 
         # Begin recovery
         if not car.on_ground:
-            bot.maneuver = RecoveryManeuver(bot)
+            bot.maneuver = RecoveryManeuver()
             return self.controls
 
         # Get down from wall by choosing a point close to ground
@@ -71,7 +74,7 @@ class DriveController:
                 and dist > vel_towards_point + 500 + 900 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
             self.dodge = DodgeManeuver(bot, point)
         # Start half-flip
-        elif can_dodge and abs(angle) >= 3 and vel_towards_point < 50\
+        elif can_dodge and abs(angle) >= 3 and vel_towards_point < 0\
                 and dist > -vel_towards_point + 500 + 900 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
             self.dodge = HalfFlipManeuver(bot, boost=car.boost > boost_min + 10)
 
@@ -86,11 +89,12 @@ class DriveController:
         tr_center_local = Vec3(0, tr * tr_side, 10)
         point_is_in_turn_radius_deadzone = norm(point_local - tr_center_local) < tr
         # Draw turn radius deadzone
-        if car.on_ground and bot.do_rendering:
+        if car.on_ground and bot.do_rendering and False:
             tr_center_world = car.pos + dot(car.rot, tr_center_local)
             tr_center_world_2 = car.pos + dot(car.rot, -1 * tr_center_local)
-            rendering.draw_circle(bot, tr_center_world, car.up, tr, 22)
-            rendering.draw_circle(bot, tr_center_world_2, car.up, tr, 22)
+            color = bot.renderer.orange()
+            rendering.draw_circle(bot, tr_center_world, car.up, tr, 22, color)
+            rendering.draw_circle(bot, tr_center_world_2, car.up, tr, 22, color)
 
         if point_is_in_turn_radius_deadzone:
             # Hard turn

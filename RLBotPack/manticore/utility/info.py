@@ -2,11 +2,20 @@ from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket, FieldInfo
 
 from strategy.objective import Objective
-from util.rlmath import clip
-from util.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
+from utility.rlmath import clip
+from utility.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
 
 
-GRAVITY = Vec3(0, 0, -650)
+MAX_SPEED = 2300
+BOOST_ACCEL = 1060
+THROTTLE_AIR_ACCEL = 66
+BOOST_PR_SEC = 33
+GRAVITY = Vec3(z=-650)
+
+JUMP_SPEED = 291.667
+JUMP_ACCEL = 1458.3333
+JUMP_MIN_DUR = 0.025
+JUMP_MAX_DUR = 0.2
 
 
 class Field:
@@ -52,6 +61,7 @@ class Car:
         self.last_input = SimpleControllerState()
 
         # Analytic info
+        self.effective_pos = pos  # A point a bit in front of them
         self.objective = Objective.UNKNOWN
         self.possession = 0
         self.onsite = False

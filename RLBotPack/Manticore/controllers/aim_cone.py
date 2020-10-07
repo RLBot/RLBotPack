@@ -1,28 +1,19 @@
 import math
 
-from util import rendering
-from util.curves import curve_from_arrival_dir
-from util.info import Field
-from util.rlmath import fix_ang, clip
-from util.vec import Vec3, normalize, angle_between, xy
+from utility import rendering
+from utility.curves import curve_from_arrival_dir
+from utility.info import Field
+from utility.rlmath import fix_ang, clip
+from utility.vec import Vec3, normalize, angle_between, xy
 
 
 class AimCone:
     def __init__(self, right_most, left_most):
         # Right angle and direction
-        if isinstance(right_most, float):
-            self.right_ang = fix_ang(right_most)
-            self.right_dir = Vec3(math.cos(right_most), math.sin(right_most), 0)
-        elif isinstance(right_most, Vec3):
-            self.right_ang = math.atan2(right_most.y, right_most.x)
-            self.right_dir = normalize(right_most)
-        # Left angle and direction
-        if isinstance(left_most, float):
-            self.left_ang = fix_ang(left_most)
-            self.left_dir = Vec3(math.cos(left_most), math.sin(left_most), 0)
-        elif isinstance(left_most, Vec3):
-            self.left_ang = math.atan2(left_most.y, left_most.x)
-            self.left_dir = normalize(left_most)
+        self.right_ang = math.atan2(right_most.y, right_most.x)
+        self.right_dir = normalize(right_most)
+        self.left_ang = math.atan2(left_most.y, left_most.x)
+        self.left_dir = normalize(left_most)
 
     def contains_direction(self, direction, span_offset: float=0):
         ang_delta = angle_between(direction, self.get_center_dir())
