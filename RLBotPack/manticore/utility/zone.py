@@ -1,4 +1,4 @@
-from util.vec import Vec3
+from utility.vec import Vec3
 
 
 class Zone:

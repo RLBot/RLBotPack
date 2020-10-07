@@ -71,7 +71,9 @@ def argmin(list, score_func=None):
     If the list is empty, None is returned.
     """
     if len(list) == 0:
-        return None
+        if score_func is None:
+            return None
+        return None, 0
     scores = list if score_func is None else [score_func(e) for e in list]
     best_index = 0
     best_score = scores[0]
