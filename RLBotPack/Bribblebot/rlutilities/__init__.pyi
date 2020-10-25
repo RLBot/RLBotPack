@@ -1,9 +1,5 @@
 import rlutilities
-from typing import *
-from typing import Iterable as iterable
-from typing import Iterator as iterator
-from numpy import float64
-_Shape = Tuple[int, ...]
+import typing
 __all__  = [
 "linear_algebra",
 "mechanics",
