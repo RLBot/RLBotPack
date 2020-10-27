@@ -1,0 +1,10 @@
+Discord Name: Hytak#5125
+Bot Name: Levi
+Bot Requirements/Setup Instructions: Python & numpy & torch
+Fun Facts/Information you’d like the caster to know:
+
+Teacher was mostly Rashbot, but there is also a part Reinforcement learning.
+This version is not as good as one that is only trained on Rashbot.
+
+Levi uses quickchat sometimes, based on the difference in expectation and reality.
+Levi can do some cool moves, but does not show them often.
