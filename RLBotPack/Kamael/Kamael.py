@@ -1,4 +1,6 @@
 import math
+
+# from copy import deepcopy
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.game_state_util import (
@@ -47,7 +49,7 @@ class Kamael(BaseAgent):
         self.flipStart = 0
         self.flipping = False
         self.controller = None
-        self.gameInfo = None
+        self.gameInfo = GameInfo()
         self.onSurface = False
         self.boosts = []
         self.bigBoosts = []
@@ -118,9 +120,9 @@ class Kamael(BaseAgent):
         self.hits = []
         self.sorted_hits = []
         self.update_time = 0
-        self.fakeDeltaTime = 1 / 120
-        self.accelerationTick = self.boostAccelerationRate * (1.0 / 120.0)
-        self.aerialAccelerationTick = 1060 * (1.0 / 120.0)
+        self.fakeDeltaTime = 1.0 / 120.0
+        self.accelerationTick = self.boostAccelerationRate * self.fakeDeltaTime
+        self.aerialAccelerationTick = 1058 * self.fakeDeltaTime
         # print(f"single aerial acceleration tick: {self.aerialAccelerationTick}| 8x aerial acceleration tick: {self.aerialAccelerationTick*8}")
         self.currentHit = None
         self.resetLimit = 5
@@ -131,7 +133,7 @@ class Kamael(BaseAgent):
         self.goalward = False
         self.stubbornessTimer = 0
         self.stubbornessMax = 600
-        self.stubbornessMin = 5
+        self.stubbornessMin = 25
         if self.ignore_kickoffs:
             self.stubbornessMin = 100
         self.stubborness = self.stubbornessMin
@@ -145,14 +147,14 @@ class Kamael(BaseAgent):
 
         self.hyperJumpTimer = 0
         self.reachLength = 120
-        self.debugging = False
+        self.debugging = True
         self.angleLimit = 60
         self.lastMan = Vector([0, 0, 0])
         self.aerialsEnabled = True
         self.kickoff_timer = 0
         self.blueGoal = Vector([0, -5120, 0])
         self.orangeGoal = Vector([0, 5120, 0])
-        self.boostThreshold = 50
+        self.boostThreshold = 80
         self.test_done = True
         self.available_delta_v = 0
         self._forward, self.left, self.up = (
@@ -174,12 +176,24 @@ class Kamael(BaseAgent):
         self.default_demo_location = Vector([20000, 0, 0])
         self.double_point_limit = 525
         self.p_tournament_mode = False
+        self.cached_jump_sim = []
+        self.singleJumpShotTimer = 0
+        self.doubleJumpShotTimer = 0
+        self.boost_testing = False
+        self.lastSpd = 0
+        self.grounded_timer = 0
+        self.boost_duration_min = 4
+        self.enemyGoalLocations = []
+        self.boost_gobbling = False
+        self.ally_hit_count = 0
+        self.ally_hit_info = []
+        self.aerial_min = 200
 
     def retire(self):
         self.game_active = False
         if self.hit_finding_thread != None:
             self.hit_finding_thread.close()
-        print("Kamael thread has exited")
+        print(f"{self.name} thread has exited")
 
     def init_match_config(self, match_config: "MatchConfig"):
         self.matchSettings = match_config
@@ -244,6 +258,7 @@ class Kamael(BaseAgent):
 
     def setHalfFlip(self):
         self.activeState = BlessingOfDexterity(self)
+        self.flipTimer = self.time
 
     def aerialGetter(self, pred, target, time):
         return Wings_Of_Justice(self, pred, target, time)
@@ -282,23 +297,29 @@ class Kamael(BaseAgent):
             if targetType == 2:
                 self.createJumpChain(2, 400, jumpSim=None, set_state=True)
 
-            if targetType != -1:
+            elif targetType == 20:
+                self.activeState = Special_Delivery(self)
+                self.flipTimer = _time
+
+            elif targetType != -1:
                 self.activeState = LeapOfFaith(self, targetType, target=target)
                 self.flipTimer = _time
+
             else:
                 self.activeState = Divine_Mandate(
-                    self, [SimpleControllerState(jump=True)], [0.15]
+                    self, [SimpleControllerState(jump=True)], [0.21]
                 )
-                self.flipTimer = _time
+                self.flipTimer = _time - 1
 
     def setDashing(self, target):
-        self.activeState = WaveDashing(self, target)
+        _time = self.time
+        if _time - self.flipTimer >= 1.9:
+            self.activeState = WaveDashing(self, target)
+            self.flipTimer = _time
 
     def setGuidance(self, target: Vector):
-        # self.stubbornessTimer = 3
-        # self.stubborness = self.stubbornessMax
-        self.activeState = DivineGuidance(self, target)
-        # print(f"guidance called! {self.time}")
+        if self.gravity <= -650:
+            self.activeState = DivineGuidance(self, target)
 
     def getCurrentSpd(self):
         return self.me.velocity.magnitude()
@@ -336,9 +357,26 @@ class Kamael(BaseAgent):
         x.local_location = localizeVector(x.location, self.me)
         self.ballPredObj = x
 
+    # def copy_game_info(self,game):
+    #     game_info_obj = {}
+    #     game_info_obj["seconds_elapsed"] = game.game_info.seconds_elapsed
+    #     game_info_obj["game_time_remaining"] = game.game_info.game_time_remaining
+    #     game_info_obj["is_overtime"] = game.game_info.is_overtime
+    #     game_info_obj["is_unlimited_time"] = game.game_info.is_unlimited_time
+    #     game_info_obj["is_round_active"] = game.game_info.is_round_active
+    #     game_info_obj["is_kickoff_pause"] = game.game_info.is_kickoff_pause
+    #     game_info_obj["world_gravity_z"] = game.game_info.world_gravity_z
+    #     game_info_obj["game_speed"] = game.game_info.game_speed
+    #
+    #     print(game_info_obj.seconds_elapsed)
+    #
+    #     self.gameInfo = game_info_obj
+
     def preprocess(self, game):
+        self.gameInfo.update(game)
         self.oldPreds = self.ballPred
         self.ballPred = self.get_ball_prediction_struct()
+        # self.ballPred = deepcopy(self.get_ball_prediction_struct())
         self.players = [self.index]
         car = game.game_cars[self.index]
         self.timid = False
@@ -351,6 +389,9 @@ class Kamael(BaseAgent):
         self.me.demolished = car.is_demolished
         self.me.index = self.index
         updateHits = False
+        self.gravity = game.game_info.world_gravity_z
+
+        # print(game.game_info.world_gravity_z)
 
         if self.defaultRotation == None:
             self.defaultRotation = Vector3(
@@ -383,6 +424,7 @@ class Kamael(BaseAgent):
             self.me.boostLevel = car.boost
             self.onSurface = car.has_wheel_contact
             self.superSonic = car.is_super_sonic
+            self.lastSpd = self.currentSpd * 1
             self.currentSpd = clamp(2300, 1, self.getCurrentSpd())
             self.me.matrix = rotator_to_matrix(self.me)
             self._forward, self.left, self.up = self.me.matrix
@@ -419,8 +461,10 @@ class Kamael(BaseAgent):
             self.hitbox_set = True
 
             # roughly 147 is touching the ball if facing straight on with octane hitbox
-
-            self.reachLength = (93 + self.carLength * 0.5) * 0.9
+            self.reachLength = (93 + self.carLength * 0.5) * 0.95
+            # if self.team == 0:
+            #     self.reachLength = (93 + self.carLength * 0.5) * .9
+            # print(f"reach length: {self.reachLength}")
             self.defaultOffset = Vector(
                 [
                     car.hitbox_offset.x * 1,
@@ -433,7 +477,54 @@ class Kamael(BaseAgent):
             else:
                 self.defaultElevation = 18 + self.defaultOffset[2]
 
-            # print(f"default elevation is: {self.defaultElevation}")
+            # self.singleJumpLimit = (
+            #         233 + self.defaultElevation + self.allowableJumpDifference
+            # )  # 233 = maximum height gained from single jump
+            # self.doubleJumpLimit = (
+            #         495 + self.defaultElevation + self.allowableJumpDifference
+            # )  # 498 = maximum height gained from double jump
+
+            single_jump = jumpSimulatorNormalizingJit(
+                float32(self.gravity),
+                float32(self.fakeDeltaTime),
+                np.array(self.me.velocity, dtype=np.dtype(float)),
+                float32(self.defaultElevation),
+                float32(610),
+                float32(10000),
+                False,
+            )
+
+            double_jump = jumpSimulatorNormalizingJit(
+                float32(self.gravity),
+                float32(self.fakeDeltaTime),
+                np.array(self.me.velocity, dtype=np.dtype(float)),
+                float32(self.defaultElevation),
+                float32(10),
+                float32(10000),
+                True,
+            )
+
+            self.doubleJumpSim = double_jump
+            old_sj = self.singleJumpLimit * 1
+            old_dj = self.doubleJumpLimit * 1
+
+            self.singleJumpLimit = self.allowableJumpDifference + single_jump[2]
+            self.doubleJumpLimit = self.allowableJumpDifference + double_jump[2]
+            # print(f"doublejump limit is: {self.doubleJumpLimit}")
+            self.singleJumpShotTimer = single_jump[3]
+            self.doubleJumpShotTimer = double_jump[3]
+
+            # print(f"simulated max double jump height is: {double_jump[2]}")
+            # print(f"simulated max single jump height is: {single_jump[2]}")
+            #
+            # print(f"single jump limit: {self.singleJumpLimit} double jump limit: {self.doubleJumpLimit}")
+            # print(f"old single jump limit: {old_sj} old double jump limit: {old_dj}")
+            # print(f"max single jump time @ {single_jump[3]}")
+            # print(f"max double jump time @ {double_jump[3]}")
+
+            # print(f"Kamael {self.index} hitbox (length:{self.carLength} width:{self.carWidth} height:{self.carHeight}) reach: {self.reachLength} grounder limit: {self.groundCutOff}")
+
+            # print(f"single jump limit: {self.singleJumpLimit} double jump limit: {self.doubleJumpLimit}")
 
             if self.debugging:
                 self.log.append(
@@ -452,6 +543,22 @@ class Kamael(BaseAgent):
                             if car.name.lower().find("st. peter") != -1:
                                 if i < self.index:
                                     self.goalie = False
+            self.cached_jump_sim = jumpSimulatorNormalizing(
+                self, 3, 1000, doubleJump=True
+            )[-1]
+            # print(f"info for 1.35 seconds in is: {self.cached_jump_sim[int(1.35/self.fakeDeltaTime)]}")
+
+            if self.gravity > -650 and self.boostMonster:
+                self.doubleJumpLimit = self.singleJumpLimit + 100
+                self.DoubleJumpShotsEnabled = False
+
+            self.enemyGoalLocations.append(
+                Vector([893 * sign(self.team), 5120 * -sign(self.team), 0])
+            )
+            self.enemyGoalLocations.append(Vector([0, 5120 * -sign(self.team), 0]))
+            self.enemyGoalLocations.append(
+                Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0])
+            )
 
         # print(f"{Vector([car.hitbox_offset.x,car.hitbox_offset.y,car.hitbox_offset.z])} {self.time}")
         add_car_offset(self, projecting=self.debugging)
@@ -534,6 +641,8 @@ class Kamael(BaseAgent):
                         if _obj.retreating and self.team == 5:
                             if distance2D(_obj.location, self.ball.location) < 300:
                                 _obj.retreating = False
+
+                        # _obj.next_hit = find_ally_hit(self,_obj)
                     else:
                         _obj.retreating = player_retreat_status(
                             _obj, self.ball.location, car.team, num_allies=enemy_count
@@ -547,12 +656,13 @@ class Kamael(BaseAgent):
                     _obj.boostLevel = 33
                     _obj.onSurface = True
                     _obj.retreating = True
+                    # _obj.next_hit = predictionStruct(convertStructLocationToVector(self.ballPred.slices[-1]), self.time + 7)
 
                 if car.team == self.team:
                     self.allies.append(_obj)
                 else:
                     self.enemies.append(_obj)
-        self.gameInfo = game.game_info
+        # self.gameInfo = game.game_info
         self.boosts = []
         self.bigBoosts = []
 
@@ -584,24 +694,28 @@ class Kamael(BaseAgent):
         self.onWall = False
         self.wallShot = False
         self.aerialsEnabled = True
+        self.aerialsLimited = False
+        if len(self.allies) < 1:
+            if not self.ignore_kickoffs and not self.goalie and False:
+                self.aerialsLimited = True
+                self.aerialsEnabled = True
+            else:
+                self.aerialsEnabled = False
+
         if (
-            len(self.allies) < 1
-            and not self.boostMonster
-            or self.ignore_kickoffs
-            or self.goalie
+            self.onSurface
+            and self.me.location[2] > 50
+            and abs(self.me.location[1]) < 5120
         ):
-            self.aerialsEnabled = False
-        if self.onSurface:
-            if self.me.location[2] > 50:
-                self.onWall = self.up[2] < 0.98
+            self.onWall = self.up[2] < 0.98
         if len(self.allies) > 0:
             self.lastMan = lastManFinder(self).location
         else:
             self.lastMan = self.me.location
 
         self.determineFacing()
-        self.gravity = game.game_info.world_gravity_z
         self.dribbling = dirtyCarryCheck(self)
+        self.boost_gobbling = False
         # if self.dribbling:
         #     print(f"we dribbling {self.time}")
         self.findClosestToEnemies()
@@ -610,6 +724,8 @@ class Kamael(BaseAgent):
         self.available_delta_v = 1060 * (self.me.boostLevel / 33.333)
         if self.onSurface and not self.onWall and self.me.boostLevel > 0:
             self.available_delta_v += 500
+        if self.boostMonster:
+            self.available_delta_v = math.inf
 
         # recent hit finding update
         # if len(self.allies) > 0: #or self.team == 0:
@@ -632,9 +748,9 @@ class Kamael(BaseAgent):
                 else:
                     predictions_valid = False
 
-                refresh_timer = 0.5
-                if len(self.allies) < 1:
-                    refresh_timer = 0.25
+                refresh_timer = 0.25
+                # if len(self.allies) < 1:
+                #     refresh_timer = 0.25
 
                 if (
                     updateHits == True
@@ -658,11 +774,6 @@ class Kamael(BaseAgent):
 
         if self.gameInfo.is_kickoff_pause:
             self.kickoff_timer = self.time
-
-        if self.time < self.kickoff_timer > 10:
-            self.boostThreshold = 50
-        else:
-            self.boostThreshold = 50
 
         if not self.test_done:
             self.do_test()
@@ -692,10 +803,12 @@ class Kamael(BaseAgent):
                 self.enemyAttacking = True
 
             if self.closestEnemyToBall != None:
-                closestEnemyToBallTargetDistance = distance2D(
+                closestEnemyToBallTargetDistance = findDistance(
                     self.enemyTargetVec, self.closestEnemyToBall.location
                 )
-                # self.closestEnemyDistances.append(self.closestEnemyToBallDistance)
+                # if self.resetCount == 0:
+                #     self.closestEnemyDistances = [(closestEnemyToBallTargetDistance+1)-i*.2 for i in range(5)]
+                # else:
                 self.closestEnemyDistances.append(closestEnemyToBallTargetDistance)
                 del self.closestEnemyDistances[0]
 
@@ -708,13 +821,30 @@ class Kamael(BaseAgent):
             self.enemyAttacking = False
             # self.log.append("in here")
 
+    # def enemyAttackingBall(self):
+    #     current = math.inf
+    #     for each in self.closestEnemyDistances:
+    #         if each < current:
+    #             current = each
+    #         else:
+    #             return False
+    #
+    #     return True
     def enemyAttackingBall(self):
-        current = math.inf
-        for each in self.closestEnemyDistances:
-            if each < current:
-                current = each
-            else:
-                return False
+        if self.closestEnemyToBall.velocity.magnitude() < 25:
+            return False
+
+        enemy_to_target_direction = direction(
+            self.enemyTargetVec.flatten(), self.closestEnemyToBall.location.flatten()
+        )
+        if (
+            angleBetweenVectors(
+                enemy_to_target_direction,
+                self.closestEnemyToBall.velocity.flatten().normalize(),
+            )
+            > 60
+        ):
+            return False
 
         return True
 
@@ -786,17 +916,36 @@ class Kamael(BaseAgent):
 
         return True
 
+    # def create_weak_doublejump(self, angle_up=True):
+    #     controls = []
+    #     timers = []
+    #     pitch = 0
+    #     if angle_up:
+    #         pitch = -1
+    #
+    #     controls.append(SimpleControllerState(jump=True,pitch=pitch))
+    #     timers.append(0.2)
+    #     controls.append(SimpleControllerState(pitch=pitch))
+    #     timers.append(self.fakeDeltaTime*3)
+    #     controls.append(SimpleControllerState(jump=True))
+    #     timers.append(self.fakeDeltaTime*3)
+    #     controls.append(SimpleControllerState(pitch=pitch))
+    #     timers.append(0.2)
+    #
+    #     self.activeState = Divine_Mandate(self, controls, timers)
+
     def createJumpChain(
         self, timeAlloted, targetHeight, jumpSim=None, set_state=True, aim=True
     ):
         # targetHeight,targetHeightTimer,heightMax,maxHeightTime,doublejump
         if jumpSim == None:
-            jumpSim = [450, 1.6, 400, 1.55, True]
+            jumpSim = self.doubleJumpSim
+            aim = False
 
         controls = []
         timers = []
         pitch = 0
-        firstJumpDuration = 0.2 + self.fakeDeltaTime
+        firstJumpDuration = 0.2
 
         targetTime = timeAlloted
         timeRemaining = targetTime * 1
@@ -805,36 +954,41 @@ class Kamael(BaseAgent):
         # timers.append(self.fakeDeltaTime*2)
 
         if jumpSim[-1] == False:
-            pitch = clamp(0.75, 0.2, 0.75 - (timeRemaining - self.fakeDeltaTime * 3))
+            pitch = clamp(0.75, 0.3, 1 - (clamp(0.75, 0.001, timeRemaining)))
             # print(f"pitch value: {pitch}")
             controls.append(SimpleControllerState(jump=True, pitch=pitch))
             timers.append(timeRemaining - self.fakeDeltaTime * 5)
 
-            controls.append(SimpleControllerState(jump=False))
-            timers.append(self.fakeDeltaTime * 1)
+            controls.append(SimpleControllerState(jump=False, throttle=1))
+            timers.append(self.fakeDeltaTime * 4)
 
             controls.append(0)
-            timers.append(self.fakeDeltaTime * 60)
+            timers.append(0.4)
+
+            self.flipTimer = self.time + clamp(1.45, 0.3, timeAlloted)
+
+            # if set_state and jumpSim[3] > jumpSim[0]:
+            #     set_state = False
 
         else:
             controls.append(SimpleControllerState(jump=True))
             timers.append(firstJumpDuration)
             timeRemaining -= firstJumpDuration
 
-            controls.append(SimpleControllerState(jump=False))
-            timers.append(self.fakeDeltaTime * 3)
-            timeRemaining -= self.fakeDeltaTime * 3
+            controls.append(SimpleControllerState(jump=False, throttle=1))
+            timers.append(self.fakeDeltaTime * 4)
+            timeRemaining -= self.fakeDeltaTime * 4
 
             controls.append(SimpleControllerState(jump=True))
-            timers.append(self.fakeDeltaTime * 3)
-            timeRemaining -= self.fakeDeltaTime * 3
+            timers.append(self.fakeDeltaTime * 6)
+            timeRemaining -= self.fakeDeltaTime * 6
 
             # print(f"Double jump shot target height: {targetHeight}")
 
             # if targetHeight >= self.double_point_limit:
             if aim:
                 controls.append(1)
-                timers.append(clamp(2, 0, timeRemaining + self.fakeDeltaTime * 15))
+                timers.append(clamp(10, 0, timeRemaining + self.fakeDeltaTime * 10))
                 # print("in here")
 
         if set_state:
@@ -851,9 +1005,6 @@ class Kamael(BaseAgent):
                         if not validate_ground_shot(self, h, self.groundCutOff):
                             # print(f"ground shots invalidated! {self.time}")
                             return False
-                        else:
-                            pass
-                            # print(f"ground shots validated! {self.time}")
                     elif h.hit_type == 1:
                         if not validate_jump_shot(
                             self,
@@ -864,8 +1015,6 @@ class Kamael(BaseAgent):
                         ):
                             # print(f"jumpshot invalidated! {self.time}")
                             return False
-                        else:
-                            pass
                     elif h.hit_type == 2:
                         if not validate_wall_shot(self, h, self.groundCutOff):
                             return False
@@ -878,84 +1027,87 @@ class Kamael(BaseAgent):
                         ):
                             # print(f"double jumpshot invalidated! {self.time}")
                             return False
-                        else:
-                            pass
                     elif h.hit_type == 5:
                         if not validate_aerial_shot(
-                            self, h, self.singleJumpLimit, self.doubleJumpLimit
+                            self, h, self.aerial_min, self.doubleJumpLimit
                         ):
                             # print(f"aerial shot invalidated! {self.time}")
                             return False
-                        else:
-                            pass
         return True
 
     def update_hits(self):
-        if type(self.activeState) != PreemptiveStrike:
-            leftPost = Vector([893 * sign(self.team), 5120 * -sign(self.team), 0])
-            rightPost = Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0])
-            res = len(self.allies) + 1
-            self.hits = findHits(
-                self,
-                self.groundCutOff,
-                self.singleJumpLimit,
-                self.doubleJumpLimit,
-                resolution=res,
-            )
+        if not self.boost_testing:
 
-            # if len(self.allies) < 1:
-            #     if not self.dribbling:
-            #         #self.hits = [x for x in self.hits if x != None and (x.hit_type == 0 or is_shot_scorable(x.pred_vector, leftPost, rightPost)[2])]
-            #         self.hits = [x for x in self.hits if
-            #                      x != None and is_shot_scorable(x.pred_vector, leftPost, rightPost)[2]]
-
-            self.test_pred = predictionStruct(
-                convertStructLocationToVector(self.ballPred.slices[-1]),
-                self.ballPred.slices[-1].game_seconds * 1.0,
-            )
-            self.sorted_hits = SortHits(self.hits)
-            if len(self.sorted_hits) < 1:
-                ground_shot = hit(
-                    self.time,
-                    self.time + 10,
-                    0,
-                    convertStructLocationToVector(self.ballPred.slices[-1]),
-                    convertStructVelocityToVector(self.ballPred.slices[-1]),
-                    False,
-                    10,
+            if (
+                type(self.activeState) != PreemptiveStrike
+                or not self.activeState.active
+            ):
+                leftPost = Vector([893 * sign(self.team), 5120 * -sign(self.team), 0])
+                rightPost = Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0])
+                res = len(self.allies) + 1
+                self.hits = findHits(
+                    self,
+                    self.groundCutOff,
+                    self.singleJumpLimit,
+                    self.doubleJumpLimit,
+                    resolution=res,
                 )
-                self.sorted_hits = [ground_shot]
-            self.update_time = self.time * 1
-            # print(f"Updating hits {self.time}")
+
+                self.test_pred = predictionStruct(
+                    convertStructLocationToVector(
+                        self.ballPred.slices[self.ballPred.num_slices - 2]
+                    ),
+                    self.ballPred.slices[self.ballPred.num_slices - 2].game_seconds
+                    * 1.0,
+                )
+                self.sorted_hits = SortHits(self.hits)
+                if len(self.sorted_hits) < 1:
+                    ground_shot = hit(
+                        self.time,
+                        self.time + 10,
+                        0,
+                        convertStructLocationToVector(
+                            self.ballPred.slices[self.ballPred.num_slices - 2]
+                        ),
+                        convertStructVelocityToVector(
+                            self.ballPred.slices[self.ballPred.num_slices - 2]
+                        ),
+                        False,
+                        10,
+                    )
+                    self.sorted_hits = [ground_shot]
+                self.update_time = self.time * 1
+                # print(f"Updating hits {self.time}")
 
     # @profile
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        # if self.index == 0:
-        #     return self.get_output_copy(packet)
+        # 47 bp 60 current with lineupshot being semi exempt from mirrorshot
+        # new test idea: if mirror_info[0] and 2 in mirror_info[1], playback
         oldTimer = self.time
         self.log.clear()
         self.preprocess(packet)
 
         if len(self.allies) > 0 and not self.ignore_kickoffs:
             # if self.team == 0:
-            #     team_synergy(self)
+            #     team_manager(self)
             # else:
             newTeamStateManager(self)
             # dummyState(self)
+
         else:
             soloStateManager_testing(self)
             # dribbleTesting(self)
             # guidanceTesting(self)
             # aerialTesting(self)
 
-        if not packet.game_info.is_round_active:
-            self.activeState = None
+        # return self.run_boost_duration_tests()
 
         if self.activeState != None:
             action = self.activeState.update()
 
         else:
-            action = SimpleControllerState()
+            self.activeState = PreemptiveStrike(self)
+            action = self.activeState.update()
             # self.log.append(f"active state was None {self.time}")
         self.controller_state = action
 
@@ -969,16 +1121,15 @@ class Kamael(BaseAgent):
                 str(type(self.activeState).__name__),
                 self.renderer.white(),
             )
-            # numbers = [f"{x.time_difference():.2f}" if x != None else None for x in self.hits]
-            # # 0 ground, 1 jumpshot, 2 wallshot , 3 catch canidate,4 double jump shot
-            # textOutput = f"ground shot:{numbers[0]} jumpshot:{numbers[1]} wallshot:{numbers[2]} highJump:{numbers[3]}"
-            # self.renderer.draw_string_2d(20, 200, 3, 3, textOutput, self.renderer.white())
             for each in self.renderCalls:
                 each.run()
+            # self.renderer.draw_line_3d(self.me.location.data,
+            #                            extend_to_sidewall(self, self.ball.location, self.me.location).data,
+            #                            self.renderer.yellow())
             self.renderer.end_rendering()
-            if self.debugging:
-                for msg in self.log:
-                    print(msg)
+            # if self.debugging:
+            #     for msg in self.log:
+            #         print(msg)
         self.renderCalls.clear()
         if action.boost and self.me.boostLevel > 0:
             self.boost_counter += 1

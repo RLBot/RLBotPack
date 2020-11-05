@@ -40,15 +40,15 @@ def locked_in(agent, agentType):
         if agent.activeState.active != False:
             return True
 
-    # if agentType == DivineGrace:
-    #     if agent.activeState.active != False:
-    #         return True
-
     if agentType == DivineGuidance:
         if agent.activeState.active != False:
             return True
 
     if agentType == RighteousVolley:
+        if agent.activeState.active != False:
+            return True
+
+    if agentType == Special_Delivery:
         if agent.activeState.active != False:
             return True
 
@@ -246,7 +246,7 @@ class Wings_Of_Justice:
     def __init__(self, agent, pred, target: Vector, time: float):
         self.active = False
         self.agent = agent
-        self.time = clamp(10, 0.0001, time + agent.fakeDeltaTime * 2)
+        self.time = clamp(10, 0.0001, time)
         self.airborne = False
         self.launcher = None
         self.pred = predictionStruct(
@@ -259,20 +259,7 @@ class Wings_Of_Justice:
         self.powershot = (
             distance2D(target, Vector([0, 5200 * -sign(agent.team), 0])) > 2000
         )
-
-    # def validateExistingPred(self):
-    #     updatedPredAtTime = find_pred_at_time(self.agent, self.pred.time)
-    #     if self.pred.time <= self.agent.time:
-    #         return False
-    #
-    #     if (
-    #         findDistance(
-    #             convertStructLocationToVector(updatedPredAtTime), self.pred.location
-    #         )
-    #         > 10
-    #     ):
-    #         return False
-    #     return True
+        self.point_time = 1.5
 
     def setup(self):
         # print(f"in setup {self.agent.time}")
@@ -286,7 +273,7 @@ class Wings_Of_Justice:
                 self.agent.gravity,
             )
             expedite = (
-                1060 * (self.agent.me.boostLevel - 10 / 33.333)
+                1058 * (self.agent.me.boostLevel - 10 / 33.333)
                 > delta_a.scale(dt).magnitude()
             )
 
@@ -304,9 +291,9 @@ class Wings_Of_Justice:
 
             # zoneInfo= takeoff_goldielox_zone(self.agent,self.target)
 
-            if delta_a.magnitude() < 1000:
+            if delta_a.magnitude() < 1050:
                 if (
-                    abs(self.drive_controls.steer) <= 0.15
+                    abs(self.drive_controls.steer) <= 0.1
                 ):  # or self.agent.team == 1 and self.agent.currentSpd < 300: #self.agent.currentSpd < 300 or
                     if not self.agent.onWall:
                         projection = (
@@ -319,19 +306,12 @@ class Wings_Of_Justice:
                             dt,
                             self.agent.gravity,
                         )
-                        if projected_delta_a.magnitude() < 1000:
-                            launching = True
-                            # print(delta_a.magnitude(),projected_delta_a.magnitude())
-                            self.launch_projection = projected_delta_a.magnitude()
-                        else:
-                            self.agent.log.append("Averting a bad launch")
-                            launching = False
+                        launching = True
                 else:
                     launching = True
 
             if not launching:
                 self.active = False
-                # print(f"required delta: {delta_a.magnitude()}")
 
             else:
                 if distance2D(self.target, self.agent.me.location) <= 5000:
@@ -340,7 +320,10 @@ class Wings_Of_Justice:
                             2, 400, jumpSim=None, set_state=False, aim=False
                         )
                     else:
-                        self.launcher = Aerial_Charge(self.agent, self.target)
+                        # self.launcher = Aerial_Charge(self.agent, self.target)
+                        self.launcher = Divine_Mandate(
+                            self.agent, [SimpleControllerState(jump=True)], [0.10]
+                        )
                     self.active = True
                 else:
                     self.active = False
@@ -351,10 +334,8 @@ class Wings_Of_Justice:
         controls = SimpleControllerState()
         controls.throttle = 0
         dt = self.pred.time - self.agent.time
-        # if dt > 1 or not self.powershot:
         target = self.target
-        # else:
-        #     target = self.pred.location
+        createBox(self.agent, self.pred.location)
 
         delta_a = calculate_delta_acceleration(
             target - self.agent.me.location,
@@ -381,36 +362,58 @@ class Wings_Of_Justice:
             controls = self.launcher.update()
             if not self.launcher.active:
                 self.launcher = None
-                # print("killed launcher")
             return controls
 
-        # boost_req = (
-        #     clamp(8, 2, abs(8 - clamp(8, 0, self.agent.boost_counter)))
-        #     * self.agent.aerialAccelerationTick
-        # )
-        # boost_req = self.agent.aerialAccelerationTick*10
-        boost_req = 8 * self.agent.aerialAccelerationTick
+        boost_req = (
+            clamp(
+                self.agent.boost_duration_min,
+                1,
+                abs(
+                    self.agent.boost_duration_min
+                    - clamp(self.agent.boost_duration_min, 0, self.agent.boost_counter)
+                ),
+            )
+            * self.agent.aerialAccelerationTick
+        )
+        # if dt <= self.point_time:
+        #     boost_req= 8*self.agent.aerialAccelerationTick
 
-        # if self.agent.team == 0:
-        #     boost_req = 16 * self.agent.aerialAccelerationTick
+        aligned_threshold = 0.7
+        current_alignment = self.agent._forward.dotProduct(delta_a.normalize())
 
-        if dt > 1 or delta_a.magnitude() > boost_req:
+        if dt > self.point_time or delta_a.magnitude() > boost_req:
             align_car_to(controls, self.agent.me.avelocity, delta_a, self.agent)
-            aligned = self.agent._forward.dotProduct(delta_a.normalize()) > 0.7
+            aligned = current_alignment > aligned_threshold
             controls.boost = aligned and delta_a.magnitude() > boost_req
-            if delta_a.magnitude() > 70 / 120 and aligned:
+            if delta_a.magnitude() > 66 * self.agent.fakeDeltaTime and aligned:
                 controls.throttle = 1
-            if delta_a.magnitude() > 1060 and dt > 1:
+            if delta_a.magnitude() > 1058 and dt > 1 and not self.launcher:
                 self.active = False
                 self.agent.log.append(
                     f"required acceleration too high {delta_a.magnitude()}"
                 )
         else:
-            align_car_to(
-                controls,
-                self.agent.me.avelocity,
-                (self.agent.me.location - self.pred.location).normalize(),
-                self.agent,
+            if (
+                distance2D(
+                    self.pred.location, Vector([0, 5200 * -sign(self.agent.team), 0])
+                )
+                > 2000
+            ):
+                offset = Vector([0, 0, -25])
+            else:
+                offset = Vector([0, 0, 10])
+            target = self.pred.location + offset
+            if not pred_valid:
+                target = self.agent.ball.location + offset
+            (
+                controls.steer,
+                controls.yaw,
+                controls.pitch,
+                _roll,
+                _,
+            ) = point_at_position(self.agent, target)
+            controls.roll = turnController(
+                self.agent.me.rotation[2], self.agent.me.rotational_velocity[0] / 4
             )
 
         if not pred_valid:
@@ -430,280 +433,12 @@ class Wings_Of_Justice:
             self.agent.log.append("canceling aerial since we're on surface")
             self.active = False
 
-        if dt > 1:
+        if dt > self.point_time:
             req_vel = self.agent.me.velocity + delta_a
-            if req_vel.magnitude() >= 2300:
+            if req_vel.magnitude() > 2300 and self.launcher:
                 self.active = False
 
         return controls
-
-
-# class Wings_Of_Justice:
-#     def __init__(self, agent, pred, target:Vector, time:float):
-#         self.active = False
-#         self.agent = agent
-#         self.time = clamp(10, 0.0001, time)
-#         self.airborne = False
-#         self.launcher = None
-#         self.pred = predictionStruct(
-#             convertStructLocationToVector(pred), pred.game_seconds
-#         )
-#         self.target = target
-#         self.drive_controls = SimpleControllerState()
-#         self.launch_projection = None
-#         self.started = self.agent.time
-#         #self.powershot = distance2D(target,Vector([0,5200*-sign(agent.team),0])) > 2000
-#
-#     def validateExistingPred(self):
-#         updatedPredAtTime = find_pred_at_time(self.agent, self.pred.time)
-#         if self.pred.time <= self.agent.time:
-#             return False
-#
-#         if (
-#             findDistance(
-#                 convertStructLocationToVector(updatedPredAtTime), self.pred.location
-#             )
-#             > 10
-#         ):
-#             return False
-#         return True
-#
-#     def setup(self):
-#         #print(f"in setup {self.agent.time}")
-#         if self.agent.onSurface:
-#             launching = False
-#             dt = self.pred.time - self.agent.time
-#             delta_a = calculate_delta_acceleration(self.target - self.agent.me.location, self.agent.jumpPhysics.velocity,
-#                                                    dt, self.agent.gravity)
-#             expedite = 1060 * (self.agent.me.boostLevel-10 / 33.333) > delta_a.scale(dt).magnitude()
-#
-#             _direction = direction(self.agent.me.location,self.target)
-#             destination = self.target + _direction.scale(150)
-#
-#             self.drive_controls = driveController(self.agent, destination,
-#                                                   self.pred.time,
-#                                                   expedite=expedite, flippant=False,
-#                                                   maintainSpeed=False)
-#
-#             #zoneInfo= takeoff_goldielox_zone(self.agent,self.target)
-#
-#
-#
-#             if delta_a.magnitude() < 1000:
-#                 if abs(self.drive_controls.steer) <= 0.15: #or (self.agent.team == 0 and self.agent.currentSpd < (self.pred.time-self.agent.time)*100):
-#                     if not self.agent.onWall:# or self.agent.team == 0:
-#                         projection = self.agent.me.location + self.agent.jumpPhysics.velocity.scale(1.5)
-#                         projected_delta_a = calculate_delta_acceleration(self.target - projection,
-#                                                                self.agent.jumpPhysics.velocity,
-#                                                                dt, self.agent.gravity)
-#                         if projected_delta_a.magnitude() < 1000:
-#                             launching = True
-#                             #print(delta_a.magnitude(),projected_delta_a.magnitude())
-#                             self.launch_projection = projected_delta_a.magnitude()
-#                         else:
-#                             self.agent.log.append("Averting a bad launch")
-#                             launching = False
-#                 else:
-#                     launching = True
-#
-#
-#
-#             if not launching:
-#                 self.active = False
-#                 #print(f"required delta: {delta_a.magnitude()}")
-#
-#             else:
-#                 if distance2D(self.target,self.agent.me.location) <= 5000:
-#                     if not self.agent.onWall:
-#                        self.launcher = self.agent.createJumpChain(2, 400, jumpSim = None,set_state = False)
-#                     else:
-#                         self.launcher = Aerial_Charge(self.agent,self.target)
-#                     self.active = True
-#                 else:
-#                     self.active = False
-#         else:
-#             self.active = True
-#
-#
-#
-#     def update(self):
-#         controls = SimpleControllerState()
-#         controls.throttle = 0
-#         dt = self.pred.time - self.agent.time
-#         if dt > 1:
-#             target = self.target
-#         else:
-#             target = self.pred.location
-#
-#         delta_a = calculate_delta_acceleration(target-self.agent.me.location, self.agent.me.velocity,dt , self.agent.gravity)
-#         if self.agent.time - self.started > .5:
-#             if self.launch_projection != None:
-#                 self.agent.log.append(f"Projected delta_a after launcher: {str(self.launch_projection)[:6]}, in reality: {str(delta_a.magnitude())[:6]}")
-#                 self.launch_projection = None
-#
-#         pred_valid = self.validateExistingPred()
-#
-#         if self.agent.onSurface and self.launcher == None:
-#             self.setup()
-#             if self.launcher == None:
-#                 return self.drive_controls
-#
-#         if self.launcher != None:
-#             controls = self.launcher.update()
-#             if not self.launcher.active:
-#                 self.launcher = None
-#                 #print("killed launcher")
-#             return controls
-#         boost_req = 100
-#
-#         #if dt >1 or delta_a.magnitude() > boost_req:
-#         align_car_to(controls, self.agent.me.avelocity, delta_a, self.agent)
-#         aligned = self.agent._forward.dotProduct(delta_a.normalize()) > 0.6
-#         controls.boost = aligned and delta_a.magnitude() > boost_req
-#         if delta_a.magnitude() > 50 and aligned:
-#             controls.throttle = 1
-#         if delta_a.magnitude() > 1060 and dt > 1:
-#             self.active = False
-#             self.agent.log.append(f"required acceleration too high {delta_a.magnitude()}")
-#         # else:
-#         #     controls.steer,controls.yaw,controls.pitch,controls.roll,angle_diff= point_at_position(self.agent, self.pred.location)
-#
-#         if not pred_valid:
-#             if self.launch_projection != None:
-#                 self.agent.log.append(
-#                     f"Projected delta_a after launcher: {str(self.launch_projection)[:6]}, in reality: {str(delta_a.magnitude())[:6]}")
-#                 self.launch_projection = None
-#             if self.launcher == None:
-#                 self.active = False
-#
-#         if dt <=0:
-#             self.active = False
-#             self.agent.log.append("Aerial timed out")
-#
-#         if self.agent.onSurface:
-#             self.agent.log.append("canceling aerial since we're on surface")
-#             self.active = False
-#         return controls
-
-
-# class Wings_Of_Justice:
-#     def __init__(self, agent, pred, target, time):
-#         self.active = False
-#         self.agent = agent
-#         self.time = clamp(10, 0.0001, time)
-#         self.airborne = False
-#         self.launcher = None
-#         self.pred = predictionStruct(
-#             convertStructLocationToVector(pred), pred.game_seconds
-#         )
-#         # self.pred = pred
-#         self.target = target
-#         self.vel_target = Vector([0, 0, 0])
-#         self.driveController = SimpleControllerState()
-#         self.setup()
-#
-#     def create_copy(self):
-#         return Wings_Of_Justice(self.agent, self.pred, self.target, self.time)
-#
-#     def setup(self):
-#         vel_target = self.agent.calcDeltaV(self.target, self.time)
-#         if self.agent.deltaV >= vel_target.magnitude():
-#
-#             if vel_target.magnitude() < 2300:
-#
-#                 # if self.pred.game_seconds - self.agent.time > 0:
-#                 if self.pred.time - self.agent.time > 0:
-#                     self.vel_target = vel_target
-#                     self.active = True
-#                     if self.agent.onSurface:
-#                         # self.launcher = airLaunch(self.agent)
-#                         controls = []
-#                         timers = []
-#                         controls.append(SimpleControllerState(jump=True))
-#                         timers.append(0.2)
-#                         controls.append(SimpleControllerState())
-#                         timers.append(self.agent.fakeDeltaTime)
-#                         controls.append(SimpleControllerState(jump=False))
-#                         timers.append(self.agent.fakeDeltaTime)
-#                         controls.append(SimpleControllerState(jump=True))
-#
-#                         self.launcher = Divine_Mandate(self.agent, controls, timers)
-#             # print(f"activated with dv_target of {dv_target}")
-#
-#     def validateExistingPred(self):
-#         updatedPredAtTime = find_pred_at_time(self.agent, self.pred.time)
-#         # if self.pred.game_seconds <= self.agent.time:
-#         if self.pred.time <= self.agent.time:
-#             return False
-#
-#         if (
-#             findDistance(
-#                 convertStructLocationToVector(updatedPredAtTime), self.pred.location
-#             )
-#             > 10
-#         ):
-#             return False
-#         return True
-#
-#     def update(self):
-#         createBox(self.agent, self.target)
-#         self.time = clamp(6, 0, self.pred.time - self.agent.time)
-#         vel_target = self.agent.calcDeltaV(self.target, self.time)
-#         vel_mag = vel_target.magnitude()
-#
-#         vel_local = matrixDot(self.agent.me.matrix, vel_target)
-#         self.controller = SimpleControllerState()
-#
-#         (
-#             self.controller.steer,
-#             self.controller.yaw,
-#             self.controller.pitch,
-#             self.controller.roll,
-#             angle_diff,
-#         ) = match_vel(self.agent, vel_local)
-#
-#         acceptable_difference = 0.65
-#
-#         if self.launcher != None and self.launcher.active:
-#             return self.launcher.update()
-#
-#         else:
-#             if self.agent.deltaV < vel_mag:
-#                 self.active = False
-#
-#             if self.agent.onSurface:
-#                 self.active = False
-#
-#             if vel_mag > 2300:
-#                 self.active = False
-#
-#             if self.pred.time - self.agent.time <= 0:
-#                 self.active = False
-#
-#             if not self.validateExistingPred():
-#                 self.active = False
-#
-#             if self.agent.onSurface:
-#                 self.active = False
-#             if vel_mag > 10:
-#                 if angle_diff <= acceptable_difference:
-#                     self.controller.boost = True
-#                 else:
-#                     self.controller.boost = False
-#             else:
-#                 if self.time <= 1:
-#                     (
-#                         self.controller.steer,
-#                         self.controller.yaw,
-#                         self.controller.pitch,
-#                         self.controller.roll,
-#                         angle_diff,
-#                     ) = point_at_position(self.agent, self.pred.location)
-#
-#             if self.time <= 0:
-#                 self.active = False
-#                 # print("timed out?")
-#             return self.controller
 
 
 class Celestial_Arrest(baseState):
@@ -711,17 +446,58 @@ class Celestial_Arrest(baseState):
         return catch_ball(self.agent)
 
 
+class Special_Delivery(baseState):
+    def __init__(self, agent):
+        super().__init__(agent)
+        # self.jump_action = Divine_Mandate(self.agent,[SimpleControllerState(jump=True,pitch=1),SimpleControllerState(pitch=1),SimpleControllerState(jump=True)],[self.agent.fakeDeltaTime*9,self.agent.fakeDeltaTime*6,self.agent.fakeDeltaTime*3])
+        self.jump_action = LeapOfFaith(agent, 2)
+        self.active = True
+
+    def update(self):
+        # print("special delivery in update")
+        if self.jump_action.active:
+            return self.jump_action.update()
+
+        controls = SimpleControllerState()
+        offset = Vector([0, 60 * sign(self.agent.team), 50])
+
+        (
+            controls.steer,
+            controls.yaw,
+            controls.pitch,
+            controls.roll,
+            error,
+        ) = point_at_position(self.agent, self.agent.ball.location + offset)
+
+        controls.boost = error < 0.75
+
+        if (
+            self.agent.me.boostLevel <= 0
+            or self.agent.me.location[2] < 60
+            or findDistance(self.agent.me.location, self.agent.ball.location) > 400
+            or error > 5
+            or self.agent.onSurface
+        ):
+            self.active = False
+
+        # print(f"point error is: {error}")
+
+        return controls
+
+
 class LeapOfFaith(baseState):
     def __init__(self, agent, targetCode, target=None):
         self.agent = agent
         self.active = True
-        self.targetCode = targetCode  # 0 flip at ball , 1 flip forward, 2 double jump, 3 flip backwards, 4 flip left, 5 flip right, 6 flip at target ,7 left forward diagnal flip, 8 right forward diagnal flip
+        self.targetCode = targetCode  # 0 flip at ball , 1 flip forward, 2 double jump, 3 flip backwards, 4 flip left, 5 flip right, 6 flip at target ,7 left forward diagnal flip, 8 right forward diagnal flip , -1 hold single jump
         self.flip_obj = FlipStatus(agent.time)
         self.target = target
         self.cancelTimerCap = 0.3
         self.cancelStartTime = None
         self.jumped = False
         self.followThrough = 0
+        self.start_time = self.agent.time
+        self.last_controller = SimpleControllerState()
 
     def update(self):
         controller_state = SimpleControllerState()
@@ -729,7 +505,7 @@ class LeapOfFaith(baseState):
         if jump:
             if self.targetCode == 1:
                 controller_state.pitch = -1
-                controller_state.steer = 0
+                controller_state.roll = 0
                 controller_state.throttle = 1
 
             elif self.targetCode == 0:
@@ -739,9 +515,22 @@ class LeapOfFaith(baseState):
                 ball_local = self.agent.ball.local_location
                 ball_angle = math.atan2(ball_local.data[1], ball_local.data[0])
                 controller_state.jump = True
-                controller_state.yaw = math.sin(ball_angle)
+                yaw = math.sin(ball_angle)
                 pitch = -math.cos(ball_angle)
+                yp = Vector([abs(yaw), abs(pitch)])
+                yp = yp.normalize()
+                if yaw > 0:
+                    yaw = yp[0]
+                else:
+                    yaw = -yp[0]
+                if pitch > 0:
+                    pitch = yp[1]
+                else:
+                    pitch = -yp[1]
+
+                controller_state.yaw = yaw
                 controller_state.pitch = pitch
+
                 if pitch > 0:
                     controller_state.throttle = -1
                 else:
@@ -814,19 +603,18 @@ class LeapOfFaith(baseState):
                 # controller_state.steer = -1
                 controller_state.throttle = 1
 
-            elif self.targetCode == -1:
-
-                controller_state.pitch = 0
-                controller_state.steer = 0
-                controller_state.throttle = 0
-
         controller_state.jump = jump
         controller_state.boost = False
         if self.targetCode == 7 or self.targetCode == 8:
             controller_state.boost = True
         if self.flip_obj.flipDone:
             if self.targetCode != 9 or self.targetCode != 10:
-                if self.followThrough < 0.75:
+                controller_state = self.last_controller
+                if (
+                    self.followThrough < 0.4
+                    and self.targetCode != 2
+                    and self.targetCode != -1
+                ):
                     self.followThrough += self.agent.deltaTime
                 else:
                     self.active = False
@@ -849,12 +637,15 @@ class LeapOfFaith(baseState):
         #     controller_state.throttle = 1
         # else:
         #     controller_state.throttle = -1
-
+        if self.agent.onSurface:
+            if self.agent.time - self.start_time > 0.2:
+                self.active = False
+        self.last_controller = controller_state
         return controller_state
 
 
 class Divine_Mandate:
-    # class for performing consecutive actions over a period of time. Example: Flipping forward
+    # class for performing consecutive inputs over set periods of time. Example: Flipping forward
     def __init__(self, agent, controls_list: list, durations_list: list):
         self.controls = controls_list
         self.durations = durations_list
@@ -871,30 +662,35 @@ class Divine_Mandate:
         # perform specialized actions if creating controlers at creation time wasn't feasible
         controller_state = SimpleControllerState()
         if actionCode == 0:
-            if (
-                butterZone(self.agent.ball.location)
-                and sign(self.agent.team) * self.agent.ball.location[1] < 0
-            ):
-                ball_local = localizeVector(
-                    self.agent.ball.location + Vector([0, 0, 20]), self.agent.me
-                )
-            else:
-                ball_local = self.agent.ball.local_location
+            ball_local = localizeVector(
+                self.agent.ball.location + Vector([0, 0, 40]), self.agent.me
+            )
             ball_angle = math.atan2(ball_local.data[1], ball_local.data[0])
             controller_state.jump = True
-            controller_state.yaw = math.sin(ball_angle)
+            # controller_state.yaw = math.sin(ball_angle)
+            # pitch = -math.cos(ball_angle)
+
+            yaw = math.sin(ball_angle)
             pitch = -math.cos(ball_angle)
+            yp = Vector([abs(yaw), abs(pitch)])
+            yp = yp.normalize()
+            if yaw > 0:
+                yaw = yp[0]
+            else:
+                yaw = -yp[0]
+            if pitch > 0:
+                pitch = yp[1]
+            else:
+                pitch = -yp[1]
+
             controller_state.pitch = pitch
+            controller_state.yaw = yaw
             if pitch > 0:
                 controller_state.throttle = -1
             else:
                 controller_state.throttle = 1
 
-            # ball_local = toLocal(self.agent.ball.location, self.agent.me).normalize()
-            # ball_angle = math.atan2(ball_local.data[1], ball_local.data[0])
-            # controller_state.jump = True
-            # controller_state.yaw = clamp(1, -1, math.sin(ball_angle))
-            # controller_state.pitch = clamp(1, -1, -math.cos(ball_angle))
+            self.controls[self.index] = controller_state
 
         if actionCode == 1:
             (
@@ -903,8 +699,13 @@ class Divine_Mandate:
                 controller_state.pitch,
                 controller_state.roll,
                 _,
-            ) = point_at_position(self.agent, self.agent.ball.location)
+            ) = point_at_position(
+                self.agent, self.agent.ball.location + Vector([0, 0, 65])
+            )
             controller_state.jump = False
+            controller_state.throttle = 1
+            # print(f"agent height is : {self.agent.me.location[2]}")
+
         return controller_state
 
     def update(
@@ -1268,7 +1069,36 @@ class Kickoff(baseState):
             # return self.flipState.update()
 
 
-class HeavenylyReprieve(baseState):
+class Kickoff_Boosties(baseState):
+    def __init__(self, agent):
+        self.agent = agent
+        self.active = True
+        self.setup()
+
+    def setup(self):
+        closest_dist = math.inf
+        closest_loc = Vector([0, 0, 0])
+        for bb in self.agent.bigBoosts:
+            dist = distance2D(self.agent.me.location, bb.location)
+            if dist < closest_dist:
+                closest_dist = dist
+                closest_loc = bb.location
+        self.boost_target = closest_loc
+
+    def update(self):
+        if findDistance(self.agent.me.location, self.boost_target) < 100:
+            self.active = False
+        return driveController(
+            self.agent,
+            self.boost_target,
+            0.0001,
+            expedite=True,
+            flippant=True,
+            kickoff=True,
+        )
+
+
+class HeavenlyReprieve(baseState):
     def __init__(self, agent, boostloc):
         self.agent = agent
         self.boostLoc = boostloc
@@ -1283,7 +1113,7 @@ class HeavenylyReprieve(baseState):
             return ShellTime(self.agent)
 
 
-class PreemptiveStrike(baseState):
+class PreemptiveStrike(baseState):  # real kickoff
     def __init__(self, agent):
         self.agent = agent
         self.started = False
@@ -1292,41 +1122,27 @@ class PreemptiveStrike(baseState):
         self.active = True
         self.startTime = agent.time
         self.kickoff_type = getKickoffPosition(agent.me.location)
-        # 0 == wide diagonal, 1 == short disgonal, 2 == middle
         agent.stubbornessTimer = 5
         self.onRight = True
         self.short_offset = 75
         self.setup()
         self.enemyGoal = Vector([0, 5200 * -sign(self.agent.team), 0])
         self.phase = 1
-        # if agent.team == 0:
-        #     self.KO_option = PreemptiveStrike_botpack(agent)
-        # else:
         self.KO_option = None
         self.maintaining_speed = False
+        self.first_recovery = None
+        self.queued_retire = False
 
     def create_speed_flip_cancel(self, left=False):
         controls = []
         timers = []
-        # first_controller = SimpleControllerState()
-        # if left:
-        #     first_controller.steer = 1
-        # else:
-        #     first_controller.steer = -1
-        #
-        # first_controller.handbrake = True
-        # first_controller.throttle = 1
-        # first_controller.boost = True
-        # first_controller.jump = False
-        # controls.append(first_controller)
-        # timers.append(self.agent.fakeDeltaTime * 1)
 
         second_controller = SimpleControllerState()
-
-        if left:
+        if not left:
             second_controller.steer = 1
         else:
             second_controller.steer = -1
+
         second_controller.throttle = 1
         second_controller.boost = True
         second_controller.jump = True
@@ -1344,9 +1160,10 @@ class PreemptiveStrike(baseState):
         timers.append(self.agent.fakeDeltaTime * 2)
 
         fourth_controller = SimpleControllerState()
-        yaw = 1
+
+        yaw = -1
         if left:
-            yaw = -1
+            yaw = 1
 
         fourth_controller.yaw = yaw
         # fourth_controller.roll = yaw
@@ -1472,11 +1289,14 @@ class PreemptiveStrike(baseState):
         # stage 1 - drive to boost pad
         if self.phase == 1:
             if distance2D(self.agent.me.location, self.agent.ball.location) > 3150:
-                # return driveController(self.agent, self.enemyGoal+Vector([0,4000*sign(self.agent.team),0]),
+                if self.agent.me.location[1] < 0:
+                    y_off = -40
+                else:
+                    y_off = 40
+
                 return driveController(
                     self.agent,
-                    self.agent.ball.location
-                    + Vector([0, sign(self.agent.team) * 400, 0]),
+                    self.agent.ball.location + Vector([0, y_off, 0]),
                     0,
                     expedite=True,
                     flippant=False,
@@ -1488,11 +1308,12 @@ class PreemptiveStrike(baseState):
 
         # stage 3 - first flip
         if self.phase == 3:
-            # if self.firstFlip == None:
-            #     self.firstFlip = self.create_speed_flip_cancel(left=not self.onRight)
             if self.firstFlip.active:
-                # print(f"first flip active: {str(self.firstFlip)} {self.agent.time} {self.firstFlip.targetCode}")
                 return self.firstFlip.update()
+                # controls = self.firstFlip.update()
+                # if self.agent.currentSpd > 2210:
+                #     controls.boost = False
+                # return controls
 
             if not self.agent.onSurface:
                 _controller = SimpleControllerState()
@@ -1502,7 +1323,11 @@ class PreemptiveStrike(baseState):
                     _controller.pitch,
                     _controller.roll,
                     _err,
-                ) = point_at_position(self.agent, self.agent.ball.location)
+                ) = point_at_position(
+                    self.agent,
+                    self.agent.me.location
+                    + self.agent.me.velocity.normalize().flatten().scale(1000),
+                )
                 _controller.boost = True
                 _controller.handbrake = True
                 return _controller
@@ -1513,16 +1338,16 @@ class PreemptiveStrike(baseState):
 
         # stage 4 - aim towards just offcenter of ball
         if self.phase == 4:
-            if distance2D(self.agent.me.location, self.agent.ball.location) > 450:
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 550:
                 if self.agent.me.location[0] > self.agent.ball.location[0]:
                     dummy_location = self.agent.ball.location + Vector(
-                        [75, 75 * sign(self.agent.team), 0]
+                        [35, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal,self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(distance2D(self.agent.me.location,dummy_location)*.5)
                 else:
                     dummy_location = self.agent.ball.location + Vector(
-                        [-75, 75 * sign(self.agent.team), 0]
+                        [-35, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
@@ -1544,6 +1369,7 @@ class PreemptiveStrike(baseState):
         # stage 5 - flip through center and end kickoff
         # 4 flip left, 5 flip right
         if self.phase == 5:
+            # if distance2D(self.agent.closestEnemyToBall.location,self.agent.ball.location) < 600:
             if self.secondFlip == None:
                 if (
                     self.agent.team == 0
@@ -1551,9 +1377,12 @@ class PreemptiveStrike(baseState):
                     or self.agent.team == 1
                     and self.agent.me.location[0] > self.agent.ball.location[0]
                 ):
-                    _code = 4
-                else:
                     _code = 5
+                else:
+                    _code = 4
+                #     _code = 4
+                # else:
+                #     _code = 5
 
                 self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
             controls = self.secondFlip.update()
@@ -1565,7 +1394,7 @@ class PreemptiveStrike(baseState):
         # stage 1 - drive to boost pad
         if self.phase == 1:
             drive_target = Vector(
-                [self.short_offset, sign(self.agent.team) * 2825.0, 0]
+                [self.short_offset, sign(self.agent.team) * 2850.0, 0]
             )
             if distance2D(self.agent.me.location, drive_target) > 575:
                 return driveController(
@@ -1578,7 +1407,7 @@ class PreemptiveStrike(baseState):
                     kickoff=True,
                 )
             else:
-                self.phase = 2
+                self.phase = 3
 
         # stage 2 - angle towards outside of ball
         if self.phase == 2:
@@ -1590,33 +1419,57 @@ class PreemptiveStrike(baseState):
                     controls.pitch,
                     controls.roll,
                     alignment_error,
-                ) = point_at_position(self.agent, self.agent.ball.location)
+                ) = point_at_position(
+                    self.agent,
+                    self.agent.me.location
+                    + self.agent.me.velocity.normalize().flatten().scale(1000),
+                )
                 return controls
             else:
                 self.phase = 3
         # stage 3 - first flip
         if self.phase == 3:
             if self.firstFlip.active:
-                return self.firstFlip.update()
+                controls = self.firstFlip.update()
+                if self.agent.currentSpd > 2210:
+                    controls.boost = False
+                return controls
+                # return self.firstFlip.update()
+            if not self.agent.onSurface:
+                _controller = SimpleControllerState()
+                (
+                    _controller.steer,
+                    _controller.yaw,
+                    _controller.pitch,
+                    _controller.roll,
+                    _err,
+                ) = point_at_position(
+                    self.agent,
+                    self.agent.me.location
+                    + self.agent.me.velocity.normalize().flatten().scale(1000),
+                )
+                _controller.boost = True
+                _controller.handbrake = True
+                return _controller
             else:
                 self.phase = 4
 
         # stage 4 - aim towards just offcenter of ball
         if self.phase == 4:
             if (
-                distance2D(self.agent.me.location, self.agent.ball.location) > 500
+                distance2D(self.agent.me.location, self.agent.ball.location) > 550
                 or not self.agent.onSurface
             ):
                 if self.agent.me.location[0] > self.agent.ball.location[0]:
                     dummy_location = self.agent.ball.location + Vector(
-                        [65, 75 * sign(self.agent.team), 0]
+                        [60, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
                     # distance2D(self.agent.me.location, dummy_location) * .5)
                 else:
                     dummy_location = self.agent.ball.location + Vector(
-                        [-65, 75 * sign(self.agent.team), 0]
+                        [-60, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
@@ -1647,7 +1500,7 @@ class PreemptiveStrike(baseState):
                     _code = 4
                 else:
                     _code = 5
-
+                # _code = 0
                 self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
             controls = self.secondFlip.update()
             if not self.secondFlip.active:
@@ -1674,7 +1527,9 @@ class PreemptiveStrike(baseState):
         # stage 2 - angle towards outside of ball
         if self.phase == 2:
             drive_target = Vector([4500 * sign(self.agent.team), 0, 0])
-            if distance2D(self.agent.me.location, self.agent.ball.location) > 3875:
+            if (
+                distance2D(self.agent.me.location, self.agent.ball.location) > 3850
+            ):  # 3875:
                 return driveController(
                     self.agent,
                     drive_target,
@@ -1689,26 +1544,46 @@ class PreemptiveStrike(baseState):
         # stage 3 - first flip
         if self.phase == 3:
             if self.firstFlip.active:
-                return self.firstFlip.update()
+                controls = self.firstFlip.update()
+                if self.agent.currentSpd > 2210:
+                    controls.boost = False
+                return controls
+                # return self.firstFlip.update()
             else:
-                self.phase = 4
+                if self.agent.onSurface:
+                    self.phase = 4
+                else:
+                    controls = SimpleControllerState()
+                    (
+                        controls.steer,
+                        controls.yaw,
+                        controls.pitch,
+                        controls.roll,
+                        alignment_error,
+                    ) = point_at_position(
+                        self.agent,
+                        self.agent.me.location
+                        + self.agent.me.velocity.normalize().flatten().scale(1000),
+                    )
+                    return controls
 
         # stage 4 - aim towards just offcenter of ball
         if self.phase == 4:
+
             if (
-                distance2D(self.agent.me.location, self.agent.ball.location) > 500
+                distance2D(self.agent.me.location, self.agent.ball.location) > 550
                 or not self.agent.onSurface
             ):
                 if self.agent.me.location[0] > self.agent.ball.location[0]:
                     dummy_location = self.agent.ball.location + Vector(
-                        [55, 75 * sign(self.agent.team), 0]
+                        [45, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
                     # distance2D(self.agent.me.location, dummy_location) * .5)
                 else:
                     dummy_location = self.agent.ball.location + Vector(
-                        [-55, 75 * sign(self.agent.team), 0]
+                        [-45, 120 * sign(self.agent.team), 0]
                     )
                     # _direction = direction(self.enemyGoal, self.agent.ball.location)
                     drive_target = dummy_location  # + _direction.scale(
@@ -1739,12 +1614,7 @@ class PreemptiveStrike(baseState):
                     _code = 4
                 else:
                     _code = 5
-                # ball_local = self.agent.ball.local_location
-                # if ball_local[1] > 0:
-                #     _code = 5
-                # else:
-                #     _code = 4
-
+                # _code = 0
                 self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
             controls = self.secondFlip.update()
             if not self.secondFlip.active:
@@ -1752,17 +1622,26 @@ class PreemptiveStrike(baseState):
             return controls
 
     def retire(self):
-        if self.phase != 5 or self.secondFlip == None or not self.secondFlip.active:
+        if (
+            not self.secondFlip
+            or not self.secondFlip.active
+            or self.agent.time - self.startTime > 3
+        ):
             self.active = False
-            self.agent.activeState = None
-            # print(f"retiring on stage {self.phase} {self.agent.time}")
+        else:
+            self.queued_retire = True
 
     def update(self):
         if not self.agent.gameInfo.is_round_active:
             self.setup()
 
-        if not self.agent.gameInfo.is_kickoff_pause:
+        if not self.agent.gameInfo.is_kickoff_pause or self.agent.ball.location.flatten() != Vector(
+            [0, 0, 0]
+        ):
             # print(f"retiring due to kickoff pause")
+            self.retire()
+
+        if self.queued_retire:
             self.retire()
 
         if self.KO_option != None:
@@ -1793,6 +1672,10 @@ class DivineGrace(baseState):
         self.tick_length = 5
         self.squash_index = 0
         self.update_count = 0
+        self.collision_timer = 0
+        self.collision_location = Vector([0, 0, 0])
+        self.aim_direction = None
+        self.recovery_limit = 1.5
 
     def get_roll_value(self):
         if self.roll_type == 1:
@@ -1819,44 +1702,71 @@ class DivineGrace(baseState):
 
     def get_controls(self):
         controller_state = SimpleControllerState()
-        controller_state.throttle = 1
-        a_vel = self.agent.me.velocity.scale(1)
-        a_vel.data[self.squash_index] = 0
-        vel_local = matrixDot(self.agent.me.matrix, a_vel)
-        (
-            controller_state.steer,
-            controller_state.yaw,
-            controller_state.pitch,
-            controller_state.roll,
-            __,
-        ) = match_vel(self.agent, vel_local)
 
-        controller_state.roll = self.get_roll_value()
+        aim_vector = self.collision_location - self.agent.me.location
+        if self.collision_timer <= self.recovery_limit:
+            aim_vector.data[self.squash_index] = 0
+
+        if (
+            self.aim_direction != None
+            and self.collision_timer > self.recovery_limit
+            and self.agent.me.location[2] > 100
+        ):
+            aim_vector = (
+                self.aim_direction
+            )  # (self.aim_direction + aim_vector.normalize()).normalize()
+
+        aim_vector = aim_vector.normalize()
+
+        align_car_to(controller_state, self.agent.me.avelocity, aim_vector, self.agent)
+
+        # print(self.collision_timer)
+        if self.collision_timer > self.recovery_limit:
+            if self.agent._forward.dotProduct(aim_vector) > 0.7:
+                if abs(self.agent.me.velocity[2]) < 1500 or self.agent.boostMonster:
+                    if self.agent.me.boostLevel > 20:
+                        controller_state.boost = True
+
+        else:
+            controller_state.roll = self.get_roll_value()
+
+        if self.agent.time - self.agent.flipTimer < 0.5:
+            controller_state.roll = 0
+            controller_state.pitch = 0
+            controller_state.yaw = 0
+
+        controller_state.throttle = 1
+
         return controller_state
 
     def run_simulation(self):
         self.update_count = 5
         simulated_location = self.agent.me.location.scale(1)
         simulated_velocity = self.agent.me.velocity.scale(1)
+        simulated_time = 0
+        self.aim_direction = None
         while (
-            True
+            simulated_time < 10
         ):  # 0 gravity could lead to infinite loop! may want to add hard limiters
             simulated_velocity = simulated_velocity + Vector(
                 [0, 0, self.agent.gravity]
-            ).scale((1 / 120) * self.tick_length)
+            ).scale((self.agent.fakeDeltaTime) * self.tick_length)
             if simulated_velocity.magnitude() > 2300:
                 simulated_velocity = simulated_velocity.normalize().scale(2300)
             simulated_location = simulated_location + simulated_velocity.scale(
-                (1 / 120) * self.tick_length
+                (self.agent.fakeDeltaTime) * self.tick_length
             )
+            simulated_time += self.agent.fakeDeltaTime * self.tick_length
             if simulated_location[2] >= self.ceiling_limit:
                 self.roll_type = 2
                 self.squash_index = 2
                 # print(f"ceiling recovery {self.agent.time}")
+                self.aim_direction = Vector([0, 0, 1])
                 break
             if simulated_location[2] <= self.ground_limit:
                 self.roll_type = 1
                 self.squash_index = 2
+
                 # print(f"ground recovery {self.agent.time}")
                 break
 
@@ -1921,6 +1831,15 @@ class DivineGrace(baseState):
                     # need to keep top left
                     self.roll_type = 3
                 break
+        if simulated_time >= 10:
+            self.roll_type = 1
+            self.squash_index = 2
+
+        if self.aim_direction == None:
+            self.aim_direction = Vector([0, 0, -1])
+
+        self.collision_timer = simulated_time
+        self.collision_location = simulated_location
 
     def update(self):
         self.update_count -= 1
@@ -1936,6 +1855,192 @@ class DivineGrace(baseState):
         # controller_state = SimpleControllerState()
 
         return controller_state
+
+
+# class DivineGrace(baseState): #mooonbots version
+#     def __init__(self, agent):
+#         self.agent = agent
+#         self.active = True
+#         # self.run_simulation()
+#         # print(f"default elevation is: {self.agent.defaultElevation}")
+#         self.x_limit = 4096 - self.agent.defaultElevation
+#         self.y_limit = 5120 - self.agent.defaultElevation
+#         self.ground_limit = self.agent.defaultElevation
+#         self.ceiling_limit = 2044 - self.agent.defaultElevation
+#         self.ideal_orientation = Vector([0, 0, 0])
+#         self.tick_length = 5
+#         self.squash_index = 0
+#         self.update_count = 0
+#         self.collision_timer = 0
+#         self.collision_location = Vector([0, 0, 0])
+#         self.aim_direction = None
+#         self.recovery_limit = 1
+#
+#     def get_roll_value(self):
+#         if self.roll_type == 1:
+#             return turnController(
+#                 -self.agent.me.rotation[2], self.agent.me.rotational_velocity[0] / 4
+#             )  # will make bot roll top up
+#
+#         elif self.roll_type == 2:
+#             return turnController(
+#                 self.agent.me.rotation[2], self.agent.me.rotational_velocity[0] / 4
+#             )  # will make bot roll top down
+#
+#         elif self.roll_type == 3:
+#             return turnController(
+#                 -(3.1415 / 2) - self.agent.me.rotation[2],
+#                 self.agent.me.rotational_velocity[0] / 4,
+#             )  # will make bot roll top left
+#
+#         elif self.roll_type == 4:
+#             return turnController(
+#                 3.1415 / 2 - self.agent.me.rotation[2],
+#                 self.agent.me.rotational_velocity[0] / 4,
+#             )  # will make bot roll top right
+#
+#     def get_controls(self):
+#         controller_state = SimpleControllerState()
+#
+#         aim_vector = self.collision_location - self.agent.me.location
+#         if self.collision_timer <= self.recovery_limit:
+#             aim_vector.data[self.squash_index] = 0
+#
+#         if self.aim_direction != None:
+#             if self.collision_timer > self.recovery_limit:
+#                 aim_vector = (self.aim_direction + aim_vector.normalize()).normalize()
+#
+#         aim_vector = aim_vector.normalize()
+#
+#         align_car_to(controller_state, self.agent.me.avelocity, aim_vector, self.agent)
+#
+#         # print(self.collision_timer)
+#         if self.collision_timer > self.recovery_limit:
+#             if self.agent._forward.dotProduct(aim_vector) > 0.7:
+#                 if abs(self.agent.me.velocity[2]) < 1000 or self.agent.boostMonster:
+#                     if self.agent.me.boostLevel > 20:
+#                         controller_state.boost = True
+#
+#         controller_state.throttle = 1
+#         controller_state.roll = self.get_roll_value()
+#         return controller_state
+#
+#     def run_simulation(self):
+#         self.update_count = 5
+#         simulated_location = self.agent.me.location.scale(1)
+#         simulated_velocity = self.agent.me.velocity.scale(1)
+#         simulated_time = 0
+#         self.aim_direction = None
+#         while (
+#                 simulated_time < 10
+#         ):  # 0 gravity could lead to infinite loop! may want to add hard limiters
+#             simulated_velocity = simulated_velocity + Vector(
+#                 [0, 0, self.agent.gravity]
+#             ).scale((self.agent.fakeDeltaTime) * self.tick_length)
+#             if simulated_velocity.magnitude() > 2300:
+#                 simulated_velocity = simulated_velocity.normalize().scale(2300)
+#             simulated_location = simulated_location + simulated_velocity.scale(
+#                 (self.agent.fakeDeltaTime) * self.tick_length
+#             )
+#             simulated_time += self.agent.fakeDeltaTime * self.tick_length
+#             if simulated_location[2] >= self.ceiling_limit:
+#                 self.roll_type = 2
+#                 self.squash_index = 2
+#                 # print(f"ceiling recovery {self.agent.time}")
+#                 self.aim_direction = Vector([0, 0, 1])
+#                 break
+#             if simulated_location[2] <= self.ground_limit:
+#                 self.roll_type = 1
+#                 self.squash_index = 2
+#
+#                 # print(f"ground recovery {self.agent.time}")
+#                 break
+#
+#             if simulated_location[0] <= -self.x_limit:
+#                 # on blue's right wall
+#                 # print(f"side wall recovery {self.agent.time}")
+#                 self.squash_index = 0
+#                 if simulated_velocity[1] < 0:
+#                     # need to keep top right
+#                     self.roll_type = 4
+#
+#                 else:
+#                     # need to keep top left
+#                     self.roll_type = 3
+#                 break
+#
+#             if simulated_location[0] >= self.x_limit:
+#                 # on blue's left wall
+#                 self.squash_index = 0
+#                 # print(f"side wall recovery {self.agent.time}")
+#                 if simulated_velocity[1] < 0:
+#                     # need to keep top left
+#                     self.roll_type = 3
+#
+#                 else:
+#                     # need to keep top right
+#                     self.roll_type = 4
+#                 break
+#
+#             if simulated_location[1] <= -self.y_limit:
+#                 # on blue's backboard
+#                 # print(f"back wall recovery {self.agent.time}")
+#                 if abs(simulated_location[0]) < 893:
+#                     if simulated_location[2] < 642:
+#                         self.roll_type = 1
+#                         self.squash_index = 2
+#                         break
+#                 self.squash_index = 1
+#                 if simulated_velocity[0] < 0:
+#                     # need to keep top left
+#                     self.roll_type = 3
+#
+#                 else:
+#                     # need to keep top right
+#                     self.roll_type = 4
+#                 break
+#
+#             if simulated_location[1] >= self.y_limit:
+#                 # on orange's backboard
+#                 # print(f"side wall recovery {self.agent.time}")
+#                 if abs(simulated_location[0]) < 893:
+#                     if simulated_location[2] < 642:
+#                         self.roll_type = 1
+#                         self.squash_index = 2
+#                         break
+#                 self.squash_index = 1
+#                 if simulated_velocity[0] < 0:
+#                     # need to keep top right
+#                     self.roll_type = 4
+#
+#                 else:
+#                     # need to keep top left
+#                     self.roll_type = 3
+#                 break
+#         if simulated_time >= 10:
+#             self.roll_type = 1
+#             self.squash_index = 2
+#
+#         if self.aim_direction == None:
+#             self.aim_direction = Vector([0, 0, -1])
+#
+#         self.collision_timer = simulated_time
+#         self.collision_location = simulated_location
+#
+#     def update(self):
+#         self.update_count -= 1
+#         if self.update_count < 0:
+#             self.run_simulation()
+#         controller_state = self.get_controls()
+#         if (
+#             self.agent.onSurface
+#             or self.agent.me.location[1] <= self.agent.recovery_height
+#         ):
+#             self.active = False
+#
+#         # controller_state = SimpleControllerState()
+#
+#         return controller_state
 
 
 class catchTesting(baseState):
@@ -2104,17 +2209,25 @@ class BlessingOfSafety(baseState):
             # return ShellTime(self.agent,retreat_enabled=self.agent.me.location == self.agent.lastMan) #retreat_enabled=self.agent.me.location != self.agent.lastMan
             return ShellTime(self.agent)
         else:
-            if True:
-                if self.agent.rotationNumber == 2:
-                    if len(self.agent.allies) > 0:
-                        # if self.agent.team !=0 or self.agent.lastMan != self.agent.me.location:
-                        if self.agent.lastMan != self.agent.me.location:
-                            return secondManPositioning(self.agent)
-                        else:
-                            return thirdManPositioning(self.agent)
-                    return playBack(self.agent, buffer=4000)
-                else:
+            if self.agent.rotationNumber == 2:
+                # if len(self.agent.allies) == 1 and self.agent.team == 0:
+                #     return playBack(self.agent, buffer=4500)
+                if len(self.agent.allies) > 0:
+                    # if self.agent.team !=0 or self.agent.lastMan != self.agent.me.location:
+                    if self.agent.lastMan != self.agent.me.location:
+                        return secondManPositioning(self.agent)
+                    else:
+                        return thirdManPositioning(self.agent)
+                return playBack(self.agent)
+            else:
+                if len(self.agent.allies) > 0:
                     return thirdManPositioning(self.agent)
+                    # return secondManPositioning(self.agent)
+                else:
+                    return playBack(self.agent)
+
+        # catch case
+        return playBack(self.agent)
 
     # def update(self):
     #     distMin = 1500
@@ -2474,8 +2587,8 @@ def team_synergy(agent):
                         if boostOpportunity[1] == 2 or boostOpportunity[1] == 3:
                             getBoost = True
                     if getBoost:
-                        if agentType != HeavenylyReprieve:
-                            agent.activeState = HeavenylyReprieve(
+                        if agentType != HeavenlyReprieve:
+                            agent.activeState = HeavenlyReprieve(
                                 agent, boostOpportunity[0]
                             )
                         return
@@ -2661,7 +2774,11 @@ def team_synergy(agent):
 
 def newTeamStateManager(agent):
     agentType = type(agent.activeState)
-    if agentType != PreemptiveStrike:
+    if (
+        agentType != PreemptiveStrike
+        or agentType == PreemptiveStrike
+        and not agent.activeState.active
+    ):
 
         if not kickOffTest(agent):
 
@@ -2674,17 +2791,17 @@ def newTeamStateManager(agent):
             if locked_in(agent, agentType):
                 return
 
-            # if agent.onSurface and not agent.onWall:
-            #     if agent.me.retreating:
-            #         if check_for_team_collisions(agent):
-            #             agent.activeState = Divine_Mandate(
-            #                 agent, [SimpleControllerState(jump=True)], [0.2]
-            #             )
-            #             print(f"avoiding team collision while rotating out! {agent.index} : {agent.time}")
-            #             return
-
             fastesthit = agent.sorted_hits[0]  # find_soonest_hit(agent)
             hit = fastesthit
+
+            if (
+                hit.hit_type == 2
+                and abs(agent.me.location[1]) > 5100
+                and len(agent.sorted_hits) > 1
+            ):
+                fastesthit = agent.sorted_hits[1]
+                hit = fastesthit
+
             if hit.hit_type == 5:
                 if agent.enemyBallInterceptDelay + 0.5 < hit.time_difference():
                     if agent.onSurface:
@@ -2696,13 +2813,10 @@ def newTeamStateManager(agent):
             agent.timid = False
             scared = False
             tempDelay = hit.prediction_time - agent.gameInfo.seconds_elapsed
-            # if not agent.dribbling:
-            #     agent.enemyAttacking = True
 
             if tempDelay >= agent.enemyBallInterceptDelay - agent.contestedTimeLimit:
                 if agent.enemyAttacking:
                     agent.contested = True
-                # agent.enemyAttacking = True
 
             if agent.goalPred != None:
                 agent.contested = True
@@ -2713,11 +2827,9 @@ def newTeamStateManager(agent):
                 agent.enemyAttacking = True
 
             if hit.hit_type == 5:
-                # print(f"going for aerial {agent.time}")
                 if not agent.onSurface:
                     if agentType != Wings_Of_Justice:
                         agent.activeState = hit.aerialState  # .create_copy()
-                        # agent.log.append(f"Going for aerial! {agent.time}")
                     return
 
             if agentType == DivineGrace:
@@ -2731,10 +2843,7 @@ def newTeamStateManager(agent):
                     return
 
             lastMan = agent.lastMan
-            # catchViable = ballCatchViable(agent)
             catchViable = False
-            # if agent.team == 1:
-            #     catchViable = ballCatchViable(agent)
             inclusive_team = agent.allies[:]
             inclusive_team.append(agent.me)
             inclusive_team = sorted(inclusive_team, key=lambda x: x.index)
@@ -2751,20 +2860,7 @@ def newTeamStateManager(agent):
                     man = clamp(3, 1, rotations.index(agent.index) + 1)
 
                 agent.rotationNumber = man
-
-                # agent.rotationNumber=man
-
-                # rotations = assign_rotations(inclusive_team, agent.ball.location, lastMan)
-                # if agent.me.location == rotations[0].location:
-                #     man = 1
-                #
-                # elif agent.me.location == rotations[1].location:
-                #     man = 2
-                #
-                # else:
-                #     man = 3
-                #
-                # #agent.rotationNumber=man
+                agent.boostThreshhold = man * 25
 
             else:
                 if (
@@ -2772,6 +2868,11 @@ def newTeamStateManager(agent):
                     or agent.gameInfo.is_kickoff_pause
                 ):
                     man = 2
+                    agent.currentHit = fastesthit
+                    agent.ballDelay = fastesthit.time_difference()
+                    if agentType != Kickoff_Boosties:
+                        agent.activeState = Kickoff_Boosties(agent)
+                    return
                 else:
                     man = 1
                     if agent.me.location[1] * sign(agent.team) < hit.pred_vector[
@@ -2789,67 +2890,36 @@ def newTeamStateManager(agent):
                                         man = len(agent.allies) + 1
 
                     if man != len(agent.allies) + 1:
-
-                        myDist = distance2D(agent.me.location, agent.ball.location)
+                        myDist = weighted_distance_2D(
+                            agent.me.location, agent.ball.location
+                        )
                         for ally in agent.allies:
                             if not ally.demolished:
                                 if ally.location[1] * sign(
                                     agent.team
                                 ) > agent.ball.location[1] * sign(agent.team):
-                                    allyDist = distance2D(
+                                    allyDist = weighted_distance_2D(
                                         ally.location, agent.ball.location
                                     )
                                     if allyDist < myDist:
                                         if not ally.retreating:
                                             man += 1
 
-                    man = clamp(3, 1, man)
+            man = clamp(3, 1, man)
 
-                    # man = 1
-                    # #if ((agent.me.location[1] * sign(agent.team))+100*sign(agent.team) < hit.pred_vector[1] * sign(agent.team) and offensive):
-                    # if agent.me.location[1] * sign(agent.team)< hit.pred_vector[1] * sign(
-                    #         agent.team) and offensive:
-                    #     if agent.me.location != lastMan:
-                    #         #if hit.pred_vector[1] * sign(agent.time) < 4000:
-                    #         man = len(agent.allies) + 1
-                    #
-                    # if offensive:
-                    #     if retreating_tally(agent.allies) != len(agent.allies):
-                    #         if agent.me.retreating:
-                    #             if agent.me.location != lastMan:
-                    #                 if distance2D(hit.pred_vector, myGoalLoc) > 2000:
-                    #                     man = len(agent.allies) + 1
-                    #
-                    # if man != len(agent.allies) + 1:
-                    #
-                    #     myDist = distance2D(agent.me.location, agent.ball.location)
-                    #     for ally in agent.allies:
-                    #         if not ally.demolished:
-                    #             if ally.location[1] * sign(agent.team) > agent.ball.location[1] * sign(agent.team):
-                    #                 allyDist = distance2D(ally.location, agent.ball.location)
-                    #                 if allyDist < myDist:
-                    #                         if not ally.retreating:
-                    #                             man += 1
-
-                man = clamp(3, 1, man)
-
-            # if not agent.contested and agent.goalPred == None and len(agent.allies) < 2:
-            if False:
+            if len(agent.enemies) < 4 and not agent.contested and hit.hit_type != 5:
                 # if not agent.contested and agent.lastMan != agent.me.location and man == 1 and hit.hit_type != 0 and agent.goalPred == None and not ballHeadedTowardsMyGoal_testing(agent, hit) and not agent.ignore_kickoffs:# and agent.team == 1:
                 chrono_hits = agent.sorted_hits
                 prev_hit = hit
                 for h in chrono_hits:
-                    # if h.time_difference() < 1:
-                    #     break
-
-                    if h.hit_type == 5:
-                        continue
+                    if ballHeadedTowardsMyGoal_testing(agent, h):
+                        break
 
                     if distance2D(h.pred_vector, enemyGoalLoc) >= distance2D(
                         agent.me.location, enemyGoalLoc
                     ):
                         break
-                    if h.pred_vel[1] * -sign(agent.team) >= 1:
+                    if h.pred_vel[1] * -sign(agent.team) >= 1 and h.hit_type != 5:
                         if not butterZone(prev_hit.pred_vector):
                             temptime = h.time_difference()
                             if (
@@ -2858,6 +2928,14 @@ def newTeamStateManager(agent):
                                 - agent.contestedTimeLimit
                             ):
                                 hit = h
+                                if (
+                                    agent.onWall
+                                    and hit.hit_type == 2
+                                    or hit.hit_type == 0
+                                    or butterZone(hit.pred_vector)
+                                ):
+                                    agent.ballDelay = hit.time_difference()
+                                    break
                             else:
                                 break
                         else:
@@ -2870,7 +2948,7 @@ def newTeamStateManager(agent):
             if man == 2:
                 if agent.lastMan != agent.me.location:
                     if hit.pred_vector[1] * -sign(agent.team) > 4000 * -sign(
-                        agent.team
+                        agent.team and len(agent.allies) > 1
                     ):
                         if butterZone(hit.pred_vector):
                             if hit.time_difference() < agent.enemyBallInterceptDelay or (
@@ -2919,8 +2997,322 @@ def newTeamStateManager(agent):
                         if boostOpportunity[1] == 2 or boostOpportunity[1] == 3:
                             getBoost = True
                     if getBoost:
-                        if agentType != HeavenylyReprieve:
-                            agent.activeState = HeavenylyReprieve(
+                        if agentType != HeavenlyReprieve:
+                            agent.activeState = HeavenlyReprieve(
+                                agent, boostOpportunity[0]
+                            )
+                        return
+
+            if agent.ignore_kickoffs:
+                if distance2D(hit.pred_vector, myGoalLoc) > 3000:
+                    if agent.activeState != HeetSeekerDefense:
+                        agent.activeState = HeetSeekerDefense(agent)
+                    return
+
+            if agent.goalie:
+                if agent.activeState != Goalie:
+                    agent.activeState = Goalie(agent)
+                return
+
+            if man == 1:
+
+                if catchViable:
+                    if not agent.dribbling:
+                        # if agent.hits[1].pred_vel[1] * -sign(agent.team) >= 1:
+                        agent.currentHit = agent.hits[1]
+                        agent.ballDelay = agent.currentHit.time_difference()
+                        if agent.activeState != Celestial_Arrest:
+                            agent.activeState = Celestial_Arrest(agent)
+                        return
+
+                if carDistanceFromGoal > ballDistanceFromGoal:
+                    if agentType != HolyProtector:
+                        agent.activeState = HolyProtector(agent)
+                    return
+
+                # if agent.contested and agent.enemyBallInterceptDelay +.2 < hit.time_difference() and agent.goalPred == None:
+                #     if agent.team == 1:
+                #         if agentType != Holy_Shield:
+                #             agent.activeState = Holy_Shield(agent)
+                #         return
+
+                if goalward:
+                    if hit.hit_type != 2:
+                        if agentType != HolyProtector:
+                            agent.activeState = HolyProtector(agent)
+                        return
+                    else:
+                        if agentType != ScaleTheWalls:
+                            agent.activeState = ScaleTheWalls(agent)
+                        return
+
+                else:
+
+                    if hit.hit_type == 0:  # hit.pred_vector[2] <= agent.groundCutOff:
+                        if agentType != GroundAssault:
+                            agent.activeState = GroundAssault(agent)
+                        return
+
+                    elif hit.hit_type == 1:
+                        if agentType != HolyGrenade:
+                            agent.activeState = HolyGrenade(agent)
+                        return
+
+                    elif hit.hit_type == 4:
+                        if agentType != HolyGrenade:
+                            agent.activeState = HolyGrenade(agent)
+                            # print("would have been wallshot before")
+                        return
+
+                    elif hit.hit_type == 2:
+                        if agentType != ScaleTheWalls:
+                            agent.activeState = ScaleTheWalls(agent)
+                        return
+
+                    elif hit.hit_type == 5:
+                        if agentType != Wings_Of_Justice:
+                            agent.activeState = hit.aerialState  # .create_copy()
+                            # agent.log.append(f"Going for aerial! {agent.time}")
+                        return
+
+                    else:
+                        agent.log.append(f"condition leaked through! {hit.hit_type}")
+
+            else:
+
+                if agentType != BlessingOfSafety:
+                    agent.activeState = BlessingOfSafety(agent)
+                return
+
+        else:
+            agent.activeState = PreemptiveStrike(agent)
+
+
+def team_manager(agent):
+    agentType = type(agent.activeState)
+    if (
+        agentType != PreemptiveStrike
+        or agentType == PreemptiveStrike
+        and not agent.activeState.active
+    ):
+
+        if not kickOffTest(agent):
+
+            myGoalLoc = Vector([0, 5200 * sign(agent.team), 200])
+            enemyGoalLoc = Vector([0, 5200 * -sign(agent.team), 200])
+
+            ballDistanceFromGoal = distance2D(myGoalLoc, agent.ball.location)
+            carDistanceFromGoal = distance2D(myGoalLoc, agent.me.location)
+
+            if locked_in(agent, agentType):
+                return
+
+            fastesthit = agent.sorted_hits[0]  # find_soonest_hit(agent)
+            hit = fastesthit
+            if hit.hit_type == 5:
+                if agent.enemyBallInterceptDelay + 0.5 < hit.time_difference():
+                    if agent.onSurface:
+                        if len(agent.sorted_hits) > 1:
+                            hit = agent.sorted_hits[1]
+
+            openNet = openGoalOpportunity(agent)
+            agent.openGoal = openNet
+            agent.timid = False
+            scared = False
+            tempDelay = hit.prediction_time - agent.gameInfo.seconds_elapsed
+            # if not agent.dribbling:
+            #     agent.enemyAttacking = True
+
+            if tempDelay >= agent.enemyBallInterceptDelay - agent.contestedTimeLimit:
+                # if agent.enemyAttacking or agent.team == 0:
+                agent.contested = True
+                # agent.enemyAttacking = True
+
+            if agent.goalPred != None:
+                agent.contested = True
+                agent.enemyAttacking = True
+
+            if butterZone(hit.pred_vector):
+                agent.contested = True
+                agent.enemyAttacking = True
+
+            if hit.hit_type == 5:
+                # print(f"going for aerial {agent.time}")
+                if not agent.onSurface:
+                    if agentType != Wings_Of_Justice:
+                        agent.activeState = hit.aerialState  # .create_copy()
+                        # agent.log.append(f"Going for aerial! {agent.time}")
+                    return
+
+            if agentType == DivineGrace:
+                if agent.activeState.active != False:
+                    return
+
+            if not agent.onSurface:
+                if agent.me.location[2] > agent.recovery_height:
+                    if agentType != DivineGrace:
+                        agent.activeState = DivineGrace(agent)
+                    return
+
+            lastMan = agent.lastMan
+            catchViable = False
+            inclusive_team = agent.allies[:]
+            inclusive_team.append(agent.me)
+            inclusive_team = sorted(inclusive_team, key=lambda x: x.index)
+            offensive = agent.ball.location[1] * -sign(agent.team) > 0
+
+            if not agent.gameInfo.is_round_active or agent.gameInfo.is_kickoff_pause:
+                man = 2
+            else:
+                man = 1
+
+                hit_timers = [
+                    [
+                        fastesthit.prediction_time,
+                        agent.me.retreating
+                        or agent.me.location[1] * sign(agent.team)
+                        < fastesthit.pred_vector[1] * sign(agent.team),
+                    ]
+                ]
+                if agent.ally_hit_count == 0:
+                    ally_hits = []
+                    for i in range(len(agent.allies)):
+                        agent.allies[i].next_hit = find_ally_hit(agent, agent.allies[i])
+                        hit_timers.append(
+                            [
+                                agent.allies[i].next_hit.time,
+                                agent.allies[i].retreating
+                                or agent.allies[i].location[1] * sign(agent.team)
+                                < agent.allies[i].next_hit.location[1]
+                                * sign(agent.team),
+                            ]
+                        )
+                        ally_hits.append(
+                            [
+                                agent.allies[i].next_hit.time,
+                                agent.allies[i].retreating
+                                or agent.allies[i].location[1] * sign(agent.team)
+                                < agent.allies[i].next_hit.location[1]
+                                * sign(agent.team),
+                            ]
+                        )
+
+                    agent.ally_hit_info = ally_hits
+
+                else:
+                    hit_timers = hit_timers + agent.ally_hit_info
+
+                agent.ally_hit_count += 1
+                if agent.ally_hit_count > 3:
+                    agent.ally_hit_count = 0
+
+                sorted_team_hits = sorted(hit_timers, key=lambda x: x[0])
+
+                for index, th in enumerate(sorted_team_hits[:]):
+                    if th[1]:
+                        sorted_team_hits.append(th)
+                        sorted_team_hits = sorted_team_hits[1:]
+
+                for i in range(len(sorted_team_hits)):
+                    if (
+                        sorted_team_hits[i][0] < fastesthit.prediction_time
+                        or not sorted_team_hits[i][1]
+                        and agent.me.retreating
+                    ):
+                        man += 1
+                    # print(sorted_team_hits[i][0],fastesthit.prediction_time)
+
+                man = clamp(3, 1, man)
+                agent.boostThreshhold = man * 25
+
+            # if not agent.contested and agent.goalPred == None and len(agent.allies) < 2:
+            if False:  # or (agent.team == 1 and not agent.contested):
+                # if not agent.contested and agent.lastMan != agent.me.location and man == 1 and hit.hit_type != 0 and agent.goalPred == None and not ballHeadedTowardsMyGoal_testing(agent, hit) and not agent.ignore_kickoffs:# and agent.team == 1:
+                chrono_hits = agent.sorted_hits
+                prev_hit = hit
+                for h in chrono_hits:
+                    # if h.time_difference() < 1:
+                    #     break
+
+                    if h.hit_type == 5:
+                        continue
+
+                    if distance2D(h.pred_vector, enemyGoalLoc) >= distance2D(
+                        agent.me.location, enemyGoalLoc
+                    ):
+                        break
+                    if h.pred_vel[1] * -sign(agent.team) >= 1:
+                        if not butterZone(prev_hit.pred_vector):
+                            temptime = h.time_difference()
+                            if (
+                                temptime
+                                < agent.enemyBallInterceptDelay
+                                - agent.contestedTimeLimit
+                            ):
+                                hit = h
+                            else:
+                                break
+                        else:
+                            break
+                    prev_hit = h
+
+                    hit = prev_hit
+                    agent.ballDelay = hit.time_difference()
+
+            if man == 2:
+                if agent.lastMan != agent.me.location:
+                    if hit.pred_vector[1] * -sign(agent.team) > 4000 * -sign(
+                        agent.team and len(agent.allies) > 1
+                    ):
+                        if butterZone(hit.pred_vector):
+                            if hit.time_difference() < agent.enemyBallInterceptDelay or (
+                                hit.time_difference() < 2
+                                and agent.lastMan[1] * sign(agent.team) > 0
+                            ):
+                                man = 1
+                                agent.log.append(
+                                    f"risking it for the biscuit! {agent.time} {agent.team}"
+                                )
+
+            agent.rotationNumber = man
+
+            goalward = ballHeadedTowardsMyGoal_testing(agent, hit)
+            agent.goalward = goalward
+            agent.currentHit = hit
+            agent.ballDelay = hit.time_difference()
+            agent.ballGrounded = False
+
+            if hit.hit_type == 2:
+                agent.wallShot = True
+                agent.ballGrounded = False
+            else:
+                agent.wallShot = False
+                if hit.hit_type == 1:
+                    if hit.pred_vector[2] <= agent.groundCutOff:
+                        agent.ballGrounded = True
+                    else:
+                        agent.ballGrounded = False
+
+            createBox(agent, hit.pred_vector)
+
+            if agent.dribbling:
+                if agentType != AngelicEmbrace:
+                    agent.activeState = AngelicEmbrace(agent)
+                return
+
+            boostOpportunity = inCornerWithBoost(agent)
+            if boostOpportunity != False:
+                if agent.me.boostLevel <= 50:
+                    getBoost = False
+                    if agent.team == 0:
+                        if boostOpportunity[1] == 0 or boostOpportunity[1] == 1:
+                            getBoost = True
+                    else:
+                        if boostOpportunity[1] == 2 or boostOpportunity[1] == 3:
+                            getBoost = True
+                    if getBoost:
+                        if agentType != HeavenlyReprieve:
+                            agent.activeState = HeavenlyReprieve(
                                 agent, boostOpportunity[0]
                             )
                         return
@@ -3014,272 +3406,6 @@ def newTeamStateManager(agent):
 
         else:
             agent.activeState = PreemptiveStrike(agent)
-
-
-# def newTeamStateManager(agent):
-#     agentType = type(agent.activeState)
-#     if agentType != PreemptiveStrike:
-#
-#         if not kickOffTest(agent):
-#             myGoalLoc = Vector([0, 5200 * sign(agent.team), 200])
-#             enemyGoalLoc = Vector([0, 5200 * -sign(agent.team), 200])
-#
-#             ballDistanceFromGoal = distance2D(myGoalLoc, agent.ball.location)
-#             carDistanceFromGoal = distance2D(myGoalLoc, agent.me.location)
-#
-#             if locked_in(agent, agentType):
-#                 return
-#
-#             fastesthit = find_soonest_hit(agent)
-#             hit = fastesthit
-#
-#             openNet = openGoalOpportunity(agent)
-#             agent.openGoal = openNet
-#             agent.timid = False
-#             scared = False
-#             tempDelay = hit.prediction_time - agent.gameInfo.seconds_elapsed
-#             # if not agent.dribbling:
-#             #     agent.enemyAttacking = True
-#
-#             if tempDelay >= agent.enemyBallInterceptDelay - agent.contestedTimeLimit:
-#                 if agent.enemyAttacking:
-#                     agent.contested = True
-#                 # agent.enemyAttacking = True
-#
-#             if agent.goalPred != None:
-#                 agent.contested = True
-#                 agent.enemyAttacking = True
-#
-#             if butterZone(hit.pred_vector):
-#                 agent.contested = True
-#                 agent.enemyAttacking = True
-#
-#             if hit.hit_type == 5:
-#                 # print(f"going for aerial {agent.time}")
-#                 if not agent.onSurface:
-#                     if agentType != Wings_Of_Justice:
-#                         agent.activeState = hit.aerialState  # .create_copy()
-#                         # agent.log.append(f"Going for aerial! {agent.time}")
-#                     return
-#
-#             if agentType == DivineGrace:
-#                 if agent.activeState.active != False:
-#                     return
-#
-#             if not agent.onSurface:
-#                 if agent.me.location[2] > 220:
-#                     if agentType != DivineGrace:
-#                         agent.activeState = DivineGrace(agent)
-#                     return
-#
-#             lastMan = agent.lastMan
-#             # determine which man in rotation I am #1, #2, #3, forward
-#             man = 1
-#             # if agent.me.location[1] * sign(agent.team) < agent.ball.location[1] * sign(agent.team):
-#             if agent.me.location[1] * sign(agent.team) < hit.pred_vector[1] * sign(
-#                 agent.team
-#             ):
-#                 if agent.me.location != lastMan:
-#                     man = len(agent.allies) + 1
-#             offensive = agent.ball.location[1] * -sign(agent.team) > 0
-#             if offensive:
-#                 if retreating_tally(agent.allies) != len(agent.allies):
-#                     if agent.me.retreating:
-#                         if agent.me.location != lastMan:
-#                             if distance2D(hit.pred_vector, myGoalLoc) > 2000:
-#                                 man = len(agent.allies) + 1
-#
-#             if man != len(agent.allies) + 1:
-#
-#                 myDist = distance2D(agent.me.location, agent.ball.location)
-#                 for ally in agent.allies:
-#                     if not ally.demolished:
-#                         # if not offensive:
-#                         #     if ally.location == lastMan:
-#                         #         if agent.team == 0:
-#                         #             continue
-#                         if ally.location[1] * sign(agent.team) > agent.ball.location[1] * sign(agent.team):
-#                             allyDist = distance2D(ally.location, agent.ball.location)
-#                             if allyDist < myDist:
-#                                 #if ally.location != agent.lastMan and agent.ball.location[1] * sign(agent.team) < 0:
-#                                     if not ally.retreating:
-#                                         #if agent.ball.location[1] * -sign(agent.team) < 0:
-#                                         man += 1
-#
-#             man = clamp(3, 1, man)
-#
-#             # if man == 1 or man == 2:
-#             #     if hit.hit_type == 5:
-#             #         # print(f"going for aerial {agent.time}")
-#             #         if agentType != Wings_Of_Justice:
-#             #             agent.activeState = hit.aerialState  # .create_copy()
-#             #             # agent.log.append(f"Going for aerial! {agent.time}")
-#             #        return
-#
-#             # if agent.team == 1:
-#             #     print(agent.index,man)
-#             catchViable = False
-#             # if agent.team == 1:
-#             #     catchViable = False
-#             # else:
-#             #     catchViable = ballCatchViable(agent)
-#             #if agent.team == 0:
-#             #if True:
-#             if not agent.contested and agent.lastMan != agent.me.location and man == 1 and agent.team == 0:
-#                 chrono_hits = SortHits(agent.hits)
-#                 prev_hit = hit
-#                 for h in chrono_hits:
-#                     if h.time_difference() < 1:
-#                         break
-#
-#                     if distance2D(h.pred_vector,enemyGoalLoc) >= distance2D(agent.me.location,enemyGoalLoc):
-#                         break
-#                     if h.pred_vel[1] * -sign(agent.team) >= 1:
-#                         if not butterZone(prev_hit.pred_vector):
-#                             temptime = h.time_difference()
-#                             if (
-#                                 temptime
-#                                 < agent.enemyBallInterceptDelay
-#                                 - agent.contestedTimeLimit
-#                             ):
-#                                 hit = h
-#                             else:
-#                                 break
-#                         else:
-#                             break
-#                     prev_hit = h
-#
-#                     hit = prev_hit
-#                     agent.ballDelay = hit.time_difference()
-#
-#             # print(f"bot: {agent.index} man: {man} {agent.time}")
-#
-#             if man != 1:
-#                 if man < len(agent.allies):
-#                     if hit.pred_vector[1] < 4000 * -sign(agent.team):
-#                         if butterZone(hit.pred_vector):
-#                             if hit.time_difference() < agent.enemyBallInterceptDelay:
-#                                 man = 1
-#                                 agent.log.append(
-#                                     f"risking it for the biscuit! {agent.time} {agent.index}"
-#                                 )
-#
-#             agent.rotationNumber = man
-#
-#             goalward = ballHeadedTowardsMyGoal_testing(agent, hit)
-#             agent.goalward = goalward
-#             agent.currentHit = hit
-#             agent.ballDelay = hit.time_difference()
-#             agent.ballGrounded = False
-#
-#             if hit.hit_type == 2:
-#                 agent.wallShot = True
-#                 agent.ballGrounded = False
-#             else:
-#                 agent.wallShot = False
-#                 if hit.hit_type == 1:
-#                     if hit.pred_vector[2] <= agent.groundCutOff:
-#                         agent.ballGrounded = True
-#                     else:
-#                         agent.ballGrounded = False
-#
-#             createBox(agent, hit.pred_vector)
-#
-#             if agent.dribbling:
-#                 if agentType != AngelicEmbrace:
-#                     agent.activeState = AngelicEmbrace(agent)
-#                 return
-#
-#             boostOpportunity = inCornerWithBoost(agent)
-#             if boostOpportunity != False:
-#                 if agent.me.boostLevel <= 50:
-#                     getBoost = False
-#                     if agent.team == 0:
-#                         if boostOpportunity[1] == 0 or boostOpportunity[1] == 1:
-#                             getBoost = True
-#                     else:
-#                         if boostOpportunity[1] == 2 or boostOpportunity[1] == 3:
-#                             getBoost = True
-#                     if getBoost:
-#                         if agentType != HeavenylyReprieve:
-#                             agent.activeState = HeavenylyReprieve(
-#                                 agent, boostOpportunity[0]
-#                             )
-#                         return
-#
-#             if agent.team == 0 and man == 1 or (agent.team == 1 and man == 1 and agent.ball.location[1] * sign(agent.team) < 0 and agent.lastMan != agent.me.location):
-#
-#                 if catchViable:
-#                     if not agent.dribbling:
-#                         if agent.hits[1].pred_vel[1] * -sign(agent.team) >= 1:
-#                             agent.currentHit = agent.hits[1]
-#                             agent.ballDelay = agent.currentHit.time_difference()
-#                             if agent.activeState != Celestial_Arrest:
-#                                 agent.activeState = Celestial_Arrest(agent)
-#                             return
-#
-#                 if carDistanceFromGoal > ballDistanceFromGoal:
-#                     if agentType != HolyProtector:
-#                         agent.activeState = HolyProtector(agent)
-#                     return
-#
-#                 if goalward:
-#                     if hit.hit_type != 2:
-#                         if agentType != HolyProtector:
-#                             agent.activeState = HolyProtector(agent)
-#                         return
-#                     else:
-#                         if agentType != ScaleTheWalls:
-#                             agent.activeState = ScaleTheWalls(agent)
-#                         return
-#
-#                 else:
-#
-#                     if hit.hit_type == 0:  # hit.pred_vector[2] <= agent.groundCutOff:
-#                         if agentType != GroundAssault:
-#                             agent.activeState = GroundAssault(agent)
-#                         return
-#
-#                     elif hit.hit_type == 1:
-#                         if agentType != HolyGrenade:
-#                             agent.activeState = HolyGrenade(agent)
-#                         return
-#
-#                     elif hit.hit_type == 4:
-#                         if agentType != HolyGrenade:
-#                             agent.activeState = HolyGrenade(agent)
-#                             # print("would have been wallshot before")
-#                         return
-#
-#                     elif hit.hit_type == 2:
-#                         if agentType != ScaleTheWalls:
-#                             agent.activeState = ScaleTheWalls(agent)
-#                         return
-#
-#                     elif hit.hit_type == 5:
-#                         if agentType != Wings_Of_Justice:
-#                             agent.activeState = hit.aerialState  # .create_copy()
-#                             # agent.log.append(f"Going for aerial! {agent.time}")
-#                         return
-#
-#                     else:
-#                         agent.log.append(f"condition leaked through! {hit.hit_type}")
-#
-#             else:
-#                 #if agent.team == 0:
-#                 # if agent.ball.location[1] * sign(agent.team) >= 0:
-#                 #     if agent.lastMan == agent.me.location:
-#                 #         if agentType != WardAgainstEvil:
-#                 #             agent.activeState = WardAgainstEvil(agent)
-#                 #         return
-#
-#
-#                 if agentType != BlessingOfSafety:
-#                     agent.activeState = BlessingOfSafety(agent)
-#                 return
-#
-#         else:
-#             agent.activeState = PreemptiveStrike(agent)
 
 
 def soloStateManager(agent):
@@ -3491,7 +3617,11 @@ def soloStateManager(agent):
 
 def soloStateManager_testing(agent):
     agentType = type(agent.activeState)
-    if agentType != PreemptiveStrike:
+    if (
+        agentType != PreemptiveStrike
+        or agentType == PreemptiveStrike
+        and not agent.activeState.active
+    ):
 
         if not kickOffTest(agent):
             myGoalLoc = Vector([0, 5200 * sign(agent.team), 200])
@@ -3504,10 +3634,6 @@ def soloStateManager_testing(agent):
             if locked_in(agent, agentType):
                 return
 
-            if agentType == Do_No_Evil:
-                if agent.activeState.active:
-                    return
-
             hit = agent.sorted_hits[0]  # find_soonest_hit(agent)
 
             openNet = openGoalOpportunity(agent)
@@ -3515,35 +3641,50 @@ def soloStateManager_testing(agent):
             agent.timid = False
             scared = False
             tempDelay = hit.time_difference()
-            # print(tempDelay)
-            # print(agent.enemyBallInterceptDelay)
+            offensive = hit.pred_vector[1] * sign(agent.team) < 0
 
-            if tempDelay >= agent.enemyBallInterceptDelay - agent.contestedTimeLimit:
-                # if agent.enemyAttacking:
-                # agent.enemyAttacking = True
-                agent.contested = True
-                scared = True
+            if tempDelay >= agent.enemyBallInterceptDelay:
+                if agent.enemyAttacking:
+                    agent.contested = True
+                    if (
+                        tempDelay > agent.enemyBallInterceptDelay and offensive
+                    ):  # and agent.me.boostLevel < agent.boostThreshold:
+                        if (
+                            findDistance(agent.ball.location, agent.me.location) > 600
+                        ):  # and not extendToGoal(agent,hit.pred_vector,agent.me.location):
+                            scared = True
 
-            # else:
-            #     print(f"{tempDelay} {agent.enemyBallInterceptDelay}")
-            # if agent.team == 0:
             if (
                 distance2D(hit.pred_vector, myGoalLoc) <= 2000
                 or distance2D(agent.enemyTargetVec, myGoalLoc) <= 2000
                 or ballDistanceFromGoal <= 2000
             ):
 
-                if agent.enemyAttacking:
+                if (
+                    agent.enemyAttacking
+                ):  # or agent.me.velocity[1] * sign(agent.team) > 1:
                     agent.contested = True
                     agent.timid = False
                     scared = False
-                # agent.enemyAttacking = True
 
             if agent.goalPred != None:
                 agent.contested = True
-                agent.enemyAttacking = True
+                scared = False
 
-            # if agent.team == 0:
+            if hit.hit_type == 5:
+                if not agent.onSurface:
+                    if agentType != Wings_Of_Justice:
+                        agent.activeState = hit.aerialState  # .create_copy()
+                    print(f" aerial is accepted... {agent.time}")
+                    return
+                else:
+                    if agent.sorted_hits[1] != None:
+                        hit = agent.sorted_hits[1]
+
+            if agentType == Do_No_Evil:
+                if agent.activeState.active:
+                    return
+
             if (
                 not agent.contested
                 and not butterZone(hit.pred_vector)
@@ -3553,38 +3694,35 @@ def soloStateManager_testing(agent):
                 prev_hit = hit
                 for h in chrono_hits:
                     if ballHeadedTowardsMyGoal_testing(agent, h):
-                        continue
+                        break
 
                     if h.hit_type == 5:
                         continue
 
                     if h.pred_vel[1] * -sign(agent.team) >= 1:
-                        if not butterZone(prev_hit.pred_vector):
-                            temptime = h.time_difference()
+                        # current_butter = butterZone(h.pred_vector) and h.pred_vector[1] * sign(agent.team) < 0
+                        temptime = h.time_difference()
+                        if (
+                            temptime
+                            < agent.enemyBallInterceptDelay - agent.contestedTimeLimit
+                        ) or not agent.enemyAttacking:
+                            hit = h
                             if (
-                                temptime
-                                < agent.enemyBallInterceptDelay
-                                - agent.contestedTimeLimit
+                                agent.onWall
+                                and hit.hit_type == 2
+                                or hit.hit_type == 0
+                                or butterZone(hit.pred_vector)
                             ):
-                                hit = h
-                                if hit.hit_type == 0:
-                                    agent.ballDelay = hit.time_difference()
-                                    break
-                            else:
+                                agent.ballDelay = hit.time_difference()
                                 break
                         else:
                             break
-                    prev_hit = h
+                        prev_hit = h
 
             goalward = ballHeadedTowardsMyGoal_testing(agent, hit)
             agent.goalward = goalward
             agent.currentHit = hit
             agent.ballDelay = hit.prediction_time - agent.time
-            if scared and agent.team == 3:
-                if agent.activeState != BlessingOfSafety:
-                    agent.activeState = BlessingOfSafety(agent)
-                # print(f"We scared! {agent.time}")
-                return
 
             catchViable = False  # ballCatchViable(agent)# and agent.team == 1
 
@@ -3606,6 +3744,19 @@ def soloStateManager_testing(agent):
                         agent.activeState = DivineGrace(agent)
                     return
 
+            if agent.dribbling:
+                # if not goalward:
+                if agentType != AngelicEmbrace:
+                    agent.activeState = AngelicEmbrace(agent)
+                return
+
+            # if scared and agent.team == 0:
+            # if scared:
+            #     if agent.activeState != BlessingOfSafety:
+            #         agent.activeState = BlessingOfSafety(agent)
+            #     # print(f"We scared! {agent.time}")
+            #     return
+
             if agent.scorePred != None:
                 if (
                     clamp(
@@ -3620,17 +3771,20 @@ def soloStateManager_testing(agent):
                     > agent.scorePred.time - agent.time
                 ):
                     if (
-                        agent.scorePred.time - agent.time
-                    ) + 0.5 < agent.enemyBallInterceptDelay:
+                        (agent.scorePred.time - agent.time) + 0.5
+                        < agent.enemyBallInterceptDelay
+                        and (agent.scorePred.time - agent.time) < 4.5
+                        and not agent.dribbling
+                        and not agent.closestEnemyToBall.demolished
+                    ):
                         # if agent.team == 1:
                         agent.activeState = Do_No_Evil(agent)
                         return
 
-            if agent.dribbling:
-                # if not goalward:
-                if agentType != AngelicEmbrace:
-                    agent.activeState = AngelicEmbrace(agent)
-                return
+                if agent.enemyBallInterceptDelay > agent.scorePred.time - agent.time:
+                    if agent.activeState != BlessingOfSafety:
+                        agent.activeState = BlessingOfSafety(agent)
+                    return
 
             boostOpportunity = inCornerWithBoost(agent)
             if boostOpportunity != False:
@@ -3643,8 +3797,8 @@ def soloStateManager_testing(agent):
                         if boostOpportunity[1] == 2 or boostOpportunity[1] == 3:
                             getBoost = True
                     if getBoost:
-                        if agentType != HeavenylyReprieve:
-                            agent.activeState = HeavenylyReprieve(
+                        if agentType != HeavenlyReprieve:
+                            agent.activeState = HeavenlyReprieve(
                                 agent, boostOpportunity[0]
                             )
                         return
@@ -3796,11 +3950,11 @@ def reset_aerial_test(agent):
     )
     car_state = CarState(
         physics=Physics(
-            velocity=Vector3(z=0, x=0, y=0),
+            velocity=Vector3(z=1000, x=0, y=0),
             location=Vector3(
                 random.randrange(-1500, 1500),
                 sign(agent.team) * random.randrange(1500, 2500),
-                50,
+                100,
             ),
             rotation=agent.defaultRotation,
         )
@@ -3840,7 +3994,7 @@ def aerialTesting(agent):
 
             _direction = direction(pred_vec, center.flatten())
 
-            target = pred_vec + _direction.scale(agent.reachLength * 0.9)
+            target = pred_vec + _direction.scale(agent.reachLength * 0.25)
 
             aerial_accepted = False
             if agent.onSurface:
@@ -3912,8 +4066,8 @@ def dribbleTesting(agent):
                         agent.me.location[2] + 160,
                     ),
                     velocity=Vector3(
-                        agent.me.velocity[0] * 0.8,
-                        agent.me.velocity[1] * 0.8,
+                        agent.me.velocity[0] * 0.95,
+                        agent.me.velocity[1] * 0.95,
                         agent.me.velocity[2],
                     ),
                 )
