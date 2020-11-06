@@ -1112,8 +1112,536 @@ class HeavenlyReprieve(baseState):
             self.active = False
             return ShellTime(self.agent)
 
+class PreemptiveStrike(baseState):
+    def __init__(self, agent):
+        self.agent = agent
+        self.started = False
+        self.firstFlip = None
+        self.secondFlip = None
+        self.active = True
+        self.startTime = agent.time
+        self.kickoff_type = getKickoffPosition(agent.me.location)
+        # 0 == wide diagonal, 1 == short disgonal, 2 == middle
+        agent.stubbornessTimer = 5
+        self.onRight = True
+        self.short_offset = 75
+        self.setup()
+        self.enemyGoal = Vector([0, 5200 * -sign(self.agent.team), 0])
+        self.phase = 1
+        # if agent.team == 0:
+        #     self.KO_option = PreemptiveStrike_botpack(agent)
+        # else:
+        self.KO_option = None
+        self.maintaining_speed = False
+        self.first_recovery = None
 
-class PreemptiveStrike(baseState):  # real kickoff
+    def create_speed_flip_cancel(self, left=False):
+        controls = []
+        timers = []
+        # first_controller = SimpleControllerState()
+        # if left:
+        #     first_controller.steer = 1
+        # else:
+        #     first_controller.steer = -1
+        #
+        # first_controller.handbrake = True
+        # first_controller.throttle = 1
+        # first_controller.boost = True
+        # first_controller.jump = False
+        # controls.append(first_controller)
+        # timers.append(self.agent.fakeDeltaTime * 1)
+
+        second_controller = SimpleControllerState()
+
+        # if left:
+        #     second_controller.steer = 1
+        # else:
+        #     second_controller.steer = -1
+        if not left:
+            second_controller.steer = 1
+        else:
+            second_controller.steer = -1
+
+        second_controller.throttle = 1
+        second_controller.boost = True
+        second_controller.jump = True
+        second_controller.pitch = 1
+        second_controller.handbrake = True
+        controls.append(second_controller)
+        timers.append(0.10)
+
+        third_controller = SimpleControllerState()
+        third_controller.jump = False
+        third_controller.boost = True
+        third_controller.throttle = 1
+        third_controller.pitch = 1
+        controls.append(third_controller)
+        timers.append(self.agent.fakeDeltaTime * 2)
+
+        fourth_controller = SimpleControllerState()
+        # yaw = 1
+        # if left:
+        #     yaw = -1
+
+        yaw = -1
+        if left:
+            yaw = 1
+
+        fourth_controller.yaw = yaw
+        # fourth_controller.roll = yaw
+        fourth_controller.pitch = -1
+        fourth_controller.jump = True
+        fourth_controller.boost = True
+        fourth_controller.throttle = 1
+        controls.append(fourth_controller)
+        timers.append(0.05)
+
+        fifth_controller = SimpleControllerState()
+        fifth_controller.yaw = -yaw
+        # fifth_controller.roll = -yaw
+        fifth_controller.pitch = 1
+        fifth_controller.throttle = 1
+        fifth_controller.boost = True
+        fifth_controller.handbrake = False
+        fifth_controller.jump = True
+        controls.append(fifth_controller)
+        timers.append(0.75)
+
+        action = Divine_Mandate(self.agent, controls, timers)
+        # print(type(action))
+        return action
+
+    def create_diagonal_speed_flip(self, left=False):
+        controls = []
+        timers = []
+        # jump start
+        first_controller = SimpleControllerState()
+        if self.kickoff_type == 0:
+            if self.onRight:
+                first_controller.yaw = -1
+            else:
+                first_controller.yaw = 1
+
+        first_controller.jump = True
+        first_controller.boost = True
+        first_controller.throttle = 1
+        first_controller.pitch = -1
+        first_controller.jump = True
+        controls.append(first_controller)
+        timers.append(0.1)
+
+        # jump delay
+        second_controller = SimpleControllerState()
+        second_controller.jump = False
+        second_controller.boost = True
+        second_controller.throttle = 1
+        if left:
+            yaw = -0.75
+        else:
+            yaw = 0.75
+
+        pitch = -0.25
+
+        second_controller.yaw = yaw
+        second_controller.pitch = pitch
+        second_controller.jump = False
+
+        controls.append(second_controller)
+        timers.append(self.agent.fakeDeltaTime * 4)
+
+        # jump flip
+        third_controller = SimpleControllerState()
+        third_controller.jump = True
+        third_controller.boost = True
+        third_controller.throttle = 1
+
+        if left:
+            yaw = -0.75
+        else:
+            yaw = 0.75
+
+        pitch = -0.25
+
+        third_controller.yaw = yaw
+        third_controller.pitch = pitch
+        controls.append(third_controller)
+        timers.append(0.5)
+
+        action = Divine_Mandate(self.agent, controls, timers)
+        # print(type(action))
+        return action
+
+    def setup(self):
+        # setup randomness like offsets to either side of the ball. Make sure it's slightly offset from middle so we can flip center
+        # setup flips
+        ball_local = (
+            self.agent.ball.local_location
+        )  # localizeVector(Vector([0, 0, 0]), self.agent.me)
+        if self.kickoff_type == 0:
+            if ball_local[1] > 0:
+                # self.firstFlip = self.create_diagonal_speed_flip(left=True)
+                # self.firstFlip = LeapOfFaith(self.agent,9)
+                self.firstFlip = self.create_speed_flip_cancel(left=False)
+                self.onRight = False
+                # print("flipping left")
+            else:
+                # self.firstFlip = self.create_diagonal_speed_flip(left=False)
+                # self.firstFlip = LeapOfFaith(self.agent, 10)
+                self.firstFlip = self.create_speed_flip_cancel(left=True)
+                self.onRight = True
+                # print("flipping right")
+
+        elif self.kickoff_type == 1:
+            if ball_local[1] < 0:
+                self.firstFlip = self.create_diagonal_speed_flip(left=False)
+                self.onRight = True
+                self.short_offset = -50 * sign(self.agent.team)
+            else:
+                self.firstFlip = self.create_diagonal_speed_flip(left=True)
+                self.onRight = False
+                self.short_offset = 50 * sign(self.agent.team)
+                # print(f"on left and short offset == {self.short_offset}")
+
+        else:
+            # middle kickoff defaulting to right
+            self.firstFlip = self.create_diagonal_speed_flip(left=True)
+            # self.onRight shouldn't matter
+
+    def wide_handler(self):
+        # stage 1 - drive to boost pad
+        if self.phase == 1:
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 3150:
+                # return driveController(self.agent, self.enemyGoal+Vector([0,4000*sign(self.agent.team),0]),
+                return driveController(
+                    self.agent,
+                    self.agent.ball.location
+                    + Vector([0, sign(self.agent.team) * -100, 0]),
+                    0,
+                    expedite=True,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 3
+
+        # stage 3 - first flip
+        if self.phase == 3:
+            # if self.firstFlip == None:
+            #     self.firstFlip = self.create_speed_flip_cancel(left=not self.onRight)
+            if self.firstFlip.active:
+                # print(f"first flip active: {str(self.firstFlip)} {self.agent.time} {self.firstFlip.targetCode}")
+                return self.firstFlip.update()
+
+            if not self.agent.onSurface:
+                _controller = SimpleControllerState()
+                (
+                    _controller.steer,
+                    _controller.yaw,
+                    _controller.pitch,
+                    _controller.roll,
+                    _err,
+                ) = point_at_position(self.agent, self.agent.me.location+ self.agent.me.velocity.normalize().flatten().scale(1000))
+                _controller.boost = True
+                _controller.handbrake = True
+                return _controller
+
+            else:
+                self.phase = 4
+                # print(f"switched to stage 4! {self.agent.time}")
+
+        # stage 4 - aim towards just offcenter of ball
+        if self.phase == 4:
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 450:
+                if self.agent.me.location[0] > self.agent.ball.location[0]:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [25, 120 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal,self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(distance2D(self.agent.me.location,dummy_location)*.5)
+                else:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [-25, 120 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal, self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(
+                    # distance2D(self.agent.me.location, dummy_location) * .5)
+
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=not self.agent.superSonic,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 5
+                # print(f"switched to stage 5! {self.agent.time}")
+
+        # stage 5 - flip through center and end kickoff
+        # 4 flip left, 5 flip right
+        if self.phase == 5:
+            if self.secondFlip == None:
+                if (
+                    self.agent.team == 0
+                    and self.agent.me.location[0] < self.agent.ball.location[0]
+                    or self.agent.team == 1
+                    and self.agent.me.location[0] > self.agent.ball.location[0]
+                ):
+                    _code = 5
+                else:
+                    _code = 4
+                #     _code = 4
+                # else:
+                #     _code = 5
+
+                self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
+            controls = self.secondFlip.update()
+            if not self.secondFlip.active:
+                self.retire()
+            return controls
+
+    def short_handler(self):
+        # stage 1 - drive to boost pad
+        if self.phase == 1:
+            drive_target = Vector(
+                [self.short_offset, sign(self.agent.team) * 2825.0, 0]
+            )
+            if distance2D(self.agent.me.location, drive_target) > 575:
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=True,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 3
+
+        # stage 2 - angle towards outside of ball
+        if self.phase == 2:
+            controls = SimpleControllerState()
+            if not self.agent.onSurface:
+                (
+                    controls.steer,
+                    controls.yaw,
+                    controls.pitch,
+                    controls.roll,
+                    alignment_error,
+                ) = point_at_position(self.agent, self.agent.me.location+ self.agent.me.velocity.normalize().flatten().scale(1000))
+                return controls
+            else:
+                self.phase = 3
+        # stage 3 - first flip
+        if self.phase == 3:
+            if self.firstFlip.active:
+                return self.firstFlip.update()
+            if not self.agent.onSurface:
+                _controller = SimpleControllerState()
+                (
+                    _controller.steer,
+                    _controller.yaw,
+                    _controller.pitch,
+                    _controller.roll,
+                    _err,
+                ) = point_at_position(self.agent,
+                                      self.agent.me.location + self.agent.me.velocity.normalize().flatten().scale(
+                                          1000))
+                _controller.boost = True
+                _controller.handbrake = True
+                return _controller
+            else:
+                self.phase = 4
+
+        # stage 4 - aim towards just offcenter of ball
+        if self.phase == 4:
+            if (
+                distance2D(self.agent.me.location, self.agent.ball.location) > 500
+                or not self.agent.onSurface
+            ):
+                if self.agent.me.location[0] > self.agent.ball.location[0]:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [65, 75 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal, self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(
+                    # distance2D(self.agent.me.location, dummy_location) * .5)
+                else:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [-65, 75 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal, self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(
+                    # distance2D(self.agent.me.location, dummy_location) * .5)
+
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=not self.agent.superSonic,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 5
+
+        # stage 5 - flip through center and end kickoff
+        # 4 flip left, 5 flip right
+        if self.phase == 5:
+            if self.secondFlip == None:
+                if (
+                    self.agent.team == 0
+                    and self.agent.me.location[0] < self.agent.ball.location[0]
+                    or self.agent.team == 1
+                    and self.agent.me.location[0] > self.agent.ball.location[0]
+                ):
+                    _code = 4
+                else:
+                    _code = 5
+                #_code = 0
+                self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
+            controls = self.secondFlip.update()
+            if not self.secondFlip.active:
+                self.retire()
+            return controls
+
+    def middle_handler(self):
+        # stage 1 - drive to boost pad
+        if self.phase == 1:
+            drive_target = Vector([0, sign(self.agent.team) * 4000, 0])
+            if distance2D(self.agent.me.location, drive_target) > 75:
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=True,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 2
+
+        # stage 2 - angle towards outside of ball
+        if self.phase == 2:
+            drive_target = Vector([4500 * sign(self.agent.team), 0, 0])
+            if distance2D(self.agent.me.location, self.agent.ball.location) > 3850:#3875:
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=True,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 3
+        # stage 3 - first flip
+        if self.phase == 3:
+            if self.firstFlip.active:
+                return self.firstFlip.update()
+            else:
+                if self.agent.onSurface:
+                    self.phase = 4
+                else:
+                    controls = SimpleControllerState()
+                    (
+                        controls.steer,
+                        controls.yaw,
+                        controls.pitch,
+                        controls.roll,
+                        alignment_error,
+                    ) = point_at_position(self.agent, self.agent.me.location+ self.agent.me.velocity.normalize().flatten().scale(1000))
+                    return controls
+
+        # stage 4 - aim towards just offcenter of ball
+        if self.phase == 4:
+
+            if (
+                distance2D(self.agent.me.location, self.agent.ball.location) > 500
+                or not self.agent.onSurface
+            ):
+                if self.agent.me.location[0] > self.agent.ball.location[0]:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [55, 75 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal, self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(
+                    # distance2D(self.agent.me.location, dummy_location) * .5)
+                else:
+                    dummy_location = self.agent.ball.location + Vector(
+                        [-55, 75 * sign(self.agent.team), 0]
+                    )
+                    # _direction = direction(self.enemyGoal, self.agent.ball.location)
+                    drive_target = dummy_location  # + _direction.scale(
+                    # distance2D(self.agent.me.location, dummy_location) * .5)
+
+                return driveController(
+                    self.agent,
+                    drive_target,
+                    0,
+                    expedite=not self.agent.superSonic,
+                    flippant=False,
+                    maintainSpeed=self.maintaining_speed,
+                    kickoff=True,
+                )
+            else:
+                self.phase = 5
+
+        # stage 5 - flip through center and end kickoff
+        # 4 flip left, 5 flip right
+        if self.phase == 5:
+            if self.secondFlip == None:
+                if (
+                    self.agent.team == 0
+                    and self.agent.me.location[0] < self.agent.ball.location[0]
+                    or self.agent.team == 1
+                    and self.agent.me.location[0] > self.agent.ball.location[0]
+                ):
+                    _code = 4
+                else:
+                    _code = 5
+                #_code = 0
+                self.secondFlip = LeapOfFaith(self.agent, _code, target=None)
+            controls = self.secondFlip.update()
+            if not self.secondFlip.active:
+                self.retire()
+            return controls
+
+    def retire(self):
+        if self.phase != 5 or self.secondFlip == None or not self.secondFlip.active:
+            self.active = False
+            #self.agent.activeState = None
+            # print(f"retiring on stage {self.phase} {self.agent.time}")
+
+    def update(self):
+        if not self.agent.gameInfo.is_round_active:
+            self.setup()
+
+        if not self.agent.gameInfo.is_kickoff_pause:
+            # print(f"retiring due to kickoff pause")
+            self.retire()
+
+        if self.KO_option != None:
+            if not self.KO_option.active:
+                self.retire()
+            return self.KO_option.update()
+
+        # 0 == wide diagonal, 1 == short disgonal, 2 == middle
+        if self.kickoff_type == 0:
+            return self.wide_handler()
+        elif self.kickoff_type == 1:
+            return self.short_handler()
+        else:
+            return self.middle_handler()
+
+class PreemptiveStrike_BAK(baseState):  # real kickoff
     def __init__(self, agent):
         self.agent = agent
         self.started = False
