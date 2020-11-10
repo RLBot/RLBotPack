@@ -34,6 +34,7 @@ class MyBot(BaseAgent):
             modelDir = "src\\orangeModel"
             
         self.model = tf.keras.models.load_model(modelDir) 
+        self.isKickoff = True  
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:    
         if(packet.game_info.is_round_active == False):
