@@ -24,8 +24,13 @@ class JumpShotManeuver(Maneuver):
         self.jump_begin_time = -1
         self.jump_pause_counter = 0
         self.dodge_begin_time = -1
+        self.announced_in_quick_chat = False
 
     def exec(self, bot):
+
+        if not self.announced_in_quick_chat:
+            self.announced_in_quick_chat = True
+            bot.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Information_IGotIt)
 
         ct = bot.info.time
         car = bot.info.my_car
@@ -39,7 +44,7 @@ class JumpShotManeuver(Maneuver):
         # Expected future velocity
         vf = car.vel + GRAVITY * T
 
-        # Set is set to false while jumping to avoid FeelsBackFlipMan
+        # Is set to false while jumping to avoid FeelsBackFlipMan
         rotate = True
 
         if self.jumping:
@@ -98,7 +103,7 @@ class JumpShotManeuver(Maneuver):
         # We are not pressing jump, so let's align the car
         if rotate and not dodging:
 
-            if self.do_dodge and norm(car_to_hit_pos) < Ball.RADIUS + 70:
+            if self.do_dodge and norm(car_to_hit_pos) < Ball.RADIUS + 80:
                 # Start dodge
 
                 self.dodge_begin_time = ct
@@ -128,7 +133,7 @@ class JumpShotManeuver(Maneuver):
                 controls.yaw = pd.yaw
 
         if not dodging and angle_between(car.forward, direction) < 0.3:
-            if norm(delta_pos) > 50:
+            if norm(delta_pos) > 40:
                 controls.boost = 1
                 controls.throttle = 0
             else:
@@ -139,7 +144,11 @@ class JumpShotManeuver(Maneuver):
             controls.throttle = 0
 
         prediction = predict.ball_predict(bot, T)
-        self.done = T < 0 or norm(self.hit_pos - prediction.pos) > 50
+        self.done = T < 0
+        if norm(self.hit_pos - prediction.pos) > 50:
+            # Jump shot failed
+            self.done = True
+            bot.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Apologies_Cursing)
 
         if bot.do_rendering:
             car_to_hit_dir = normalize(self.hit_pos - car.pos)
@@ -194,5 +203,4 @@ class JumpShotManeuver(Maneuver):
         boost_estimate = (tau2 - tau1) * BOOST_PR_SEC
         enough_boost = boost_estimate < 0.95 * car.boost
         enough_time = abs(ratio) < 0.9
-        QuickChats
         return norm(velocity_estimate) < 0.9 * MAX_SPEED and enough_boost and enough_time

@@ -1,7 +1,9 @@
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket, FieldInfo
+from rlbot.utils.structures.quick_chats import QuickChats
 
 from strategy.objective import Objective
+from utility.easing import lin_fall
 from utility.rlmath import clip
 from utility.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
 
@@ -56,6 +58,8 @@ class Car:
         self.on_ground = True
         self.supersonic = False
 
+        self.last_quick_chat = None
+
         self.last_expected_time_till_reach_ball = 3
 
         self.last_input = SimpleControllerState()
@@ -78,6 +82,47 @@ class Car:
     @property
     def up(self) -> Vec3:
         return self.rot.col(2)
+
+    def got_it_according_to_quick_chat_01(self, time) -> float:
+        if self.last_quick_chat is None:
+            return 1.0
+        if self.last_quick_chat.message in QuickChat.I_GOT_IT_MESSAGES:
+            return 1.0 + QuickChat.RELEVANCE * lin_fall(time - self.last_quick_chat.time, QuickChat.RELEVANCE_DURATION)
+        if self.last_quick_chat.message in QuickChat.YOU_GOT_IT_MESSAGES:
+            return 1.0 - QuickChat.RELEVANCE * lin_fall(time - self.last_quick_chat.time, QuickChat.RELEVANCE_DURATION)
+        return 1.0
+
+    def is_following_up_according_to_quick_chat_01(self, time) -> float:
+        if self.last_quick_chat is None:
+            return 1.0
+        if self.last_quick_chat.message in QuickChat.WONT_FOLLOW_UP_MESSAGES:
+            return 1.0 - QuickChat.RELEVANCE * lin_fall(time - self.last_quick_chat.time, QuickChat.RELEVANCE_DURATION)
+        return 1.0
+
+
+class QuickChat:
+    I_GOT_IT_MESSAGES = [
+        QuickChats.Information_IGotIt
+    ]
+    YOU_GOT_IT_MESSAGES = [
+        QuickChats.Information_NeedBoost,
+        QuickChats.Information_TakeTheShot,
+        QuickChats.Information_Defending,
+        QuickChats.Information_GoForIt,
+        QuickChats.Information_AllYours,
+    ]
+    WONT_FOLLOW_UP_MESSAGES = [
+        QuickChats.Information_NeedBoost,
+        QuickChats.Information_Defending
+    ]
+    RELEVANCE_DURATION = 2.5  # RL is a fast game
+    RELEVANCE = 0.3  # Percentage
+
+    def __init__(self, sender, sender_team, message, time):
+        self.sender = sender
+        self.sender_team = sender_team
+        self.message = message
+        self.time = time
 
 
 class BoostPad:
@@ -262,6 +307,11 @@ class GameInfo:
                 enemy = e
                 dist = d
         return enemy, dist
+
+    def handle_quick_chat(self, sender, sender_team, message):
+        if 0 <= sender < len(self.cars):
+            car = self.cars[sender]
+            car.last_quick_chat = QuickChat(sender, sender_team, message, self.time)
 
 
 def is_near_wall(point: Vec3, offset: float=110) -> bool:
