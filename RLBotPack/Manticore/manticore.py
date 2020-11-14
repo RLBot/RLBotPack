@@ -72,6 +72,7 @@ class Manticore(BaseAgent):
                 Objective.GO_FOR_IT: self.renderer.lime(),
                 Objective.FOLLOW_UP: self.renderer.yellow(),
                 Objective.ROTATING: self.renderer.red(),
+                Objective.SOLO: self.renderer.team_color(alt_color=True),
                 Objective.UNKNOWN: self.renderer.team_color(alt_color=True)
             }[self.info.my_car.objective]
             if doing is not None:
@@ -98,6 +99,9 @@ class Manticore(BaseAgent):
             self.info.my_car.last_input.pitch = controller.pitch
             self.info.my_car.last_input.yaw = controller.yaw
             self.info.my_car.last_input.boost = controller.boost
+
+    def handle_quick_chat(self, index, team, quick_chat):
+        self.info.handle_quick_chat(index, team, quick_chat)
 
     def use_brain(self) -> SimpleControllerState:
         # Check kickoff
