@@ -2,7 +2,7 @@ from maneuvers.driving.travel import Travel
 from maneuvers.driving.stop import Stop
 from maneuvers.driving.drive import Drive
 from maneuvers.maneuver import Maneuver
-from rlutilities.linear_algebra import vec3
+from rlutilities.linear_algebra import vec3, dot
 from rlutilities.simulation import Car
 from tools.arena import Arena
 from tools.drawing import DrawingTool
@@ -25,7 +25,7 @@ class GeneralDefense(Maneuver):
     BOOST_LOOK_RADIUS = 1200
     BOOST_LOOK_ANGLE = 0.5
 
-    def __init__(self, car: Car, info: GameInfo, face_target: vec3, distance_from_target: float):
+    def __init__(self, car: Car, info: GameInfo, face_target: vec3, distance_from_target: float, force_nearest=False):
         super().__init__(car)
 
         self.info = info
@@ -34,10 +34,12 @@ class GeneralDefense(Maneuver):
         dist = min(distance_from_target, ground_distance(face_target, self.info.my_goal.center) - 50)
         target_pos = ground(face_target) + ground_direction(face_target, self.info.my_goal.center) * dist
 
-        near_goal = ground_distance(car, info.my_goal.center) < 3000
-        side_shift = 400 if near_goal else 2500
-        points = [target_pos + vec3(side_shift, 0, 0), target_pos - vec3(side_shift, 0, 0)]
-        target_pos = nearest_point(face_target, points) if near_goal else farthest_point(face_target, points)
+        near_goal = abs(car.position[1] - info.my_goal.center[1]) < 3000
+        side_shift = 400 if near_goal else 1800
+        points = target_pos + vec3(side_shift, 0, 0), target_pos - vec3(side_shift, 0, 0)
+        target_pos = nearest_point(face_target, points) if near_goal or force_nearest else farthest_point(face_target, points)
+        if abs(face_target[0]) < 1000 or ground_distance(car, face_target) < 1000:
+            target_pos = nearest_point(car.position, points)
         target_pos = Arena.clamp(target_pos, 500)
 
         self.travel = Travel(car, target_pos)
@@ -94,7 +96,7 @@ class GeneralDefense(Maneuver):
                 self.controls = self.travel.controls
 
         # don't waste boost during downtime
-        self.controls.boost = False
+        if self.car.boost < 100 and ground_distance(self.car, self.travel.target) < 4000: self.controls.boost = False
 
         self.finished = self.travel.driving and self.car.time > self.start_time + self.DURATION
 

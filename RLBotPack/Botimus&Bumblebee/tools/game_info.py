@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
 
-from rlutilities.simulation import Game, Car, Ball, Pad
+from rlutilities.simulation import Game, Car, Ball, Pad, Input
 from rlutilities.linear_algebra import vec3, vec2, norm, normalize, cross, rotation, dot, xy
 
 from tools.vector_math import distance
@@ -15,14 +15,17 @@ class Goal:
     DISTANCE = 5120.0
 
     def __init__(self, team):
-        sign = 1 - 2 * team
-        self.center = vec3(0, -sign * Goal.DISTANCE, Goal.HEIGHT / 2.0)
-        self.l_post = vec3(sign * Goal.WIDTH / 2, -sign * Goal.DISTANCE, 0)
-        self.r_post = vec3(-sign * Goal.WIDTH / 2, -sign * Goal.DISTANCE, 0)
+        self.sign = 1 - 2 * team
+        self.l_post = vec3(self.sign * Goal.WIDTH / 2, -self.sign * Goal.DISTANCE, 0)
+        self.r_post = vec3(-self.sign * Goal.WIDTH / 2, -self.sign * Goal.DISTANCE, 0)
         self.team = team
 
     def inside(self, pos) -> bool:
         return pos[1] < -Goal.DISTANCE if self.team == 0 else pos[1] > Goal.DISTANCE
+
+    @property
+    def center(self):
+        return vec3(0, -self.sign * Goal.DISTANCE, Goal.HEIGHT / 2.0)
 
 
 class GameInfo(Game):
@@ -62,10 +65,10 @@ class GameInfo(Game):
         return [self.cars[i] for i in range(self.num_cars)
                 if self.cars[i].team == self.team and self.cars[i].id != car.id]
 
-    def get_opponents(self, car: Car) -> List[Car]:
-        return [self.cars[i] for i in range(self.num_cars) if self.cars[i].team != car.team]
+    def get_opponents(self) -> List[Car]:
+        return [self.cars[i] for i in range(self.num_cars) if self.cars[i].team != self.team]
 
-    def predict_ball(self, time_limit=6.0, dt=1/120):
+    def predict_ball(self, duration=5.0, dt=1 / 120):
         self.about_to_score = False
         self.about_to_be_scored_on = False
         self.time_of_goal = -1
@@ -73,7 +76,14 @@ class GameInfo(Game):
         self.ball_predictions = []
         prediction = Ball(self.ball)
 
-        while prediction.time < self.ball.time + time_limit:
+        # nearest_opponent = Car(min(self.get_opponents(), key=lambda opponent: distance(opponent, prediction)))
+
+        while prediction.time < self.time + duration:
+            # if prediction.time < self.time + 1.0:
+            #     nearest_opponent.step(Input(), dt)
+            #     nearest_opponent.velocity[2] = 0
+            #     prediction.step(dt, nearest_opponent)
+            # else:
             prediction.step(dt)
             self.ball_predictions.append(Ball(prediction))
 

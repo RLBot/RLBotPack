@@ -14,8 +14,8 @@ from tools.vector_math import ground_direction
 class Strike(Maneuver):
     allow_backwards = False
     update_interval = 0.2
-    stop_updating = 0.3
-    max_additional_time = 0.5
+    stop_updating = 0.1
+    max_additional_time = 0.4
 
     def __init__(self, car: Car, info: GameInfo, target: vec3 = None):
         super().__init__(car)
@@ -40,6 +40,7 @@ class Strike(Maneuver):
         self.arrive.target = intercept.ground_pos
         self.arrive.arrival_time = intercept.time
         self.arrive.backwards = self._should_strike_backwards
+        self.arrive.asap = not intercept.predicate_later_than_time
 
     def update_intercept(self):
         self.intercept = Intercept(self.car, self.info.ball_predictions, self.intercept_predicate)
@@ -66,9 +67,12 @@ class Strike(Maneuver):
             self._last_update_time + self.update_interval < self.car.time < self.intercept.time - self.stop_updating
             and self.car.on_ground and not self.controls.jump
         ):
-            self.info.predict_ball(time_limit=self.intercept.time - self.car.time + 1)
+            self.info.predict_ball(duration=self.intercept.time - self.car.time + 1)
             self._has_drawn_prediction = False
             self.update_intercept()
+
+        if self.intercept.time - self.car.time > 1.0 and self.interruptible() and not self.car.on_ground:
+            self.finished = True
 
         self.arrive.step(dt)
         self.controls = self.arrive.controls
@@ -94,6 +98,6 @@ class Strike(Maneuver):
             self._has_drawn_prediction = True
             draw.ball_prediction(self.info.ball_predictions, self.intercept.time)
 
-    @staticmethod
-    def pick_easiest_target(car: Car, ball: Ball, targets: List[vec3]) -> vec3:
-        return max(targets, key=lambda target: dot(ground_direction(car, ball), ground_direction(ball, target)))
+    def pick_easiest_target(self, car: Car, ball: Ball, targets: List[vec3]) -> vec3:
+        to_goal = ground_direction(ball, self.info.their_goal.center)
+        return max(targets, key=lambda target: dot(ground_direction(car, ball) + to_goal * 0.5, ground_direction(ball, target)))

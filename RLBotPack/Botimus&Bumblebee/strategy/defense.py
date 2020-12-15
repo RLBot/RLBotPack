@@ -11,7 +11,7 @@ def any_clear(info: GameInfo, car: Car) -> Strike:
     ]
 
     if car.boost > 40:  # TODO
-        clears.append(AerialClear(car, info))
+        # clears.append(AerialClear(car, info))
         clears.append(FastAerialClear(car, info))
 
     return min(clears, key=lambda clear: clear.intercept.time)

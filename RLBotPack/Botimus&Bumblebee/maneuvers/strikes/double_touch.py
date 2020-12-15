@@ -1,10 +1,12 @@
+from typing import List
+
 from maneuvers.maneuver import Maneuver
 from maneuvers.strikes.aerial_strike import AerialStrike
 from rlutilities.linear_algebra import vec3
 from rlutilities.mechanics import Aerial
-from tools.intercept import AirToAirIntercept
+from tools import intercept
 from tools.drawing import DrawingTool
-from tools.vector_math import direction
+from tools.vector_math import direction, distance
 
 
 class DoubleTouch(Maneuver):
@@ -17,22 +19,30 @@ class DoubleTouch(Maneuver):
         self.info = self.aerial_strike.info
 
         self.aerial = Aerial(self.car)
+        self.aerial.up = vec3(0, 0, -1)
+
+        self._flight_path: List[vec3] = []
 
     def find_second_touch(self):
-        self.info.predict_ball(time_limit=3.0)
-        intercept = AirToAirIntercept(self.car, self.info.ball_predictions)
-        self.aerial.target = intercept.position - direction(intercept, self.aerial_strike.target) * 80
-        self.aerial.up = vec3(0, 0, -1)
-        self.aerial.arrival_time = intercept.time
+        self.info.predict_ball(duration=4.0)
+        for i in range(0, len(self.info.ball_predictions), 5):
+            ball = self.info.ball_predictions[i]
+            if ball.position[2] < 500: break
+            self.aerial.target = ball.position - direction(ball, self.aerial_strike.target) * 80
+            self.aerial.arrival_time = ball.time
+            final_car = AerialStrike.simulate_flight(self.car, self.aerial, self._flight_path)
+            if distance(final_car, self.aerial.target) < 50:
+                return
 
-        if not intercept.is_viable:
-            self.finished = True
+        self.finished = True
 
     def step(self, dt: float):
         if self.aerial_strike.finished:
             self.aerial.step(dt)
             self.controls = self.aerial.controls
             self.finished = self.aerial.finished
+            if self.car.on_ground: self.finished = True
+
         else:
             self.aerial_strike.step(dt)
             self.controls = self.aerial_strike.controls
@@ -50,5 +60,7 @@ class DoubleTouch(Maneuver):
         if self.aerial_strike.finished:
             draw.color(draw.pink)
             draw.crosshair(self.aerial.target)
+            draw.color(draw.lime)
+            draw.polyline(self._flight_path)
         else:
             self.aerial_strike.render(draw)
