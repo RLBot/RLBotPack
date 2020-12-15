@@ -37,12 +37,13 @@ class Ball():
     def __init__(self) -> None: ...
     def hitbox(self) -> sphere: ...
     @overload
-    def step(self, arg0: float) -> None: 
+    def step(self, arg0: float, arg1: Car) -> None: 
         pass
     @overload
-    def step(self, arg0: float, arg1: Car) -> None: ...
+    def step(self, arg0: float) -> None: ...
 
     angular_velocity: vec3
+    gravity: vec3
     position: vec3
     time: float
     velocity: vec3
@@ -50,10 +51,10 @@ class Ball():
 class Car():
 
     @overload
-    def __init__(self) -> None: 
+    def __init__(self, arg0: Car) -> None: 
         pass
     @overload
-    def __init__(self, arg0: Car) -> None: ...
+    def __init__(self) -> None: ...
     def extrapolate(self, arg0: float) -> None: ...
     def forward(self) -> vec3: ...
     def hitbox(self) -> obb: ...
@@ -68,6 +69,7 @@ class Car():
     dodge_rotation: mat2
     dodge_timer: float
     double_jumped: bool
+    gravity: vec3
     id: int
     jump_timer: float
     jumped: bool
@@ -196,10 +198,10 @@ class obb():
 class ray():
 
     @overload
-    def __init__(self) -> None: 
+    def __init__(self, arg0: vec3, arg1: vec3) -> None: 
         pass
     @overload
-    def __init__(self, arg0: vec3, arg1: vec3) -> None: ...
+    def __init__(self) -> None: ...
 
     direction: vec3
     start: vec3
@@ -207,10 +209,10 @@ class ray():
 class sphere():
 
     @overload
-    def __init__(self, arg0: vec3, arg1: float) -> None: 
+    def __init__(self) -> None: 
         pass
     @overload
-    def __init__(self) -> None: ...
+    def __init__(self, arg0: vec3, arg1: float) -> None: ...
 
     center: vec3
     radius: float

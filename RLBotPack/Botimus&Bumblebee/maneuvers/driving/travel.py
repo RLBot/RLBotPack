@@ -6,7 +6,7 @@ from rlutilities.mechanics import Wavedash, Dodge
 from rlutilities.simulation import Car
 from tools.arena import Arena
 from tools.drawing import DrawingTool
-from tools.intercept import estimate_max_car_speed, estimate_time
+from tools.intercept import estimate_time
 from tools.vector_math import ground, distance, ground_distance, angle_to, direction
 
 
@@ -17,7 +17,7 @@ class Travel(Maneuver):
 
     DODGE_DURATION = 1.5
     HALFFLIP_DURATION = 2
-    WAVEDASH_DURATION = 1.3
+    WAVEDASH_DURATION = 1.45
 
     def __init__(self, car: Car, target: vec3 = vec3(0, 0, 0), waste_boost=False):
         super().__init__(car)
@@ -30,10 +30,11 @@ class Travel(Maneuver):
         self.driving = True
 
         # decide whether to start driving backwards and halfflip later
-        forward_estimate = estimate_time(car, self.target, estimate_max_car_speed(car))
-        backwards_estimate = estimate_time(car, self.target, 1400, -1) + 0.5
+        forward_estimate = estimate_time(car, self.target)
+        backwards_estimate = estimate_time(car, self.target, -1) + 0.5
         backwards = (
-                backwards_estimate < forward_estimate
+                dot(car.velocity, car.forward()) < 500
+                and backwards_estimate < forward_estimate
                 and (distance(car, self.target) > 3000 or distance(car, self.target) < 300)
                 and car.position[2] < 200
         )
@@ -62,6 +63,7 @@ class Travel(Maneuver):
                 and car.position[2] < 200
                 and car_speed < 2000
                 and angle_to(car, target, backwards=forward_speed < 0) < 0.1
+                and car.gravity[2] < -500  # don't dodge in low gravity
             ):
                 # if going forward, use a dodge or a wavedash
                 if forward_speed > 0:

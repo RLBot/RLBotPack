@@ -6,6 +6,7 @@ from rlutilities.linear_algebra import vec3, dot, normalize, sgn
 
 # Most of this class is from the old RLUtilities, made by chip.
 # The dodge in the new RLUtilities is a bit different, and my shot mechanics are tuned for this one, so I kept it.
+from tools.math import clamp11
 
 
 class AirDodge(Maneuver):
@@ -56,7 +57,11 @@ class AirDodge(Maneuver):
 
                     self.controls.roll = 0
                     self.controls.pitch = -target_direction[0]
-                    self.controls.yaw = sgn(self.car.orientation[2, 2]) * target_direction[1]
+                    self.controls.yaw = clamp11(sgn(self.car.orientation[2, 2]) * target_direction[1])
+
+                    if target_local[0] > 0 and dot(self.car.velocity, self.car.forward()) > 500:
+                        self.controls.pitch = self.controls.pitch * 0.8
+                        self.controls.yaw = clamp11(self.controls.yaw * 5)
 
             elif self.counter == 2:
 

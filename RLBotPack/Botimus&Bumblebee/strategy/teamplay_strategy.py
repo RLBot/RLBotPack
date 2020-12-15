@@ -27,7 +27,7 @@ def choose_maneuver(info: GameInfo, my_car: Car):
             return kickoffs.choose_kickoff(info, my_car)
 
     if my_car.boost < 20:
-        return Refuel(my_car, info, ball.position)
+        return Refuel(my_car, info)
 
     info.predict_ball()
 

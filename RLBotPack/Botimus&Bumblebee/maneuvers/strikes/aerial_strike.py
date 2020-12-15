@@ -1,7 +1,7 @@
 from typing import List
 
 from maneuvers.strikes.strike import Strike
-from rlutilities.linear_algebra import vec3, norm, normalize, look_at, axis_to_rotation, dot
+from rlutilities.linear_algebra import vec3, norm, normalize, look_at, axis_to_rotation, dot, xy
 from rlutilities.mechanics import Aerial
 from rlutilities.simulation import Car, Ball
 from tools.drawing import DrawingTool
@@ -45,25 +45,25 @@ class AerialStrike(Strike):
         self.aerial.up = normalize(ground_direction(intercept, self.car) + vec3(0, 0, 0.5))
         self.aerial.arrival_time = intercept.time
 
-    def simulate_flight(self, car: Car, write_to_flight_path=True) -> Car:
+    @staticmethod
+    def simulate_flight(car: Car, aerial: Aerial, flight_path: List[vec3] = None) -> Car:
         test_car = Car(car)
         test_aerial = Aerial(test_car)
-        test_aerial.target = self.aerial.target
-        test_aerial.arrival_time = self.aerial.arrival_time
-        test_aerial.angle_threshold = self.aerial.angle_threshold
-        test_aerial.up = self.aerial.up
-        test_aerial.single_jump = self.aerial.single_jump
+        test_aerial.target = aerial.target
+        test_aerial.arrival_time = aerial.arrival_time
+        test_aerial.angle_threshold = aerial.angle_threshold
+        test_aerial.up = aerial.up
+        test_aerial.single_jump = aerial.single_jump
 
-        if write_to_flight_path:
-            self._flight_path.clear()
+        if flight_path: flight_path.clear()
 
         while not test_aerial.finished:
             test_aerial.step(1 / 120)
             test_car.boost = 100  # TODO: fix boost depletion in RLU car sim
             test_car.step(test_aerial.controls, 1 / 120)
 
-            if write_to_flight_path:
-                self._flight_path.append(vec3(test_car.position))
+            if flight_path:
+                flight_path.append(vec3(test_car.position))
 
         return test_car
 
@@ -74,26 +74,27 @@ class AerialStrike(Strike):
         time_left = self.aerial.arrival_time - self.car.time
 
         if self.aerialing:
+            to_ball = direction(self.car, self.info.ball)
 
             # freestyling
             if self.car.position[2] > 200:
-                if time_left > 0.7:
-                    rotation = axis_to_rotation(self.car.forward() * 0.5)
-                    self.aerial.up = dot(rotation, self.car.up())
-                else:
-                    self.aerial.up = vec3(0, 0, -1)
+                # if time_left > 0.7:
+                #     rotation = axis_to_rotation(self.car.forward() * 0.5)
+                #     self.aerial.up = dot(rotation, self.car.up())
+                # else:
+                self.aerial.up = vec3(0, 0, -1) + xy(to_ball)
 
-            self.aerial.target_orientation = look_at(direction(self.car, self.info.ball), vec3(0, 0, -1))
+            self.aerial.target_orientation = look_at(to_ball, vec3(0, 0, -3) + to_ball)
             self.aerial.step(dt)
 
             self.controls = self.aerial.controls
-            self.finished = self.aerial.finished
+            self.finished = self.aerial.finished and time_left < -0.3
 
         else:
             super().step(dt)
 
             # simulate aerial from current state
-            simulated_car = self.simulate_flight(self.car)
+            simulated_car = self.simulate_flight(self.car, self.aerial, self._flight_path)
 
             speed_towards_target = dot(self.car.velocity, ground_direction(self.car, self.aerial.target))
             speed_needed = ground_distance(self.car, self.aerial.target) / time_left
@@ -116,7 +117,7 @@ class AerialStrike(Strike):
                         future_car.position += displacement
 
                         # simulate aerial fot the extrapolated car again
-                        future_simulated_car = self.simulate_flight(future_car, write_to_flight_path=False)
+                        future_simulated_car = self.simulate_flight(future_car, self.aerial)
 
                         # if the aerial is also successful, that means we should continue driving instead of taking off
                         # this makes sure that we go for the most late possible aerials, which are the most effective

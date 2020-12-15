@@ -13,7 +13,8 @@ class SpeedFlipDodgeKickoff(Kickoff):
     """
     def __init__(self, car: Car, info: GameInfo):
         super().__init__(car, info)
-        self.drive.target_pos = self.info.my_goal.center * 0.06
+        self.drive.target_pos = self.info.my_goal.center * 0.05
+        self._speed_flip_start_time = 0.0
 
     def step(self, dt: float):
         car = self.car
@@ -21,6 +22,7 @@ class SpeedFlipDodgeKickoff(Kickoff):
             if norm(car.velocity) > 800:
                 self.action = SpeedFlip(car, right_handed=local(car, self.info.ball.position)[1] < 0)
                 self.phase = 2
+                self._speed_flip_start_time = car.time
 
         if self.phase == 2:
             if self.action.finished and self.car.on_ground:
@@ -36,5 +38,8 @@ class SpeedFlipDodgeKickoff(Kickoff):
         if self.phase == 4:
             if self.action.finished:
                 self.finished = True
+
+        # abort when taking too long
+        if car.time > self._speed_flip_start_time + 3.0: self.finished = True
 
         super().step(dt)
