@@ -12,7 +12,7 @@ class LoadoutGenerator(BaseLoadoutGenerator):
         """
         Octane - 23 - Weight: 3
         Gizmo - 26
-        Merc - 30
+        Merc - 30 - Weight - 2
         Takumi - 402
         Marauder - 1172
         Takumi RX-T - 1295
@@ -21,9 +21,9 @@ class LoadoutGenerator(BaseLoadoutGenerator):
         Twinzer - 2853
         Fennec - 4284 - Weight - 2
         """
-        loadout.car_id = random.choice((23, 23, 23, 26, 30, 402, 1172, 1295, 1533, 1568, 1568, 2853, 4284, 4284))
+        loadout.car_id = random.choice((23, 23, 23, 26, 30, 30, 402, 1172, 1295, 1533, 1568, 1568, 2853, 4284, 4284))
 
-        # bots that don't have the stars decal will get the interstellar decal :P
+        # bots that don't have the stars decal will get the interstellar decal :D
         decal_id = {
             23: 305,
             26: 326,
@@ -32,7 +32,7 @@ class LoadoutGenerator(BaseLoadoutGenerator):
             1172: 4989,
             1295: 4989,
             1533: 4989,
-            1568: 1747,  # Octane ZSR gets it's RLCS decal :P
+            1568: 1747,  # Octane ZSR gets it's RLCS decal :D
             2853: 4989,
             4284: 4989
         }

@@ -96,6 +96,8 @@ def is_inside_turn_radius(turn_rad, local_target, steer_direction):
 
 def turn_radius(v):
     # v is the magnitude of the velocity in the car's forward direction
+    if v == 0:
+        return 0
     return 1.0 / curvature(v)
 
 
@@ -209,22 +211,6 @@ def send_comm(agent, msg):
         agent.print("Outgoing broadcast is full; couldn't send message")
 
 
-def get_weight(agent, shot=None, index=None):
-    if index is not None:
-        return agent.max_shot_weight - math.ceil(index / 2)
-
-    if shot is not None:
-        if shot is agent.best_shot:
-            return agent.max_shot_weight + 1
-
-        if shot is agent.anti_shot:
-            return agent.max_shot_weight - 1
-
-        return agent.max_shot_weight - math.ceil(agent.defensive_shots.index(shot) / 2)
-
-    return agent.max_shot_weight - 2
-
-
 def peek_generator(generator):
     try:
         return next(generator)
@@ -262,48 +248,3 @@ def dodge_impulse(agent):
     if dif > 0:
         impulse -= dif
     return impulse
-
-
-def valid_ceiling_shot(agent, cap_=5):
-    struct = agent.ball_prediction_struct
-
-    if struct is None:
-        return
-
-    end_slice = math.ceil(cap_ * 60)
-    slices = struct.slices[30:end_slice:2]
-
-    if agent.me.location.x * side(agent.team) > 0:
-        quadrilateral = (
-            round(agent.foe_goal.right_post.flatten()),
-            round(agent.foe_goal.left_post.flatten())
-        )
-    else:
-        quadrilateral = (
-            round(agent.foe_goal.left_post.flatten()),
-            round(agent.foe_goal.right_post.flatten())
-        )
-
-    quadrilateral += (
-        Vector(0, 640),
-        Vector(round(agent.me.location.x - (200 * sign(agent.me.location.x))), round(agent.me.location.y - (200 * side(agent.team)))),
-    )
-
-    agent.polyline(quadrilateral + (quadrilateral[0],), agent.renderer.team_color(alt_color=True))
-
-    for ball_slice in slices:
-        intercept_time = ball_slice.game_seconds
-        time_remaining = intercept_time - agent.time
-
-        if time_remaining <= 0:
-            return
-
-        ball_location = Vector(ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
-
-        if ball_location.z < 642:
-            continue
-
-        if not point_inside_quadrilateral_2d(round(ball_location.flatten()), quadrilateral):
-            continue
-
-        return ball_location
