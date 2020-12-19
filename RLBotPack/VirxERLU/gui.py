@@ -17,68 +17,13 @@ class Gui(Thread):
 
         root.title("VirxEC/VirxERLU")
 
-        root.geometry("255x425")
+        root.geometry("255x250")
 
         title = ttk.Label(root, text=f"{self.agent.name} hosted by VirxERLU")
         title.pack()
 
-        author = ttk.Label(root, text=f"VirxEB by VirxEC (VirxEC/VirxEB)")
+        author = ttk.Label(root, text=f"Bot by BotMaker (BotMaker/githubRepo)")
         author.pack()
-
-        # Goalie
-
-        goalie_bool = BooleanVar()
-        goalie_bool.set(self.agent.goalie)
-
-        def set_goalie():
-            self.agent.goalie = goalie_bool.get()
-
-        goalie_btn = ttk.Checkbutton(root, text='Goalie', variable=goalie_bool, command=set_goalie)
-        goalie_btn.pack()
-
-        # Aerials
-
-        aerials_bool = BooleanVar()
-        aerials_bool.set(self.agent.aerials)
-
-        def set_aerials():
-            self.agent.aerials = aerials_bool.get()
-
-        aerials_btn = ttk.Checkbutton(root, text='Aerial shot', variable=aerials_bool, command=set_aerials)
-        aerials_btn.pack()
-
-        # Double jump
-
-        double_jump_bool = BooleanVar()
-        double_jump_bool.set(self.agent.aerials)
-
-        def set_double_jump():
-            self.agent.double_jump = double_jump_bool.get()
-
-        double_jump_btn = ttk.Checkbutton(root, text='Double jump shot', variable=double_jump_bool, command=set_double_jump)
-        double_jump_btn.pack()
-
-        # Jump
-
-        jump_bool = BooleanVar()
-        jump_bool.set(self.agent.aerials)
-
-        def set_jump():
-            self.agent.jump = jump_bool.get()
-
-        jump_btn = ttk.Checkbutton(root, text='Jump shot', variable=jump_bool, command=set_jump)
-        jump_btn.pack()
-
-        # Ground shot
-
-        ground_shot_bool = BooleanVar()
-        ground_shot_bool.set(self.agent.ground_shot)
-
-        def set_ground_shot():
-            self.agent.ground_shot = ground_shot_bool.get()
-
-        ground_shot_btn = ttk.Checkbutton(root, text='Ground shot', variable=ground_shot_bool, command=set_ground_shot)
-        ground_shot_btn.pack()
 
         # Disable driving
 
@@ -183,22 +128,6 @@ class Gui(Thread):
         debug_ball_path_precision = ttk.Scale(root, orient=HORIZONTAL, from_=2, to=20, command=set_debug_ball_path_precision)
         debug_ball_path_precision.set(self.agent.debug_ball_path_precision)
         debug_ball_path_precision.pack()
-
-        def set_debug_location(event):
-            self.agent.debug_vector.x, self.agent.debug_vector.y, self.agent.debug_vector.z = float(debug_vector_x.get()), float(debug_vector_y.get()), float(debug_vector_z.get())
-
-        debug_vector_x = ttk.Entry(root)
-        debug_vector_y = ttk.Entry(root)
-        debug_vector_z = ttk.Entry(root)
-        debug_vector_x.insert(0, str(self.agent.debug_vector.x))
-        debug_vector_y.insert(0, str(self.agent.debug_vector.y))
-        debug_vector_z.insert(0, str(self.agent.debug_vector.z))
-        debug_vector_x.bind("<Return>", set_debug_location)
-        debug_vector_y.bind("<Return>", set_debug_location)
-        debug_vector_z.bind("<Return>", set_debug_location)
-        debug_vector_x.pack()
-        debug_vector_y.pack()
-        debug_vector_z.pack()
 
         self.stop = root.destroy
 

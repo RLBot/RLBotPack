@@ -4,7 +4,6 @@ import itertools
 import math
 import os
 from datetime import datetime
-from enum import Enum
 from time import time_ns
 from traceback import print_exc
 from typing import List, Tuple
@@ -15,14 +14,10 @@ from match_comms import MatchComms
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 
 
-class Playstyle(Enum):
-    Defensive = -1
-    Neutral = 0
-    Offensive = 1
-
-
 class VirxERLU(BaseAgent):
     # Massive thanks to ddthj/GoslingAgent (GitHub repo) for the basis of VirxERLU
+    # VirxERLU on VirxEC Showcase -> https://virxerlu.virxcase.dev/
+    # Wiki -> https://github.com/VirxEC/VirxERLU/wiki
     def initialize_agent(self):
         self.tournament = True
         self.startup_time = time_ns()
@@ -36,13 +31,7 @@ class VirxERLU(BaseAgent):
         self.show_coords = False
         self.debug_ball_path = False
         self.debug_ball_path_precision = 10
-        self.debug_vector = Vector()
         self.disable_driving = False
-        self.goalie = False
-        self.jump = True
-        self.double_jump = True
-        self.ground_shot = True
-        self.aerials = True
 
         T = datetime.now()
         T = T.strftime("%Y-%m-%d %H;%M")
@@ -52,24 +41,14 @@ class VirxERLU(BaseAgent):
             f"-traceback ({T}).txt"
         )
 
-        self.predictions = {
-            "closest_enemy": 0,
-            "own_goal": False,
-            "goal": False,
-            "team_from_goal": (),
-            "team_to_ball": (),
-            "self_from_goal": 0,
-            "self_to_ball": 0,
-            "was_down": False,
-            "enemy_time_to_ball": 7,
-            "self_min_time_to_ball": 7
-        }
+        if not self.tournament:
+            self.gui = Gui(self)
+            self.print("Starting the GUI...")
+            self.gui.start()
 
         self.match_comms = MatchComms(self)
         self.print("Starting the match communication handler...")
         self.match_comms.start()
-
-        self.ball_prediction_struct = None
 
         self.print("Building game information")
 
@@ -114,15 +93,6 @@ class VirxERLU(BaseAgent):
         self.boost_amount = boost_amount[mutators.BoostOption()]
         self.game_mode = game_mode[match_settings.GameMode()]
 
-        if self.game_mode == "heatseeker":
-            self.print("Preparing for heatseeker")
-            self.goalie = True
-
-        if not self.tournament:
-            self.gui = Gui(self)
-            self.print("Starting the GUI...")
-            self.gui.start()
-
         self.friends = ()
         self.foes = ()
         self.me = car_object(self.index)
@@ -146,17 +116,11 @@ class VirxERLU(BaseAgent):
         self.kickoff_flag = False
         self.kickoff_done = True
         self.shooting = False
-        self.odd_tick = -1
         self.best_shot_value = 92.75
+        self.odd_tick = -1
 
         self.future_ball_location_slice = 180
-        self.min_intercept_slice = 180
-
-        self.playstyles = Playstyle
-        self.playstyle = self.playstyles.Neutral
-        self.can_shoot = None
-        self.shot_weight = -1
-        self.shot_time = -1
+        self.balL_prediction_struct = None
 
     def retire(self):
         # Stop the currently running threads
@@ -167,7 +131,7 @@ class VirxERLU(BaseAgent):
 
     @staticmethod
     def is_hot_reload_enabled():
-        # The threads that VirxERLU uses aren't compatible with hot reloading
+        # The tkinter GUI isn't compatible with hot reloading
         # Use the Continue and Spawn option in the GUI instead
         return False
 
@@ -181,9 +145,6 @@ class VirxERLU(BaseAgent):
 
         load_time = (time_ns() - self.startup_time) / 1e+6
         print(f"{self.name}: Built game info in {load_time} milliseconds")
-
-        if self.name in {"VirxEB", "ABot"}:
-            print(f"{self.name}: Check me out at https://www.virxcase.dev!!!")
 
         self.ready = True
 
@@ -242,8 +203,6 @@ class VirxERLU(BaseAgent):
 
     def clear(self):
         self.shooting = False
-        self.shot_weight = -1
-        self.shot_time = -1
         self.stack = []
 
     def is_clear(self):
@@ -281,25 +240,6 @@ class VirxERLU(BaseAgent):
 
         self.ball_prediction_struct = self.get_ball_prediction_struct()
 
-    def get_weight(self, shot=None, index=None):
-        if index is not None:
-            return self.max_shot_weight - math.ceil(index / 2)
-
-        if shot is not None:
-            if shot is self.best_shot:
-                return self.max_shot_weight + 1
-
-            if shot is self.anti_shot:
-                return self.max_shot_weight - 1
-
-            for shot_list in (self.offensive_shots, self.defensive_shots):
-                try:
-                    return self.max_shot_weight - math.ceil(shot_list.index(shot) / 2)
-                except ValueError:
-                    continue
-
-        return self.max_shot_weight - 2
-
     def get_output(self, packet):
         try:
             # Reset controller
@@ -315,17 +255,11 @@ class VirxERLU(BaseAgent):
                 if not self.is_clear():
                     self.clear()
             elif self.game.round_active:
-                self.dbg_3d(self.playstyle.name)
                 stack_routine_name = '' if self.is_clear() else self.stack[0].__class__.__name__
                 if stack_routine_name in {'Aerial', 'jump_shot', 'double_jump', 'ground_shot', 'short_shot'}:
                     self.shooting = True
-                    if stack_routine_name is not 'short_shot':
-                        self.shot_weight = self.get_weight(self.stack[0].targets)
-                        self.shot_time = self.stack[0].intercept_time
                 else:
                     self.shooting = False
-                    self.shot_weight = -1
-                    self.shot_time = -1
 
                 try:
                     self.run()  # Run strategy code; This is a very expensive function to run
@@ -344,7 +278,6 @@ class VirxERLU(BaseAgent):
                         print(f"ERROR in {self.name}'s {r_name} routine; see '{t_file}'")
                         print_exc(file=open(t_file, "a"))
 
-                # This is a ton of debugging stuff
                 if self.debugging:
                     if self.debug_3d_bool:
                         if self.debug_stack_bool:
@@ -402,9 +335,6 @@ class VirxERLU(BaseAgent):
     def handle_match_comm(self, msg):
         pass
 
-    def test(self):
-        pass
-
     def run(self):
         pass
 
@@ -438,7 +368,7 @@ class car_object:
             self.update(packet)
         else:
             self.hitbox = hitbox_object()
-            self.offset = self.hitbox.offset  # please use self.hitbox.offset and not self.offset
+            self.offset = self.hitbox.offset
 
     def local(self, value):
         # Generic localization
@@ -457,7 +387,7 @@ class car_object:
     def local_location(self, location):
         # Returns the location of an item relative to the car
         # x is how far the location is forwards (+) or backwards (-)
-        # y is how far the location is to the left (+) or right (-)
+        # y is the velocity to the left (+) or right (-)
         # z is how far the location is upwards (+) or downwards (-)
         return self.local(location - self.location)
 
@@ -499,7 +429,7 @@ class car_object:
 
     @property
     def right(self):
-        # A vector pointing right relative to the cars orientation. Its magnitude == 1
+        # A vector pointing left relative to the cars orientation. Its magnitude == 1
         return self.orientation.right
 
     @property
@@ -596,9 +526,6 @@ class Matrix3:
     # Matrix3[0] is the "forward" direction of a given car
     # Matrix3[1] is the "left" direction of a given car
     # Matrix3[2] is the "up" direction of a given car
-    # If you have a distance between the car and some object, ie ball.location - car.location,
-    # you can convert that to local coordinates by dotting it with this matrix
-    # ie: local_ball_location = Matrix3.dot(ball.location - car.location)
     def __init__(self, pitch=0, yaw=0, roll=0):
         CP = math.cos(pitch)
         SP = math.sin(pitch)
@@ -607,11 +534,11 @@ class Matrix3:
         CR = math.cos(roll)
         SR = math.sin(roll)
         # List of 3 vectors, each descriping the direction of an axis: Forward, Left, and Up
-        self.data = [
+        self.data = (
             Vector(CP*CY, CP*SY, SP),
             Vector(CY*SP*SR-CR*SY, SY*SP*SR+CR*CY, -CP*SR),
             Vector(-CR*CY*SP-SR*SY, -CR*SY*SP+SR*CY, CP*CR)
-        ]
+        )
         self.forward, self.right, self.up = self.data
 
     def __getitem__(self, key):
@@ -627,6 +554,7 @@ class Matrix3:
         return self[0][0] * self[1][1] * self[2][2] + self[0][1] * self[1][2] * self[2][0] + \
                self[0][2] * self[1][0] * self[2][1] - self[0][0] * self[1][2] * self[2][1] - \
                self[0][1] * self[1][0] * self[2][2] - self[0][2] * self[1][1] * self[2][0]
+
 
 # Vector supports 1D, 2D and 3D Vectors, as well as calculations between them
 # Arithmetic with 1D and 2D lists/tuples aren't supported - just set the remaining values to 0 manually
