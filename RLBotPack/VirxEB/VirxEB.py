@@ -75,8 +75,8 @@ class VirxEB(VirxERLU):
         self.future_ball_location_slice = cap(round(self.predictions['enemy_time_to_ball'] * 60), 0, len(self.ball_prediction_struct.slices) - 1)
         self.dbg_2d(f"Predicted enemy time to ball: {round(self.predictions['enemy_time_to_ball'], 1)}")
 
-        self.predictions['self_from_goal'] = self.friend_goal.location.flat_dist(self.me.location) if not self.me.demolished else math.inf
-        self.predictions['self_to_ball'] = self.ball.location.flat_dist(self.me.location) if not self.me.demolished else math.inf
+        self.predictions['self_from_goal'] = self.friend_goal.location.flat_dist(self.me.location)
+        self.predictions['self_to_ball'] = self.ball.location.flat_dist(self.me.location)
 
         if not self.predictions['was_down']:
             self.predictions['was_down'] = self.game.friend_score - self.game.foe_score > 1
@@ -96,21 +96,21 @@ class VirxEB(VirxERLU):
         if self.odd_tick % 2 == 0:
             if self.goalie:
                 self.playstyle = self.playstyles.Defensive
-            elif len_friends > 0:
-                ball_loc_y = self.ball.location.y * side(self.team)
+            # elif len_friends > 0:
+            #     ball_loc_y = self.ball.location.y * side(self.team)
 
-                if ball_loc_y < 2560:
-                    # If we're down or up by 2 goals in 2's, then start playing more defensive
-                    self_time_to_ball = self.predictions['self_min_time_to_ball'] * 1.05
-                    team_time_to_ball = min(tuple(self.time_to_ball(teammate) for teammate in self.friends)) * 1.05
-                    if ball_loc_y < -1280 and self_time_to_ball < team_time_to_ball and self.predictions['self_from_goal'] != self.predictions["team_from_goal"][0]:
-                        self.playstyle = self.playstyles.Offensive if len_friends > 1 or (len_friends == 1 and (self.predictions['was_down'] or abs(self.game.friend_score - self.game.foe_score) <= 1)) else self.playstyles.Neutral
-                    elif self.predictions['self_from_goal'] == self.predictions["team_from_goal"][0]:
-                        self.playstyle = self.playstyles.Defensive if len_friends > 1 else self.playstyles.Neutral
-                    else:
-                        self.playstyle = self.playstyles.Neutral
-                else:
-                    self.playstyle = self.playstyles.Defensive
+            #     if ball_loc_y < 2560:
+            #         # If we're down or up by 2 goals in 2's, then start playing more defensive
+            #         self_time_to_ball = self.predictions['self_min_time_to_ball'] * 1.05
+            #         team_time_to_ball = min(tuple(self.time_to_ball(teammate) for teammate in self.friends)) * 1.05
+            #         if ball_loc_y < -1280 and self_time_to_ball < team_time_to_ball and self.predictions['self_from_goal'] != self.predictions["team_from_goal"][0]:
+            #             self.playstyle = self.playstyles.Offensive if len_friends > 1 or (len_friends == 1 and (self.predictions['was_down'] or abs(self.game.friend_score - self.game.foe_score) <= 1)) else self.playstyles.Neutral
+            #         elif self.predictions['self_from_goal'] == self.predictions["team_from_goal"][0]:
+            #             self.playstyle = self.playstyles.Defensive if len_friends > 1 else self.playstyles.Neutral
+            #         else:
+            #             self.playstyle = self.playstyles.Neutral
+            #     else:
+            #         self.playstyle = self.playstyles.Defensive
             else:
                 self_time_to_ball = self.predictions['self_min_time_to_ball'] * 1.05
 
@@ -292,9 +292,9 @@ class VirxEB(VirxERLU):
             return
         
         if self.can_shoot is None:
-            self.dbg_3d("Can shoot: True")
+            self.dbg_3d("Can shoot: 0")
         else:
-            self.dbg_3d(f"Can shoot: {self.can_shoot - self.time}")
+            self.dbg_3d(f"Can shoot: {round(3 - (self.time - self.can_shoot), 2)}")
 
         enemy_intercept_location = self.ball_prediction_struct.slices[self.future_ball_location_slice].physics.location
         enemy_intercept_location = Vector(enemy_intercept_location.x, enemy_intercept_location.y, enemy_intercept_location.z)
@@ -319,7 +319,7 @@ class VirxEB(VirxERLU):
             self_loc = self.me.location * side(self.team)
 
             # This is a list of all tm8s that are onside
-            team_to_ball = [car.location.flat_dist(self.ball.location) for car in self.friends if car.location.y * side(self.team) >= ball_loc.y + 95 and abs(car.location.x) < abs(agent.ball.location.x) - 320]
+            team_to_ball = [car.location.flat_dist(self.ball.location) for car in self.friends if car.location.y * side(self.team) >= ball_loc.y + 95 and abs(car.location.x) < abs(self.ball.location.x) - 320]
             self_to_ball = self.me.location.flat_dist(self.ball.location)
             team_to_ball.append(self_to_ball)
             team_to_ball.sort()
@@ -335,7 +335,7 @@ class VirxEB(VirxERLU):
                     return
 
                 if self_loc.y > ball_loc.y + 95:
-                    for i, shot in enumerate(self.defensive_shots):
+                    for i, shot in enumerate(self.defensive_shots if self.predictions['self_min_time_to_ball'] * 2 < self.predictions['enemy_time_to_ball'] else self.defensive_shots[1:]):
                         shot_weight = get_weight(self, index=i)
 
                         if self.shooting and shot_weight < self.shot_weight:
@@ -381,7 +381,7 @@ class VirxEB(VirxERLU):
     def handle_match_comm(self, msg):
         if not self.kickoff_done and msg.get("VirxERLU") is not None and msg['VirxERLU']['team'] is self.team:
             msg = msg['VirxERLU']
-            if ((msg.get("match_defender", False) and ((not self.is_clear() and self.get_stack_name() not in {"corner_kickoff", "generic_kickoff"}) or self.is_clear())) or (msg.get("attacking", False) and ((not self.is_clear() and self.get_stack_name() not in {"corner_kickoff"}) or self.is_clear()))) and msg['index'] < self.index:
+            if msg.get("attacking", False) and msg['index'] < self.index and self.get_stack_name() in {"corner_kickoff", "back_offset_kickoff", "generic_kickoff"}:
                 self.clear()
                 self.defensive_kickoff()
 
@@ -391,11 +391,11 @@ class VirxEB(VirxERLU):
                 if side(self.team) * self.ball.location.y < 4200 and not self.predictions['own_goal'] and not self.shooting:
                     self.can_shoot = self.time
                     if side(self.team) * self.ball.location.y < 2560:
-                        self.can_shoot += 2.5
+                        self.can_shoot -= 2.5
                     elif side(self.team) * self.ball.location.y < 750:
-                        self.can_shoot += 2
+                        self.can_shoot -= 2
                     else:
-                        self.can_shoot += 1.5
+                        self.can_shoot -= 1.5
 
                     if self.shooting and self.shot_weight == -1:
                         self.clear()
