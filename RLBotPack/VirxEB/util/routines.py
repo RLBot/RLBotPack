@@ -556,14 +556,14 @@ class shadow:
 
         goal_diff = agent.game.friend_score - agent.game.foe_score
 
-        if len(agent.friends) == 1 and agent.playstyle is agent.playstyles.Neutral and (agent.predictions['was_down'] or abs(goal_diff) > 1):
+        if len(agent.friends) > 0 and agent.playstyle is agent.playstyles.Neutral:
             distance = 3840
         elif agent.playstyle is agent.playstyles.Defensive:
-            distances = {
-                0: 1920,
-                1: 5120,
-                2: 6400
-            }
+            distances = [
+                1920,
+                5120,
+                6400
+            ]
             distance = distances[len(agent.friends)]
         else:
             distance = 2560
