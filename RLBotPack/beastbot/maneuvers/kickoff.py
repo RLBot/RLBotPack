@@ -1,9 +1,9 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.maneuver import Maneuver
-from util.curves import curve_from_arrival_dir
-from util.rlmath import sign
-from util.vec import Vec3, norm, proj_onto_size
+from utility.curves import curve_from_arrival_dir
+from utility.rlmath import sign
+from utility.vec import Vec3, norm, proj_onto_size
 
 
 def choose_kickoff_maneuver(bot) -> Maneuver:

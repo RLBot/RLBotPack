@@ -1,6 +1,6 @@
 from maneuvers.aerialturn import AerialTurnManeuver
-from util.info import Car
-from util.vec import normalize, xy, Vec3, cross, Mat33, norm
+from utility.info import Car
+from utility.vec import normalize, xy, Vec3, cross, Mat33, norm
 
 
 class RecoveryManeuver(AerialTurnManeuver):
@@ -27,7 +27,7 @@ class RecoveryManeuver(AerialTurnManeuver):
         return Mat33(car.rot)
         """
 
-        forward = normalize(xy(car.vel)) if norm(xy(car.vel)) != 0 else car.forward
+        forward = normalize(xy(car.vel)) if norm(xy(car.vel)) > 20 else car.forward
         up = Vec3(z=1)
         left = cross(up, forward)
 

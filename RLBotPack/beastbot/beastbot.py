@@ -1,3 +1,5 @@
+import time
+
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
@@ -7,11 +9,11 @@ from behaviours.clear_ball import ClearBall
 from behaviours.save_goal import SaveGoal
 from behaviours.shoot_at_goal import ShootAtGoal
 from maneuvers.kickoff import choose_kickoff_maneuver
-from util.info import GameInfo
+from utility.info import GameInfo
 from behaviours.moves import DriveController, AimCone, ShotController
-from util.rendering import draw_ball_path
+from utility.rendering import draw_ball_path
 from behaviours.utsystem import UtilitySystem, Choice
-from util.vec import xy, Vec3, norm, dot
+from utility.vec import xy, Vec3, norm, dot
 
 RENDER = True
 
@@ -34,7 +36,6 @@ class Beast(BaseAgent):
         self.ut = UtilitySystem([DefaultBehaviour(), ShootAtGoal(), ClearBall(self), SaveGoal(self), Carry()])
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-
         # Read packet
         if not self.info.field_info_loaded:
             self.info.read_field_info(self.get_field_info())
@@ -54,9 +55,10 @@ class Beast(BaseAgent):
         if self.do_rendering:
             draw_ball_path(self, 4, 5)
             doing = self.maneuver or self.choice
-            car = self.info.my_car
             if doing is not None:
-                self.renderer.draw_string_3d(car.pos, 1, 1, doing.__class__.__name__, self.random_color(doing.__class__))
+                status_str = f'{self.name}: {doing.__class__.__name__}'
+                self.renderer.draw_string_2d(300, 700 + self.index * 20, 1, 1, status_str, self.renderer.team_color(alt_color=True))
+
         self.renderer.end_rendering()
 
         # Save some stuff for next tick
@@ -67,21 +69,6 @@ class Beast(BaseAgent):
     def print(self, s):
         team_name = "[BLUE]" if self.team == 0 else "[ORANGE]"
         print("Beast", self.index, team_name, ":", s)
-
-    def random_color(self, anything):
-        color_functions = {
-            0: self.renderer.red,
-            1: self.renderer.green,
-            2: self.renderer.blue,
-            3: self.renderer.lime,
-            4: self.renderer.yellow,
-            5: self.renderer.orange,
-            6: self.renderer.cyan,
-            7: self.renderer.pink,
-            8: self.renderer.purple,
-            9: self.renderer.teal,
-        }
-        return color_functions.get(hash(anything) % 10)()
 
     def feedback(self, controller):
         if controller is None:
@@ -97,7 +84,7 @@ class Beast(BaseAgent):
         if self.info.is_kickoff and not self.doing_kickoff:
             self.maneuver = choose_kickoff_maneuver(self)
             self.doing_kickoff = True
-            self.print("Hello world!")
+            self.print("Kickoff - Hello world!")
 
         # Execute logic
         if self.maneuver is None or self.maneuver.done:

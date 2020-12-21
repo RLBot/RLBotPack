@@ -4,19 +4,30 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from behaviours.moves import AimCone
 from behaviours.utsystem import Choice
-from util import predict, rendering
-from util.info import Field
-from util.rlmath import clip01, remap, lerp
+from utility import predict, rendering
+from utility.info import Field
+from utility.rlmath import clip01, remap, lerp
+from utility.vec import Vec3
 
 
 class ClearBall(Choice):
     def __init__(self, bot):
         if bot.team == 0:
             # blue
-            self.aim_cone = AimCone(.8 * math.pi, .2 * math.pi)
+            ra = 0.85 * math.pi
+            la = 0.15 * math.pi
+            self.aim_cone = AimCone(
+                Vec3(math.cos(ra), math.sin(ra), 0),
+                Vec3(math.cos(la), math.sin(la), 0)
+            )
         else:
             # orange
-            self.aim_cone = AimCone(-.1 * math.pi, -.9 * math.pi)
+            ra = -0.15 * math.pi
+            la = -0.85 * math.pi
+            self.aim_cone = AimCone(
+                Vec3(math.cos(ra), math.sin(ra), 0),
+                Vec3(math.cos(la), math.sin(la), 0)
+            )
 
     def utility(self, bot) -> float:
         team_sign = bot.info.team_sign

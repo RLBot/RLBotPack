@@ -1,6 +1,6 @@
 import math
 
-from util.rlmath import clip
+from utility.rlmath import clip
 
 
 class Vec3:
@@ -50,7 +50,7 @@ class Mat33:
         Mat33(mat)
         """
 
-        if isinstance(xx, Mat33):
+        if hasattr(xx, "data"):
             self.data = xx.data.copy()
         else:
             self.data = [xx, xy, xz, yx, yy, yz, zx, zy, zz]
@@ -97,7 +97,7 @@ class Mat33:
 
     def __mul__(self, scale: float or 'Mat33') -> 'Mat33':
         mat = Mat33()
-        if isinstance(scale, Mat33):
+        if hasattr(scale, "data"):
             for i in range(9):
                 mat[i] = self[i] * scale[i]
         else:
@@ -161,7 +161,7 @@ def normalize(vec: Vec3) -> Vec3:
 
 
 def dot(mat1: Vec3 or Mat33, mat2: Vec3 or Mat33) -> float or Vec3 or Mat33:
-    if isinstance(mat1, Mat33) and isinstance(mat2, Mat33):
+    if hasattr(mat1, "data") and hasattr(mat2, "data"):
         # Mat dot Mat -> Mat
         res = Mat33()
         for i in range(3):
@@ -171,7 +171,7 @@ def dot(mat1: Vec3 or Mat33, mat2: Vec3 or Mat33) -> float or Vec3 or Mat33:
                     res.set(i, j, v)
         return res
 
-    elif isinstance(mat1, Mat33) and isinstance(mat2, Vec3):
+    elif hasattr(mat1, "data") and hasattr(mat2, "x"):
         # Mat dot Vec -> Vec
         return Vec3(
             mat1.xx * mat2.x + mat1.xy * mat2.y + mat1.xz * mat2.z,
@@ -179,7 +179,7 @@ def dot(mat1: Vec3 or Mat33, mat2: Vec3 or Mat33) -> float or Vec3 or Mat33:
             mat1.zx * mat2.x + mat1.zy * mat2.y + mat1.zz * mat2.z
         )
 
-    elif isinstance(mat1, Vec3) and isinstance(mat2, Mat33):
+    elif hasattr(mat1, "x") and hasattr(mat2, "data"):
         # Vec dot Mat -> Vec
         return Vec3(
             mat1.x * mat2.xx + mat1.y * mat2.yx + mat1.z * mat2.zx,

@@ -4,14 +4,15 @@ import time
 from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.dodge import DodgeManeuver
+from maneuvers.halfflip import HalfFlipManeuver
 from maneuvers.recovery import RecoveryManeuver
 from maneuvers.small_jump import SmallJumpManeuver
-from util import rendering
-from util.curves import curve_from_arrival_dir
-from util.info import Field, Ball, is_near_wall
-from util.predict import ball_predict, next_ball_landing
-from util.rlmath import lerp, sign, clip, fix_ang
-from util.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
+from utility import rendering
+from utility.curves import curve_from_arrival_dir
+from utility.info import Field, Ball, is_near_wall
+from utility.predict import ball_predict, next_ball_landing
+from utility.rlmath import lerp, sign, clip, fix_ang, remap
+from utility.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
 
 
 class DriveController:
@@ -20,14 +21,14 @@ class DriveController:
         self.dodge = None
         self.last_point = None
         self.last_dodge_end_time = 0
-        self.dodge_cooldown = 0.26
+        self.dodge_cooldown = 0.27
         self.recovery = None
 
     def start_dodge(self, bot):
         if self.dodge is None:
             self.dodge = DodgeManeuver(bot, self.last_point)
 
-    def go_towards_point(self, bot, point: Vec3, target_vel=1430, slide=False, boost_min=101, can_keep_speed=True, can_dodge=True, wall_offset_allowed=110) -> SimpleControllerState:
+    def go_towards_point(self, bot, point: Vec3, target_vel=1430, slide=False, boost_min=101, can_keep_speed=True, can_dodge=True, wall_offset_allowed=125) -> SimpleControllerState:
         REQUIRED_ANG_FOR_SLIDE = 1.65
         REQUIRED_VELF_FOR_DODGE = 1100
 
@@ -37,9 +38,8 @@ class DriveController:
         if self.dodge is not None and self.dodge.done:
             self.dodge = None
             self.last_dodge_end_time = bot.info.time
-
         # Continue dodge
-        if self.dodge is not None:
+        elif self.dodge is not None:
             self.dodge.target = point
             return self.dodge.exec(bot)
 
@@ -71,13 +71,22 @@ class DriveController:
 
         # Start dodge
         if can_dodge and abs(angle) <= 0.02 and vel_towards_point > REQUIRED_VELF_FOR_DODGE\
-                and dist > vel_towards_point + 500 + 700 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
+                and dist > vel_towards_point + 500 + 900 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
             self.dodge = DodgeManeuver(bot, point)
+        # Start half-flip
+        elif can_dodge and abs(angle) >= 3 and vel_towards_point < 50\
+                and dist > -vel_towards_point + 500 + 900 and bot.info.time > self.last_dodge_end_time + self.dodge_cooldown:
+            self.dodge = HalfFlipManeuver(bot, boost=car.boost > boost_min + 10)
+
+        # Is point right behind? Maybe reverse instead
+        if -100 < point_local.x < 0 and abs(point_local.y) < 50:
+            #bot.print("Reversing?")
+            pass
 
         # Is in turn radius deadzone?
         tr = turn_radius(abs(vel_f + 50))  # small bias
         tr_side = sign(angle)
-        tr_center_local = Vec3(0, tr * tr_side, 0)
+        tr_center_local = Vec3(0, tr * tr_side, 10)
         point_is_in_turn_radius_deadzone = norm(point_local - tr_center_local) < tr
         # Draw turn radius deadzone
         if car.on_ground and bot.do_rendering:
@@ -91,12 +100,10 @@ class DriveController:
             self.controls.steer = sign(angle)
             self.controls.boost = False
             self.controls.throttle = 0 if vel_f > 150 else 0.1
-            if point_local.x < 25:
+            if point_local.x < 110 and point_local.y < 400 and norm(car.vel) < 300:
                 # Brake or go backwards when the point is really close but not in front of us
-                self.controls.throttle = clip((25 - point_local.x) * -.5, 0, -0.6)
-                self.controls.steer = 0
-                if vel_f > 300:
-                    self.controls.handbrake = True
+                self.controls.throttle = clip(-0.25 + point_local.x / -110.0, 0, -1)
+                self.controls.steer = -0.5 * sign(angle)
 
         else:
             # Should drop speed or just keep up the speed?
@@ -104,7 +111,7 @@ class DriveController:
                 target_vel = vel_towards_point
             else:
                 # Small lerp adjustment
-                target_vel = lerp(vel_towards_point, target_vel, 1.2)
+                target_vel = lerp(vel_towards_point, target_vel, 1.1)
 
             # Turn and maybe slide
             self.controls.steer = clip(angle + (2.5*angle) ** 3, -1.0, 1.0)
@@ -120,7 +127,7 @@ class DriveController:
             # Find appropriate throttle/boost
             if vel_towards_point < target_vel:
                 self.controls.throttle = 1
-                if boost_min < car.boost and vel_towards_point + 25 < target_vel and target_vel > 1400 \
+                if boost_min < car.boost and vel_towards_point + 80 < target_vel and target_vel > 1400 \
                         and not self.controls.handbrake and is_heading_towards(angle, dist):
                     self.controls.boost = True
                 else:
@@ -186,20 +193,10 @@ class DriveController:
 
 class AimCone:
     def __init__(self, right_most, left_most):
-        # Right angle and direction
-        if isinstance(right_most, float):
-            self.right_ang = fix_ang(right_most)
-            self.right_dir = Vec3(math.cos(right_most), math.sin(right_most), 0)
-        elif isinstance(right_most, Vec3):
-            self.right_ang = math.atan2(right_most.y, right_most.x)
-            self.right_dir = normalize(right_most)
-        # Left angle and direction
-        if isinstance(left_most, float):
-            self.left_ang = fix_ang(left_most)
-            self.left_dir = Vec3(math.cos(left_most), math.sin(left_most), 0)
-        elif isinstance(left_most, Vec3):
-            self.left_ang = math.atan2(left_most.y, left_most.x)
-            self.left_dir = normalize(left_most)
+        self.right_ang = math.atan2(right_most.y, right_most.x)
+        self.right_dir = normalize(right_most)
+        self.left_ang = math.atan2(left_most.y, left_most.x)
+        self.left_dir = normalize(left_most)
 
     def contains_direction(self, direction, span_offset: float=0):
         ang_delta = angle_between(direction, self.get_center_dir())
@@ -324,6 +321,9 @@ class ShotController:
 
         ball_soon = ball_predict(bot, time)
         car_to_ball_soon = ball_soon.pos - car.pos
+        dot_facing_score = dot(normalize(car_to_ball_soon), normalize(car.forward))
+        vel_towards_ball_soon = proj_onto_size(car.vel, car_to_ball_soon)
+        is_facing = 0 < dot_facing_score
 
         if ball_soon.pos.z < 110 or (ball_soon.pos.z < 475 and ball_soon.vel.z <= 0) or True: #FIXME Always true
 
@@ -335,16 +335,17 @@ class ShotController:
                 car_expected_pos = car.pos + car.vel * time
                 ball_soon_flat = xy(ball_soon.pos)
                 diff = norm(car_expected_pos - ball_soon_flat)
+                ball_in_front = dot(ball_soon.pos - car_expected_pos, car.vel) > 0
 
                 if bot.do_rendering:
                     bot.renderer.draw_line_3d(car.pos, car_expected_pos, bot.renderer.lime())
                     bot.renderer.draw_rect_3d(car_expected_pos, 12, 12, True, bot.renderer.lime())
 
                 if vel_f > 400:
-                    if diff < 150:
+                    if diff < 150 and ball_in_front:
                         bot.maneuver = SmallJumpManeuver(bot, lambda b: b.info.ball.pos)
 
-            if 110 < ball_soon.pos.z: # and ball_soon.vel.z <= 0:
+            if 110 < ball_soon.pos.z:  # and ball_soon.vel.z <= 0:
                 # The ball is slightly in the air, lets wait just a bit more
                 self.waits_for_fall = True
                 ball_landing = next_ball_landing(bot, ball_soon, size=100)
@@ -355,14 +356,15 @@ class ShotController:
             self.ball_when_hit = ball_soon
 
             # The ball is on the ground, are we in position for a shot?
-            if aim_cone.contains_direction(car_to_ball_soon):
+            if aim_cone.contains_direction(car_to_ball_soon) and is_facing:
 
                 # Straight shot
 
                 self.aim_is_ok = True
                 self.can_shoot = True
 
-                if norm(car_to_ball_soon) < 240 + Ball.RADIUS and aim_cone.contains_direction(car_to_ball_soon):
+                if norm(car_to_ball_soon) < 240 + Ball.RADIUS and aim_cone.contains_direction(car_to_ball_soon)\
+                        and vel_towards_ball_soon > 300:
                     bot.drive.start_dodge(bot)
 
                 offset_point = xy(ball_soon.pos) - 50 * aim_cone.get_center_dir()
@@ -385,7 +387,8 @@ class ShotController:
                 self.curve_point.x = clip(self.curve_point.x, -Field.WIDTH / 2, Field.WIDTH / 2)
                 self.curve_point.y = clip(self.curve_point.y, -Field.LENGTH / 2, Field.LENGTH / 2)
 
-                if dodge_hit and norm(car_to_ball_soon) < 240 + Ball.RADIUS and angle_between(car.forward, car_to_ball_soon) < 0.5 and aim_cone.contains_direction(car_to_ball_soon):
+                if dodge_hit and norm(car_to_ball_soon) < 240 + Ball.RADIUS and angle_between(car.forward, car_to_ball_soon) < 0.5\
+                        and aim_cone.contains_direction(car_to_ball_soon) and vel_towards_ball_soon > 300:
                     bot.drive.start_dodge(bot)
 
                 speed = self.determine_speed(norm(car_to_ball_soon), time)

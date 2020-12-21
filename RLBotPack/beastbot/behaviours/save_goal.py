@@ -2,10 +2,10 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from behaviours.moves import AimCone
 from behaviours.utsystem import Choice
-from util import predict
-from util.info import Field, Ball
-from util.rlmath import sign, clip
-from util.vec import Vec3, norm
+from utility import predict
+from utility.info import Field, Ball
+from utility.rlmath import sign, clip
+from utility.vec import Vec3, norm
 
 
 class SaveGoal(Choice):
@@ -41,7 +41,8 @@ class SaveGoal(Choice):
         self.ball_to_goal_left = self.own_goal_left - reachable_ball.pos
         self.aim_cone = AimCone(self.ball_to_goal_left, self.ball_to_goal_right)
 
-        self.aim_cone.draw(bot, reachable_ball.pos, r=200, g=0, b=160)
+        if bot.do_rendering:
+            self.aim_cone.draw(bot, reachable_ball.pos, r=200, g=0, b=160)
 
         shoot_controls = bot.shoot.with_aiming(bot, self.aim_cone, reach_time)
 

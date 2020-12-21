@@ -4,9 +4,9 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from behaviours.utsystem import Choice
 from maneuvers.dodge import DodgeManeuver
-from util import predict
-from util.rlmath import clip01, lerp
-from util.vec import norm, Vec3, angle_between, normalize, dot
+from utility import predict
+from utility.rlmath import clip01, lerp
+from utility.vec import norm, Vec3, angle_between, normalize, dot
 
 
 class Carry(Choice):
@@ -16,10 +16,10 @@ class Carry(Choice):
 
         # Constants
         self.extra_utility_bias = 0.2
-        self.wait_before_flick = 0.26
+        self.wait_before_flick = 0.28
         self.flick_init_jump_duration = 0.07
         self.required_distance_to_ball_for_flick = 173
-        self.offset_bias = 36
+        self.offset_bias = 38
 
     def utility(self, bot) -> float:
         car = bot.info.my_car
@@ -58,19 +58,13 @@ class Carry(Choice):
         # Do a flick?
         car_to_ball = ball.pos - car.pos
         dist = norm(car_to_ball)
+        enemy, enemy_dist = bot.info.closest_enemy(ball.pos)
         if dist <= self.required_distance_to_ball_for_flick:
-            self.flick_timer += 0.016666
-            if self.flick_timer > self.wait_before_flick:
+            self.flick_timer += bot.info.dt
+            if self.flick_timer > self.wait_before_flick and enemy_dist < 900:
                 bot.maneuver = DodgeManeuver(bot, bot.info.enemy_goal)  # use flick_init_jump_duration?
         else:
             self.flick_timer = 0
-
-            # dodge on far distances
-            if dist > 2450 and speed > 1410:
-                ctt_n = normalize(target - car.pos)
-                vtt = dot(bot.info.my_car.vel, ctt_n) / dot(ctt_n, ctt_n)
-                if vtt > 750:
-                    bot.maneuver = DodgeManeuver(bot, target)
 
         if bot.do_rendering:
             bot.renderer.draw_line_3d(car.pos, target, bot.renderer.pink())

@@ -1,7 +1,4 @@
-from enum import Enum
-
-
-class Objective(Enum):
+class Objective:
     GO_FOR_IT = 0
     FOLLOW_UP = 1
     ROTATING = 2

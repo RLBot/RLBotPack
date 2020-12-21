@@ -6,8 +6,8 @@ from maneuvers.maneuver import Maneuver
 
 
 # Credits to chip
-from util.rlmath import sign0, clip
-from util.vec import transpose, dot, rotation_to_axis, Vec3, norm
+from utility.rlmath import sign0, clip
+from utility.vec import transpose, dot, rotation_to_axis, Vec3, norm
 
 
 class AerialTurnManeuver(Maneuver):

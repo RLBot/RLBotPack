@@ -1,8 +1,8 @@
 import math
 from typing import List
 
-from util.curves import bezier
-from util.vec import Vec3, cross, normalize, axis_to_rotation, dot
+from utility.curves import bezier
+from utility.vec import Vec3, cross, normalize, axis_to_rotation, dot
 
 
 def draw_ball_path(bot, duration: float, step_size: int):

@@ -1,8 +1,8 @@
 import math
 
-from util.info import GRAVITY, Ball, Field
-from util.rlmath import clip, lerp, clip01
-from util.vec import norm, proj_onto_size, xy, Vec3
+from utility.info import GRAVITY, Ball, Field
+from utility.rlmath import clip, lerp, clip01
+from utility.vec import norm, proj_onto_size, xy, Vec3
 
 
 class DummyObject:
@@ -121,13 +121,17 @@ def time_till_reach_ball(car, ball):
     dist = norm(car_to_ball) - Ball.RADIUS / 2
     vel_c_f = proj_onto_size(car.vel, car_to_ball)
     vel_b_f = proj_onto_size(ball.vel, car_to_ball)
-    vel_c_amp = lerp(vel_c_f, norm(car.vel), 0.6)
+    vel_c_amp = lerp(vel_c_f, norm(car.vel), 0.58)
     vel_f = vel_c_amp - vel_b_f
     dist_long_01 = clip01(dist / 10_000.0)
-    time_normal = dist / max(250, vel_f)
-    time_long = dist / max(norm(car.vel), 1400)
+    time_normal = dist / max(220, vel_f)
+    time_long = dist / max(norm(car.vel), 1410)
     time = lerp(time_normal, time_long, dist_long_01)
-    return time * 0.95
+    arrive_time = time * 0.95
+    # Combine slightly with old prediction to negative rapid changes
+    result = lerp(arrive_time, car.last_expected_time_till_reach_ball, 0.22)
+    car.last_expected_time_till_reach_ball = arrive_time
+    return result
 
 
 def will_ball_hit_goal(bot):
