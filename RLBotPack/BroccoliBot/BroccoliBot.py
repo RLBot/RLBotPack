@@ -86,7 +86,6 @@ class BroccoliBot(GoslingAgent):
         getting_boost = False
         getting_pads = False
 
-        print("Bot-" + str(agent.index) + " is in position " + str(agent.rotation_index))
         if agent.index == 0:
             agent.debug_stack()
 

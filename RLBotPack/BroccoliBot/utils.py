@@ -89,15 +89,10 @@ def eta(car, ball_location):
     forward_angle = direction.angle(car.orientation[0])
     backward_angle = math.pi - forward_angle
 
-    vel_in_direction = (Vector3.dot(car.velocity, car_to_ball) / Vector3.dot(car_to_ball, car_to_ball) * car_to_ball.magnitude()) / 10
-    print(vel_in_direction)
-    if car.location[2] < 150:
-        # If the car only had to drive in a straight line, we ensure it has enough time to reach the ball (a few assumptions are made)
-        forward_time = (distance * 1.05) / ((2100 if car.boost > distance / 100 else 1200) + vel_in_direction) + (forward_angle * 0.318)
-        backward_time = (distance * 1.05) / (1100 + vel_in_direction) + (backward_angle * 0.418)
-    else:
-        forward_time = (distance * 1.05) / ((2100 if car.boost > distance / 100 else 1200) + vel_in_direction * 2)
-        backward_time = (distance * 1.05) / (1100 + vel_in_direction * 2) + (backward_angle * 0.418)
+    vel_in_direction = car.velocity.dot(car_to_ball)
+    # If the car only had to drive in a straight line, we ensure it has enough time to reach the ball (a few assumptions are made)
+    forward_time = (distance * 1.05) / cap(vel_in_direction + 1000 * car.boost / 30, 1410, 2300) + (forward_angle * 0.318)
+    backward_time = (distance * 1.05) / 1400 + (backward_angle * 0.418)
 
     if forward_time < backward_time or distance > 1500:
         return forward_time,True
