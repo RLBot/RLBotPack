@@ -89,7 +89,7 @@ def eta(car, ball_location):
     forward_angle = direction.angle(car.orientation[0])
     backward_angle = math.pi - forward_angle
 
-    vel_in_direction = car.velocity.dot(car_to_ball)
+    vel_in_direction = car.velocity.dot(direction)
     # If the car only had to drive in a straight line, we ensure it has enough time to reach the ball (a few assumptions are made)
     forward_time = (distance * 1.05) / cap(vel_in_direction + 1000 * car.boost / 30, 1410, 2300) + (forward_angle * 0.318)
     backward_time = (distance * 1.05) / 1400 + (backward_angle * 0.418)
