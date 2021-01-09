@@ -77,4 +77,6 @@ def find_hits(agent, targets):
                                         aerial_shot(ball_location, intercept_time, best_shot_vector, slope))
                             elif backward_flag and ball_location[2] <= 280 and slope > 0.25:
                                 hits[pair].append(jump_shot(ball_location, intercept_time, best_shot_vector, slope, -1))
+        else:
+            i += 1
     return hits

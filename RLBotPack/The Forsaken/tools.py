@@ -98,6 +98,8 @@ def find_hits(drone: CarObject, agent: MyHivemind, targets):
                                         hits[pair].append(aerial)
                             elif backward_flag and ball_location[2] <= 280 and slope > 0.25:
                                 hits[pair].append(JumpShot(ball_location, intercept_time, best_shot_vector, slope, -1))
+        else:
+            i += 1
     return hits
 
 

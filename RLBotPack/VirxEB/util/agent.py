@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import itertools
 import math
-from time import time_ns
-from dataclasses import dataclass
+import os
+from datetime import datetime
 from enum import Enum
+from time import time_ns
 from traceback import print_exc
 from typing import List, Tuple
 
-from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
-
+import numpy as np
 from gui import Gui
 from match_comms import MatchComms
-from prediction import Prediction
+from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 
 
 class Playstyle(Enum):
@@ -39,13 +39,18 @@ class VirxERLU(BaseAgent):
         self.debug_vector = Vector()
         self.disable_driving = False
         self.goalie = False
-        self.air_bud = False
+        self.jump = True
+        self.double_jump = True
+        self.ground_shot = True
         self.aerials = True
 
-        if not self.tournament:
-            self.gui = Gui(self)
-            self.print("Starting the GUI...")
-            self.gui.start()
+        T = datetime.now()
+        T = T.strftime("%Y-%m-%d %H;%M")
+
+        self.traceback_file = (
+            os.getcwd(),
+            f"-traceback ({T}).txt"
+        )
 
         self.predictions = {
             "closest_enemy": 0,
@@ -56,19 +61,20 @@ class VirxERLU(BaseAgent):
             "self_from_goal": 0,
             "self_to_ball": 0,
             "was_down": False,
-            "enemy_time_to_ball": 0,
-            "done": False
+            "enemy_time_to_ball": 7,
+            "self_min_time_to_ball": 7
         }
 
-        self.prediction = Prediction(self)
-        self.print("Starting the predictive service...")
-        self.prediction.start()
-        self.match_comms = None
+        self.match_comms = MatchComms(self)
+        self.print("Starting the match communication handler...")
+        self.match_comms.start()
+
         self.ball_prediction_struct = None
 
         self.print("Building game information")
 
-        mutators = self.get_match_settings().MutatorSettings()
+        match_settings = self.get_match_settings()
+        mutators = match_settings.MutatorSettings()
 
         gravity = (
             Vector(z=-650),
@@ -94,9 +100,28 @@ class VirxERLU(BaseAgent):
             "no boost"
         )
 
+        game_mode = (
+            "soccer",
+            "hoops",
+            "dropshot",
+            "hockey",
+            "rumble",
+            "heatseeker"
+        )
+
         self.gravity = gravity[mutators.GravityOption()]
         self.boost_accel = boost_accel[mutators.BoostStrengthOption()]
         self.boost_amount = boost_amount[mutators.BoostOption()]
+        self.game_mode = game_mode[match_settings.GameMode()]
+
+        if self.game_mode == "heatseeker":
+            self.print("Preparing for heatseeker")
+            self.goalie = True
+
+        if not self.tournament:
+            self.gui = Gui(self)
+            self.print("Starting the GUI...")
+            self.gui.start()
 
         self.friends = ()
         self.foes = ()
@@ -122,30 +147,27 @@ class VirxERLU(BaseAgent):
         self.kickoff_done = True
         self.shooting = False
         self.odd_tick = -1
-        self.best_shot_value = 92
+        self.best_shot_value = 92.75
 
         self.future_ball_location_slice = 180
+        self.min_intercept_slice = 180
 
         self.playstyles = Playstyle
         self.playstyle = self.playstyles.Neutral
         self.can_shoot = None
         self.shot_weight = -1
         self.shot_time = -1
-        self.last_ball_location = Vector(z=93)
 
     def retire(self):
         # Stop the currently running threads
         if not self.tournament:
             self.gui.stop()
 
-        if len(self.friends) > 0:
-            self.match_comms.stop()
-
-        self.prediction.stop()
+        self.match_comms.stop()
 
     @staticmethod
     def is_hot_reload_enabled():
-        # The tkinter GUI isn't compatible with hot reloading
+        # The threads that VirxERLU uses aren't compatible with hot reloading
         # Use the Continue and Spawn option in the GUI instead
         return False
 
@@ -155,54 +177,21 @@ class VirxERLU(BaseAgent):
         self.refresh_player_lists(packet)
         self.ball.update(packet)
 
-        foe_team = -1 if self.team == 1 else 1
-        team = -foe_team
-
-        self.defensive_shots = (
-            (self.foe_goal.left_post, self.foe_goal.right_post),
-            (Vector(4096, foe_team * 3968, 1900), Vector(2944, foe_team * 5120, 1900)),
-            (Vector(-4096, foe_team * 3968, 1900), Vector(-2944, foe_team * 5120, 1900))
-        )
-
-        self.panic_shots = (
-            (Vector(3100 * team, team * 3620, 1000), Vector(3100 * team, team * 5120, 1000)),
-            (Vector(-3100 * team, team * 3620, 1000), Vector(-3100 * team, team * 5120, 1000))
-        )
-
-        self.offensive_shots = (
-            (self.foe_goal.left_post, self.foe_goal.right_post),
-            (Vector(foe_team * 893, foe_team * 5120, 100), Vector(foe_team * 893, foe_team * 4720, 320)),
-            (Vector(-foe_team * 893, foe_team * 5120, 100), Vector(-foe_team * 893, foe_team * 4720, 320))
-        )
-
-        self.best_shot = (Vector(foe_team * 650, foe_team * 5125, 320), Vector(-foe_team * 650, foe_team * 5125, 320))
-
-        self.max_shot_weight = 4
-
-        self.best_shot_value = round((92.75 + min(self.me.hitbox) / 2) * 0.99, 4)
-        self.print(f"Best shot value: {self.best_shot_value}")
-
         self.init()
 
-        self.ready = True
-
         load_time = (time_ns() - self.startup_time) / 1e+6
-        team = "Blue" if self.team == 0 else "Red"
-        print(f"{self.name} ({team}): Built game info in {load_time} milliseconds")
+        print(f"{self.name}: Built game info in {load_time} milliseconds")
 
-        if self.name in {"VirxEB", "ABot", "VirxEB-dev", "ABot-dev"}:
-            print(f"{self.name} ({team}): Check me out at https://www.virxcase.dev!!!")
+        if self.name in {"VirxEB", "ABot"}:
+            print(f"{self.name}: Check me out at https://www.virxcase.dev!!!")
+
+        self.ready = True
 
     def refresh_player_lists(self, packet):
         # Useful to keep separate from get_ready because humans can join/leave a match
         self.friends = tuple(car_object(i, packet) for i in range(packet.num_cars) if packet.game_cars[i].team is self.team and i != self.index)
         self.foes = tuple(car_object(i, packet) for i in range(packet.num_cars) if packet.game_cars[i].team != self.team)
         self.me = car_object(self.index, packet)
-
-        if len(self.friends) > 0 and self.match_comms is None:
-            self.match_comms = MatchComms(self)
-            self.print("Starting the match communication handler...")
-            self.match_comms.start()
 
     def push(self, routine):
         self.stack.append(routine)
@@ -221,10 +210,29 @@ class VirxERLU(BaseAgent):
             vectors = tuple(vector.copy() for vector in vectors)
             self.renderer.draw_polyline_3d(vectors, self.renderer.create_color(255, *color) if type(color) in {list, tuple} else color)
 
+    def sphere(self, location, radius, color=None):
+        if self.debugging and self.debug_lines:
+            x = Vector(x=radius)
+            y = Vector(y=radius)
+            z = Vector(z=radius)
+
+            diag = Vector(1.0, 1.0, 1.0).scale(radius).x
+            d1 = Vector(diag, diag, diag)
+            d2 = Vector(-diag, diag, diag)
+            d3 = Vector(-diag, -diag, diag)
+            d4 = Vector(-diag, diag, -diag)
+
+            self.line(location - x, location + x, color)
+            self.line(location - y, location + y, color)
+            self.line(location - z, location + z, color)
+            self.line(location - d1, location + d1, color)
+            self.line(location - d2, location + d2, color)
+            self.line(location - d3, location + d3, color)
+            self.line(location - d4, location + d4, color)
+
     def print(self, item):
         if not self.tournament:
-            team = "Blue" if self.team == 0 else "Red"
-            print(f"{self.name} ({team}): {item}")
+            print(f"{self.name}: {item}")
 
     def dbg_3d(self, item):
         self.debug[0].append(str(item))
@@ -252,6 +260,7 @@ class VirxERLU(BaseAgent):
         self.ball.update(packet)
         self.me.update(packet)
         self.game.update(self.team, packet)
+
         self.time = self.game.time
         self.gravity = self.game.gravity
 
@@ -262,6 +271,7 @@ class VirxERLU(BaseAgent):
 
         # Tells us when to go for kickoff
         self.kickoff_flag = self.game.round_active and self.game.kickoff
+
         self.ball_to_goal = self.friend_goal.location.flat_dist(self.ball.location)
 
         self.odd_tick += 1
@@ -270,12 +280,30 @@ class VirxERLU(BaseAgent):
             self.odd_tick = 0
 
         self.ball_prediction_struct = self.get_ball_prediction_struct()
-        self.prediction.event.set()
+
+    def get_weight(self, shot=None, index=None):
+        if index is not None:
+            return self.max_shot_weight - math.ceil(index / 2)
+
+        if shot is not None:
+            if shot is self.best_shot:
+                return self.max_shot_weight + 1
+
+            if shot is self.anti_shot:
+                return self.max_shot_weight - 1
+
+            for shot_list in (self.offensive_shots, self.defensive_shots):
+                try:
+                    return self.max_shot_weight - math.ceil(shot_list.index(shot) / 2)
+                except ValueError:
+                    continue
+
+        return self.max_shot_weight - 2
 
     def get_output(self, packet):
         try:
             # Reset controller
-            self.controller.__init__()
+            self.controller.__init__(use_item=True)
 
             # Get ready, then preprocess
             if not self.ready:
@@ -286,30 +314,74 @@ class VirxERLU(BaseAgent):
             if self.me.demolished:
                 if not self.is_clear():
                     self.clear()
-            elif self.game.round_active and self.predictions['done']:
+            elif self.game.round_active:
                 self.dbg_3d(self.playstyle.name)
+                stack_routine_name = '' if self.is_clear() else self.stack[0].__class__.__name__
+                if stack_routine_name in {'Aerial', 'jump_shot', 'double_jump', 'ground_shot', 'short_shot'}:
+                    self.shooting = True
+                    if stack_routine_name is not 'short_shot':
+                        self.shot_weight = self.get_weight(self.stack[0].targets)
+                        self.shot_time = self.stack[0].intercept_time
+                else:
+                    self.shooting = False
+                    self.shot_weight = -1
+                    self.shot_time = -1
+
                 try:
                     self.run()  # Run strategy code; This is a very expensive function to run
                 except Exception:
-                    print(self.name)
-                    print_exc()
+                    t_file = os.path.join(self.traceback_file[0], self.name+self.traceback_file[1])
+                    print(f"ERROR in {self.name}; see '{t_file}'")
+                    print_exc(file=open(t_file, "a"))
 
-                self.dbg_2d(f"Predicted enemy time to ball: {round(self.predictions['enemy_time_to_ball'] - self.time, 1)}")
+                # run the routine on the end of the stack
+                if not self.is_clear():
+                    try:
+                        r_name = self.stack[-1].__class__.__name__
+                        self.stack[-1].run(self)
+                    except Exception:
+                        t_file = os.path.join(self.traceback_file[0], r_name+self.traceback_file[1])
+                        print(f"ERROR in {self.name}'s {r_name} routine; see '{t_file}'")
+                        print_exc(file=open(t_file, "a"))
 
+                # This is a ton of debugging stuff
                 if self.debugging:
                     if self.debug_3d_bool:
                         if self.debug_stack_bool:
                             self.debug[0] = itertools.chain(self.debug[0], ("STACK:",), (item.__class__.__name__ for item in reversed(self.stack)))
 
-                        self.renderer.draw_string_3d(self.me.location.tuple(), 2, 2, "\n".join(self.debug[0]), self.renderer.team_color(alt_color=True))
+                        self.renderer.draw_string_3d(tuple(self.me.location), 2, 2, "\n".join(self.debug[0]), self.renderer.team_color(alt_color=True))
 
                         self.debug[0] = []
 
-                    if self.debug_2d_bool:
-                        if self.show_coords:
-                            self.debug[1].insert(0, str(self.me.location.int()))
+                    if self.show_coords:
+                        self.debug[1].insert(0, f"Hitbox: [{self.me.hitbox.length} {self.me.hitbox.width} {self.me.hitbox.height}]")
+                        self.debug[1].insert(0, f"Location: {round(self.me.location)}")
 
-                        if not self.is_clear() and self.stack[0].__class__.__name__ in {'Aerial', 'jump_shot', 'block_ground_shot', 'double_jump'}:
+                        car = self.me
+                        center = car.local(car.hitbox.offset) + car.location
+                        top = car.up * (car.hitbox.height / 2)
+                        front = car.forward * (car.hitbox.length / 2)
+                        right = car.right * (car.hitbox.width / 2)
+
+                        bottom_front_right = center - top + front + right
+                        bottom_front_left = center - top + front - right
+                        bottom_back_right = center - top - front + right
+                        bottom_back_left = center - top - front - right
+                        top_front_right = center + top + front + right
+                        top_front_left = center + top + front - right
+                        top_back_right = center + top - front + right
+                        top_back_left = center + top - front - right
+
+                        hitbox_color = self.renderer.team_color(alt_color=True)
+
+                        self.polyline((top_back_left, top_front_left, top_front_right, bottom_front_right, bottom_front_left, top_front_left), hitbox_color)
+                        self.polyline((bottom_front_left, bottom_back_left, bottom_back_right, top_back_right, top_back_left, bottom_back_left), hitbox_color)
+                        self.line(bottom_back_right, bottom_front_right, hitbox_color)
+                        self.line(top_back_right, top_front_right, hitbox_color)
+
+                    if self.debug_2d_bool:
+                        if not self.is_clear() and self.stack[0].__class__.__name__ in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump'}:
                             self.dbg_2d(round(self.stack[0].intercept_time - self.time, 4))
 
                         self.renderer.draw_string_2d(20, 300, 2, 2, "\n".join(self.debug[1]), self.renderer.team_color(alt_color=True))
@@ -320,19 +392,11 @@ class VirxERLU(BaseAgent):
                 else:
                     self.debug = [[], []]
 
-                # run the routine on the end of the stack
-                if not self.is_clear():
-                    self.stack[-1].run(self)
-
-                if self.is_clear() or self.stack[0].__class__.__name__ not in {'Aerial', 'jump_shot', 'block_ground_shot', 'double_jump'}:
-                    self.shooting = False
-                    self.shot_weight = -1
-                    self.shot_time = -1
-
             return SimpleControllerState() if self.disable_driving else self.controller
         except Exception:
-            print(self.name)
-            print_exc()
+            t_file = os.path.join(self.traceback_file[0], "VirxERLU"+self.traceback_file[1])
+            print(f"ERROR with VirxERLU in {self.name}; see '{t_file}' and please report the bug at 'https://github.com/VirxEC/VirxERLU/issues'")
+            print_exc(file=open(t_file, "a"))
             return SimpleControllerState()
 
     def handle_match_comm(self, msg):
@@ -369,12 +433,12 @@ class car_object:
 
         if packet is not None:
             car = packet.game_cars[self.index]
-            self.hitbox = hitbox_object(car.hitbox.length, car.hitbox.width, car.hitbox.height)
-            self.offset = Vector(car.hitbox_offset.x, car.hitbox_offset.y, car.hitbox_offset.z)
+            self.hitbox = hitbox_object(car.hitbox.length, car.hitbox.width, car.hitbox.height, Vector(car.hitbox_offset.x, car.hitbox_offset.y, car.hitbox_offset.z))
+            self.offset = self.hitbox.offset  # please use self.hitbox.offset and not self.offset
             self.update(packet)
         else:
             self.hitbox = hitbox_object()
-            self.offset = Vector()
+            self.offset = self.hitbox.offset  # please use self.hitbox.offset and not self.offset
 
     def local(self, value):
         # Generic localization
@@ -383,7 +447,7 @@ class car_object:
     def local_velocity(self, velocity=None):
         # Returns the velocity of an item relative to the car
         # x is the velocity forwards (+) or backwards (-)
-        # y is the velocity to the left (-) or right (+)
+        # y is the velocity to the left (+) or right (-)
         # z if the velocity upwards (+) or downwards (-)
         if velocity is None:
             velocity = self.velocity
@@ -393,16 +457,34 @@ class car_object:
     def local_location(self, location):
         # Returns the location of an item relative to the car
         # x is how far the location is forwards (+) or backwards (-)
-        # y is how far the location is to the left (-) or right (+)
+        # y is how far the location is to the left (+) or right (-)
         # z is how far the location is upwards (+) or downwards (-)
         return self.local(location - self.location)
 
+    def get_raw(self, agent, force_on_ground=False):
+        return (
+            tuple(self.location),
+            tuple(self.velocity),
+            (tuple(self.forward), tuple(self.right), tuple(self.up)),
+            tuple(self.angular_velocity),
+            1 if self.demolished else 0,
+            1 if self.airborne and not force_on_ground else 0,
+            1 if self.supersonic else 0,
+            1 if self.jumped else 0,
+            1 if self.doublejumped else 0,
+            self.boost if agent.boost_amount != 'unlimited' else 255,
+            self.index,
+            tuple(self.hitbox),
+            tuple(self.hitbox.offset)
+        )
+
     def update(self, packet):
         car = packet.game_cars[self.index]
-        self.location = Vector(car.physics.location.x, car.physics.location.y, car.physics.location.z)
-        self.velocity = Vector(car.physics.velocity.x, car.physics.velocity.y, car.physics.velocity.z)
-        self.orientation = Matrix3(car.physics.rotation.pitch, car.physics.rotation.yaw, car.physics.rotation.roll)
-        self.angular_velocity = self.orientation.dot(car.physics.angular_velocity)
+        car_phy = car.physics
+        self.location = Vector(car_phy.location.x, car_phy.location.y, car_phy.location.z)
+        self.velocity = Vector(car_phy.velocity.x, car_phy.velocity.y, car_phy.velocity.z)
+        self.orientation = Matrix3(car_phy.rotation.pitch, car_phy.rotation.yaw, car_phy.rotation.roll)
+        self.angular_velocity = self.orientation.dot((car_phy.angular_velocity.x, car_phy.angular_velocity.y, car_phy.angular_velocity.z))
         self.demolished = car.is_demolished
         self.airborne = not car.has_wheel_contact
         self.supersonic = car.is_super_sonic
@@ -416,9 +498,9 @@ class car_object:
         return self.orientation.forward
 
     @property
-    def left(self):
-        # A vector pointing left relative to the cars orientation. Its magnitude == 1
-        return self.orientation.left
+    def right(self):
+        # A vector pointing right relative to the cars orientation. Its magnitude == 1
+        return self.orientation.right
 
     @property
     def up(self):
@@ -427,10 +509,14 @@ class car_object:
 
 
 class hitbox_object:
-    def __init__(self, length=0, width=0, height=0):
+    def __init__(self, length=0, width=0, height=0, offset=None):
         self.length = length
         self.width = width
         self.height = height
+
+        if offset is None:
+            offset = Vector()
+        self.offset = offset
 
     def __getitem__(self, index):
         return (self.length, self.width, self.height)[index]
@@ -442,6 +528,12 @@ class ball_object:
         self.velocity = Vector()
         self.latest_touched_time = 0
         self.latest_touched_team = 0
+
+    def get_raw(self):
+        return (
+            tuple(self.location),
+            tuple(self.velocity)
+        )
 
     def update(self, packet):
         ball = packet.game_ball
@@ -466,10 +558,10 @@ class goal_object:
     # This is a simple object that creates/holds goalpost locations for a given team (for soccer on standard maps only)
     def __init__(self, team):
         team = 1 if team == 1 else -1
-        self.location = Vector(0, team * 5120, 320)  # center of goal line
+        self.location = Vector(0, team * 5120, 321.3875)  # center of goal line
         # Posts are closer to x=893, but this allows the bot to be a little more accurate
-        self.left_post = Vector(team * 800, team * 5125, 320)
-        self.right_post = Vector(-team * 800, team * 5125, 320)
+        self.left_post = Vector(team * 800, team * 5120, 321.3875)
+        self.right_post = Vector(-team * 800, team * 5120, 321.3875)
 
 
 class game_object:
@@ -520,122 +612,167 @@ class Matrix3:
             Vector(CY*SP*SR-CR*SY, SY*SP*SR+CR*CY, -CP*SR),
             Vector(-CR*CY*SP-SR*SY, -CR*SY*SP+SR*CY, CP*CR)
         ]
-        self.forward, self.left, self.up = self.data
+        self.forward, self.right, self.up = self.data
 
     def __getitem__(self, key):
         return self.data[key]
 
+    def __str__(self):
+        return f"[{self.forward}\n{self.right}\n{self.up}]"
+
     def dot(self, vector):
-        return Vector(self.forward.dot(vector), self.left.dot(vector), self.up.dot(vector))
+        return Vector(self.forward.dot(vector), self.right.dot(vector), self.up.dot(vector))
 
+    def det(self):
+        return self[0][0] * self[1][1] * self[2][2] + self[0][1] * self[1][2] * self[2][0] + \
+               self[0][2] * self[1][0] * self[2][1] - self[0][0] * self[1][2] * self[2][1] - \
+               self[0][1] * self[1][0] * self[2][2] - self[0][2] * self[1][1] * self[2][0]
 
-# With this new setup, Vector supports 1D, 2D and 3D Vectors, as well as calculations between them
-@dataclass
+# Vector supports 1D, 2D and 3D Vectors, as well as calculations between them
+# Arithmetic with 1D and 2D lists/tuples aren't supported - just set the remaining values to 0 manually
+# With this new setup, Vector is much faster because it's just a wrapper for numpy
 class Vector:
-    # These values can be ints or floats, with their defaults being 0
-    # This means that Vector3(0, 0, 0) is now Vector()
-    x: float = 0
-    y: float = 0
-    z: float = 0
+    def __init__(self, x: float = 0, y: float = 0, z: float = 0):
+        # this is a private property - this is so all other things treat this class like a list, and so should you!
+        self._np = np.array([x, y, z])
 
+    def __getitem__(self, index):
+        return self._np[index].item()
+
+    def __setitem__(self, index, value):
+        self._np[index] = value
+
+    @property
+    def x(self):
+        return self._np[0].item()
+
+    @x.setter
+    def x(self, value):
+        self._np[0] = value
+
+    @property
+    def y(self):
+        return self._np[1].item()
+
+    @y.setter
+    def y(self, value):
+        self._np[1] = value
+
+    @property
+    def z(self):
+        return self._np[2].item()
+
+    @z.setter
+    def z(self, value):
+        self._np[2] = value
+
+    # self == value
     def __eq__(self, value):
-        # Vector's can be compared with:
-        # - Another Vector, in which case True will be returned if they have the same values
-        # - A list/tuple, in which case True will be returned if they have the same values
-        # - A single value, in which case True will be returned if the Vector's length matches the value
-        if hasattr(value, "x"):
-            return self.tuple() == (value.x, value.y, value.z)
+        if isinstance(value, float) or isinstance(value, int):
+            return self.magnitude() == value
 
-        if isinstance(value, tuple):
-            return self.tuple() == value
+        if hasattr(value, "_np"):
+            value = value._np
+        return (self._np == value).all()
 
-        if isinstance(value, list):
-            return self.list() == value
+    # len(self)
+    def __len__(self):
+        return 3  # this is a 3 dimensional vector, so we return 3
 
-        return self.magnitude() == value
-
-    def __getitem__(self, value):
-        return self.tuple()[value]
-
+    # str(self)
     def __str__(self):
         # Vector's can be printed to console
-        return f"({self.x}, {self.y}, {self.z})"
+        return f"[{self.x} {self.y} {self.z}]"
 
+    # repr(self)
+    def __repr__(self):
+        return f"Vector(x={self.x}, y={self.y}, z={self.z})"
+
+    # -self
+    def __neg__(self):
+        return Vector(*(self._np * -1))
+
+    # self + value
     def __add__(self, value):
-        if hasattr(value, "x"):
-            return Vector(self.x+value.x, self.y+value.y, self.z+value.z)
-        return Vector(self.x+value, self.y+value, self.z+value)
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*(self._np+value))
     __radd__ = __add__
 
+    # self - value
     def __sub__(self, value):
-        if hasattr(value, "x"):
-            return Vector(self.x-value.x, self.y-value.y, self.z-value.z)
-        return Vector(self.x-value, self.y-value, self.z-value)
-    __rsub__ = __sub__
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*(self._np-value))
 
-    def __neg__(self):
-        return Vector(-self.x, -self.y, -self.z)
+    def __rsub__(self, value):
+        return -self + value
 
+    # self * value
     def __mul__(self, value):
-        if hasattr(value, "x"):
-            return Vector(self.x*value.x, self.y*value.y, self.z*value.z)
-        return Vector(self.x*value, self.y*value, self.z*value)
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*(self._np*value))
     __rmul__ = __mul__
 
+    # self / value
     def __truediv__(self, value):
-        if hasattr(value, "x"):
-            return Vector(self.x/value.x, self.y/value.y, self.z/value.z)
-        return Vector(self.x/value, self.y/value, self.z/value)
-    __rtruediv__ = __truediv__
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*(self._np/value))
 
-    def int(self) -> Vector:
-        return Vector(int(self.x), int(self.y), int(self.z))
+    def __rtruediv__(self, value):
+        return self * (1 / value)
 
-    def tuple(self) -> Tuple[float]:
-        return (self.x, self.y, self.z)
-
-    def list(self) -> List[float]:
-        return [self.x, self.y, self.z]
-
-    # Linear algebra functions
+    # round(self)
+    def __round__(self, decimals=0) -> Vector:
+        # Rounds all of the values
+        return Vector(*np.around(self._np, decimals=decimals))
 
     def magnitude(self) -> float:
-        # Magnitude() returns the length of the vector
-        return math.sqrt(self.dot(self))
+        # Returns the length of the vector
+        return np.linalg.norm(self._np).item()
+
+    def dot(self, value: Vector) -> float:
+        # Returns the dot product of two vectors
+        if hasattr(value, "_np"):
+            value = value._np
+        return np.dot(self._np, value).item()
+
+    def cross(self, value: Vector) -> Vector:
+        # Returns the cross product of two vectors
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*np.cross(self._np, value))
+
+    def copy(self) -> Vector:
+        # Returns a copy of the vector
+        return Vector(*self._np)
 
     def normalize(self, return_magnitude=False) -> List[Vector, float] or Vector:
-        # Normalize() returns a Vector that shares the same direction but has a length of 1
-        # Normalize(True) can also be used if you'd like the length of this Vector (used for optimization)
+        # normalize() returns a Vector that shares the same direction but has a length of 1
+        # normalize(True) can also be used if you'd like the length of this Vector (used for optimization)
         magnitude = self.magnitude()
         if magnitude != 0:
+            norm_vec = Vector(*(self._np / magnitude))
             if return_magnitude:
-                return Vector(self.x/magnitude, self.y/magnitude, self.z/magnitude), magnitude
-            return Vector(self.x/magnitude, self.y/magnitude, self.z/magnitude)
+                return norm_vec, magnitude
+            return norm_vec
         if return_magnitude:
             return Vector(), 0
         return Vector()
 
-    def dot(self, value: Vector) -> float:
-        return self.x*value.x + self.y*value.y + self.z*value.z
-
-    def cross(self, value: Vector) -> Vector:
-        return Vector((self.y*value.z) - (self.z*value.y), (self.z*value.x) - (self.x*value.z), (self.x*value.y) - (self.y*value.x))
-
     def flatten(self) -> Vector:
         # Sets Z (Vector[2]) to 0, making the Vector 2D
-        return Vector(self.x, self.y, 0)
-
-    def copy(self) -> Vector:
-        # Returns a copy of this Vector
-        return Vector(*self.tuple())
+        return Vector(self._np[0], self._np[1])
 
     def angle2D(self, value: Vector) -> float:
         # Returns the 2D angle between this Vector and another Vector in radians
         return self.flatten().angle(value.flatten())
 
-    def angle(self, value: Vector) -> Vector:
+    def angle(self, value: Vector) -> float:
         # Returns the angle between this Vector and another Vector in radians
-        return math.acos(max(min(self.normalize().dot(value.normalize()), 1), -1))
+        return math.acos(max(min(np.dot(self.normalize()._np, value.normalize()._np).item(), 1), -1))
 
     def rotate(self, angle: float) -> Vector:
         # Rotates this Vector by the given angle in radians
@@ -646,12 +783,12 @@ class Vector:
         # Similar to integer clamping, Vector's clamp2D() forces the Vector's direction between a start and end Vector
         # Such that Start < Vector < End in terms of clockwise rotation
         # Note that this is only 2D, in the x and y axis
-        s = self.normalize()
-        right = s.dot(end.cross(Vector(z=-1))) < 0
-        left = s.dot(start.cross(Vector(z=-1))) > 0
-        if (right and left) if end.dot(start.cross(Vector(z=-1))) > 0 else (right or left):
+        s = self.normalize()._np
+        right = np.dot(s, np.cross(end._np, (0, 0, -1))) < 0
+        left = np.dot(s, np.cross(start._np, (0, 0, -1))) > 0
+        if (right and left) if np.dot(end._np, np.cross(start._np, (0, 0, -1))) > 0 else (right or left):
             return self
-        if start.dot(s) < end.dot(s):
+        if np.dot(start._np, s) < np.dot(end._np, s):
             return end
         return start
 
@@ -670,7 +807,9 @@ class Vector:
 
     def dist(self, value: Vector) -> float:
         # Distance between 2 vectors
-        return (self - value).magnitude()
+        if hasattr(value, "_np"):
+            value = value._np
+        return np.linalg.norm(self._np - value).item()
 
     def flat_dist(self, value: Vector) -> float:
         # Distance between 2 vectors on a 2D plane
@@ -678,4 +817,14 @@ class Vector:
 
     def cap(self, low: float, high: float) -> Vector:
         # Caps all values in a Vector between 'low' and 'high'
-        return Vector(*(max(min(item, high), low) for item in self.tuple()))
+        return Vector(*(max(min(item, high), low) for item in self._np))
+
+    def midpoint(self, value: Vector) -> Vector:
+        # Midpoint of the 2 vectors
+        if hasattr(value, "_np"):
+            value = value._np
+        return Vector(*((self._np + value) / 2))
+
+    def scale(self, value: float) -> Vector:
+        # Returns a vector that has the same direction but with a value as the magnitude
+        return self.normalize() * value

@@ -15,13 +15,11 @@ class Gui(Thread):
         icon_path = path.join(path.dirname(path.abspath(__file__)), "./logo.png")
         root.iconphoto(True, PhotoImage(file=icon_path))
 
-        team = "Blue" if self.agent.team == 0 else "Red"
-
         root.title("VirxEC/VirxERLU")
 
-        root.geometry("255x390")
+        root.geometry("255x425")
 
-        title = ttk.Label(root, text=f"{self.agent.name} ({team}) hosted by VirxERLU")
+        title = ttk.Label(root, text=f"{self.agent.name} hosted by VirxERLU")
         title.pack()
 
         author = ttk.Label(root, text=f"VirxEB by VirxEC (VirxEC/VirxEB)")
@@ -38,17 +36,6 @@ class Gui(Thread):
         goalie_btn = ttk.Checkbutton(root, text='Goalie', variable=goalie_bool, command=set_goalie)
         goalie_btn.pack()
 
-        # Air bud
-
-        air_bud_bool = BooleanVar()
-        air_bud_bool.set(self.agent.air_bud)
-
-        def set_air_bud():
-            self.agent.air_bud = air_bud_bool.get()
-
-        air_bud_btn = ttk.Checkbutton(root, text='Air Bud', variable=air_bud_bool, command=set_air_bud)
-        air_bud_btn.pack()
-
         # Aerials
 
         aerials_bool = BooleanVar()
@@ -57,8 +44,41 @@ class Gui(Thread):
         def set_aerials():
             self.agent.aerials = aerials_bool.get()
 
-        aerials_btn = ttk.Checkbutton(root, text='Aerials', variable=aerials_bool, command=set_aerials)
+        aerials_btn = ttk.Checkbutton(root, text='Aerial shot', variable=aerials_bool, command=set_aerials)
         aerials_btn.pack()
+
+        # Double jump
+
+        double_jump_bool = BooleanVar()
+        double_jump_bool.set(self.agent.aerials)
+
+        def set_double_jump():
+            self.agent.double_jump = double_jump_bool.get()
+
+        double_jump_btn = ttk.Checkbutton(root, text='Double jump shot', variable=double_jump_bool, command=set_double_jump)
+        double_jump_btn.pack()
+
+        # Jump
+
+        jump_bool = BooleanVar()
+        jump_bool.set(self.agent.aerials)
+
+        def set_jump():
+            self.agent.jump = jump_bool.get()
+
+        jump_btn = ttk.Checkbutton(root, text='Jump shot', variable=jump_bool, command=set_jump)
+        jump_btn.pack()
+
+        # Ground shot
+
+        ground_shot_bool = BooleanVar()
+        ground_shot_bool.set(self.agent.ground_shot)
+
+        def set_ground_shot():
+            self.agent.ground_shot = ground_shot_bool.get()
+
+        ground_shot_btn = ttk.Checkbutton(root, text='Ground shot', variable=ground_shot_bool, command=set_ground_shot)
+        ground_shot_btn.pack()
 
         # Disable driving
 
@@ -101,7 +121,7 @@ class Gui(Thread):
         def set_show_coords():
             self.agent.show_coords = show_coords_bool.get()
 
-        show_coords_btn = ttk.Checkbutton(root, text='Show Location (2D)', variable=show_coords_bool, command=set_show_coords)
+        show_coords_btn = ttk.Checkbutton(root, text='Show Car Info (2D/Lines)', variable=show_coords_bool, command=set_show_coords)
         show_coords_btn.pack()
 
         # Debug 3D

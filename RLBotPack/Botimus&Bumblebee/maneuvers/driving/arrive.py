@@ -7,7 +7,7 @@ from rlutilities.linear_algebra import vec3, norm, normalize
 from rlutilities.simulation import Car
 from tools.drawing import DrawingTool
 from tools.math import clamp, nonzero
-from tools.vector_math import ground_distance
+from tools.vector_math import ground_distance, angle_to
 
 
 class Arrive(Maneuver):
@@ -22,6 +22,7 @@ class Arrive(Maneuver):
         super().__init__(car)
         self.drive = Drive(car)
         self.travel = Travel(car)
+        self.travel.drive.backwards = False
         self.action = self.drive
 
         self.target_direction: Optional[None] = None
@@ -29,9 +30,10 @@ class Arrive(Maneuver):
         self.arrival_time: float = 0
         self.backwards: bool = False
 
-        self.lerp_t = 0.57
+        self.lerp_t = 0.56
         self.allow_dodges_and_wavedashes: bool = True
         self.additional_shift = 0
+        self.asap = False
 
     def interruptible(self) -> bool:
         return self.action.interruptible()
@@ -46,17 +48,17 @@ class Arrive(Maneuver):
 
             # in order to arrive in a direction, we need to shift the target in the opposite direction
             # the magnitude of the shift is based on how far are we from the target
-            shift = clamp(ground_distance(car.position, target) * self.lerp_t, 0, car_speed * 1.5)
+            shift = clamp(ground_distance(car.position, target) * self.lerp_t, 0, clamp(car_speed, 1500, 2300) * 1.6)
 
             # if we're too close to the target, aim for the actual target so we don't miss it
-            if shift - self.additional_shift < Drive.turn_radius(clamp(car_speed, 1400, 2000) * 1.1):
+            if shift - self.additional_shift * 0.4 < Drive.turn_radius(clamp(car_speed, 500, 2300)) * 1.1:
                 shift = 0
             else:
                 shift += self.additional_shift
 
             shifted_target = target - target_direction * shift
 
-            time_shift = ground_distance(shifted_target, target) * 0.7 / clamp(car_speed, 500, 2300)
+            time_shift = ground_distance(shifted_target, target) / clamp(car_speed, 500, 2300) * 1.2
             shifted_arrival_time = self.arrival_time - time_shift
 
         else:
@@ -69,6 +71,13 @@ class Arrive(Maneuver):
         dist_to_target = ground_distance(car.position, shifted_target)
         time_left = nonzero(shifted_arrival_time - car.time)
         target_speed = clamp(dist_to_target / time_left, 0, 2300)
+
+        if target_speed < 800 and dist_to_target > 500 and angle_to(self.car, shifted_target) < 0.1:
+            target_speed = 0
+
+        # if self.asap:
+        #     target_speed += 50
+
         self.drive.target_speed = target_speed
         self.drive.backwards = self.backwards
 

@@ -27,7 +27,7 @@ class Kickoff(Maneuver):
         return False
 
     def counter_fake_kickoff(self):
-        if any(distance(self.info.ball, opponent) < 1500 for opponent in self.info.get_opponents(self.car)):
+        if any(distance(self.info.ball, opponent) < 1500 for opponent in self.info.get_opponents()):
             return
 
         self.phase = "anti-fake-kickoff"

@@ -2,9 +2,11 @@ from maneuvers.dribbling.carry import Carry
 from maneuvers.jumps.air_dodge import AirDodge
 from maneuvers.maneuver import Maneuver
 from rlutilities.linear_algebra import vec3, dot, norm
+from rlutilities.mechanics import Dodge
 from rlutilities.simulation import Car
 from tools.drawing import DrawingTool
 from tools.game_info import GameInfo
+from tools.math import clamp
 from tools.vector_math import ground_direction, distance, ground_distance, direction
 
 
@@ -20,7 +22,9 @@ class CarryAndFlick(Maneuver):
         self.info = info
 
         self.carry = Carry(car, info.ball, target)
-        self.flick = AirDodge(car, 0.15, info.ball.position)
+        self.flick = Dodge(car)
+        self.flick.duration = 0.15
+        self.flick.target = target
         self.flicking = False
 
     def interruptible(self) -> bool:
@@ -38,18 +42,17 @@ class CarryAndFlick(Maneuver):
             dir_to_target = ground_direction(car, self.target)
             if (
                 distance(car, ball) < 150
-                and ground_distance(car, ball) < 80
+                and ground_distance(car, ball) < 100
                 and dot(car.forward(), dir_to_target) > 0.7
-                and norm(car.velocity) > distance(car, self.target) / 3
-                and norm(car.velocity) > 1300
+                and norm(car.velocity) > clamp(distance(car, self.target) / 3, 1000, 1700)
                 and dot(dir_to_target, ground_direction(car, ball)) > 0.9
             ):
                 self.flicking = True
             
             # flick if opponent is close
-            for opponent in self.info.get_opponents(car):
+            for opponent in self.info.get_opponents():
                 if (
-                    distance(opponent.position + opponent.velocity, car) < max(300.0, norm(opponent.velocity))
+                    distance(opponent.position + opponent.velocity, car) < max(300.0, norm(opponent.velocity) * 0.5)
                     and dot(opponent.velocity, direction(opponent, self.info.ball)) > 0.5
                 ):
                     if distance(car.position, self.info.ball.position) < 200:

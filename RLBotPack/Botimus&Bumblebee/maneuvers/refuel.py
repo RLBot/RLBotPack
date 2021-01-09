@@ -7,7 +7,7 @@ from rlutilities.linear_algebra import vec3, norm
 from rlutilities.simulation import Car, Pad
 from tools.drawing import DrawingTool
 from tools.game_info import GameInfo
-from tools.intercept import estimate_max_car_speed, estimate_time
+from tools.intercept import estimate_time
 from tools.vector_math import distance
 
 
@@ -16,14 +16,14 @@ class Refuel(Maneuver):
     Choose a large boost pad and go pick it up.
     """
 
-    def __init__(self, car: Car, info: GameInfo, target: vec3, forbidden_pads: Set[Pad] = set()):
+    def __init__(self, car: Car, info: GameInfo, forbidden_pads: Set[Pad] = set()):
         super().__init__(car)
         self.info = info
 
-        pos = (target + car.position * 2 + info.my_goal.center * 2) / 5  # TODO: make this better
-
         pads = set(info.large_boost_pads) - forbidden_pads
-        self.pad = self.best_boostpad_to_pickup(car, pads, pos)
+        pickupable_pads = {pad for pad in pads if pad.is_active or estimate_time(car, pad.position) * 0.8 > pad.timer}
+        pos = (info.ball.position + car.position * 2 + info.my_goal.center) / 4
+        self.pad = min(pickupable_pads, key=lambda pad: distance(pad.position, pos)) if pickupable_pads else None
 
         self.pad_was_active = self.pad and self.pad.is_active
 
@@ -36,7 +36,7 @@ class Refuel(Maneuver):
 
         for pad in pads:
             dist = distance(pos, pad.position)
-            time_estimate = estimate_time(car, pad.position, estimate_max_car_speed(car))
+            time_estimate = estimate_time(car, pad.position) * 0.7
 
             if dist < best_dist and (pad.is_active or pad.timer < time_estimate):
                 best_pad = pad
