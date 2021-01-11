@@ -73,6 +73,6 @@ deploy:
    auth_token: $(GITHUB_API_TOKEN)
    artifact: 'output\incremental.zip'
    draft: false
-   prerelease: true
+   prerelease: false
    on:
       branch: $(DEPLOY_BRANCH)
