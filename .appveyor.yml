@@ -38,7 +38,7 @@ build_script:
          $env:RELEASE_NUMBER = 0
          $env:RELEASE_DESC = "Initial automated incremental release " + ${env:HASH}
       } else {
-         $env:PREV_HASH = $latestRelease.commitId.substring(0, 7)
+         $env:PREV_HASH = $latestRelease.version.Split("-")[2]
          $env:RELEASE_NUMBER = 1 + ($latestRelease.version.Split("-")[1])
 
          Write-Host ("Generating incremental containing ${env:PREV_HASH} -> ${env:HASH}")
@@ -59,8 +59,8 @@ build_script:
       }
 
       $env:RELEASE_TAG = "incr-" +  ${env:RELEASE_NUMBER}
-      
-      Update-AppveyorBuild -Version ("1." + ${env:build} + "-" + ${env:RELEASE_NUMBER})
+
+      Update-AppveyorBuild -Version "1.${env:APPVEYOR_BUILD_NUMBER}-${env:RELEASE_NUMBER}-${env:HASH}"
 
 artifacts:
    - path: 'output\incremental.zip'
