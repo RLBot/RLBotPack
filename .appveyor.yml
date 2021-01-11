@@ -43,8 +43,6 @@ build_script:
 
          Write-Host ("Generating incremental containing ${env:PREV_HASH} -> ${env:HASH}")
 
-         git diff --name-only ($latestRelease.commitId) HEAD --no-renames --diff-filter=D | Out-file -FilePath intermediary\.deleted
-
          $list = git diff --name-only ($latestRelease.commitId) HEAD --no-renames --diff-filter=d
          foreach ($item in $list) {
             Write-Host ("{0}" -f $item)
@@ -52,6 +50,8 @@ build_script:
             mkdir (Split-Path -parent $dest) -Force | Out-Null
             Copy-Item $item -Destination $dest
          }
+
+         git diff --name-only ($latestRelease.commitId) HEAD --no-renames --diff-filter=D | Out-file -FilePath intermediary\.deleted
 
          Compress-Archive -Path intermediary\* -DestinationPath "output\incremental.zip"
 
