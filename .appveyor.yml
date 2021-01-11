@@ -1,0 +1,49 @@
+image: Visual Studio 2019
+platform:
+   - amd64
+
+build_script:
+   - ps: >-
+
+      mkdir intermediary
+
+      mkdir output
+
+      $env:HASH = git rev-parse --short HEAD
+
+      git diff --name-only HEAD~1 HEAD --no-renames --diff-filter=D | Out-file -FilePath intermediary\.deleted
+
+      $list = git diff --name-only HEAD~1 HEAD --no-renames --diff-filter=d
+      
+      foreach ($item in $list) {
+
+         write-host ("{0}" -f $item)
+
+         $dest = "intermediary\" + $item
+
+         mkdir (Split-Path -parent $dest) -Force | Out-Null
+
+         Copy-Item $item -Destination $dest
+         
+      }
+
+      Compress-Archive -Path intermediary\* -DestinationPath "output\incremental.zip"
+   
+test: off
+
+artifacts:
+   - path: 'output\incremental.zip'
+   
+deploy:
+   release: incr-v$(HASH)
+   tag: $(HASH)
+   description: 'This is an automated incremental update zip, Not meant for end users.'
+   provider: GitHub
+   auth_token:
+      secure: 97lSD0qO+F/mk5/vIfBQgsAXaVsvv6Hfm//ADif4USlyHQoGwHlk8rSNehe60LMh
+   artifact: 'output\incremental.zip'
+   draft: false
+   prerelease: true
+   on:
+      branch: master
+      APPVEYOR_REPO_TAG: false
