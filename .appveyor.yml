@@ -37,6 +37,7 @@ build_script:
          # Write-Error "Stop"
          $env:RELEASE_NUMBER = 0
          $env:RELEASE_DESC = "Initial automated incremental release " + ${env:HASH}
+         $env:COMMIT_LOG = ""
       } else {
          $env:PREV_HASH = $latestRelease.version.Split("-")[2]
          $env:RELEASE_NUMBER = 1 + ($latestRelease.version.Split("-")[1])
@@ -56,6 +57,8 @@ build_script:
          Compress-Archive -Path intermediary\* -DestinationPath "output\incremental.zip"
 
          $env:RELEASE_DESC = ${env:PREV_HASH} + " -> " + ${env:HASH}
+
+         $env:COMMIT_LOG = (git log ($latestRelease.commitId)..HEAD --pretty="%h %s") -join "\n";
       }
 
       $env:RELEASE_TAG = "incr-" +  ${env:RELEASE_NUMBER}
@@ -68,7 +71,7 @@ artifacts:
 deploy:
    release: '$(RELEASE_TAG): $(RELEASE_DESC)'
    tag: '$(RELEASE_TAG)'
-   description: '$(RELEASE_DESC)\nThis is an automated incremental update zip, Not meant for end users.'
+   description: '$(RELEASE_DESC)\nThis is an automated incremental update zip, Not meant for end users.\n\n$(COMMIT_LOG)'
    provider: GitHub
    auth_token: $(GITHUB_API_TOKEN)
    artifact: 'output\incremental.zip'
