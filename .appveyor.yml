@@ -46,4 +46,3 @@ deploy:
    prerelease: true
    on:
       branch: master
-      APPVEYOR_REPO_TAG: false
