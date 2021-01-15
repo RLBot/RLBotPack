@@ -1,0 +1,6 @@
+rlbot==1.*
+rlbottraining
+VirxERLU-CLib>=1.12.0
+numpy
+
+pip
