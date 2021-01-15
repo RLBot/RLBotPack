@@ -13,7 +13,7 @@ import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.agents.standalone.standalone_bot import StandaloneBot, run_bot
 
-TOURNAMENT_MODE = False
+TOURNAMENT_MODE = True
 # Make False to enable hot reloading
 EXTRA_DEBUGGING = False
 
