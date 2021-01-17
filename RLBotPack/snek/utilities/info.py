@@ -1,8 +1,8 @@
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket, FieldInfo
 
-from util.rlmath import clip
-from util.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
+from utilities.rlmath import clip
+from utilities.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
 
 
 MAX_SPEED = 2300
