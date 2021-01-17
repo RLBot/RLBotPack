@@ -1,6 +1,6 @@
 import math
 
-from util.vec import Vec3, cross, normalize, axis_to_rotation, dot
+from utilities.vec import Vec3, cross, normalize, axis_to_rotation, dot
 
 
 def draw_ball_path(bot, duration: float, step_size: int):
