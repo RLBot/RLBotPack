@@ -4,11 +4,11 @@ platform:
 
 environment:
    APPVEYOR_API_TOKEN:
-      secure: qTt+0485sfAXM2Sz+QLZ+jjziNf4One8/A062QFN1a4=
+      secure: QaFZHMmYjMehNXvfY7mqBcQlmHg1Vz/s1/PcFnw8rqs=
    GITHUB_API_TOKEN:
-      secure: TpVl9vErdKkXR/RUlVtUDfeITAn5BtOhG3JxiFJRGp85c3B7boCFf6CDOxNgMr/m
+      secure: K+Ve9A1PjCY37IApiUQW3x6HyTcwvnwwo4OUGk90pPwMgtyjTt9/3uy0Nj3DFhc1
    DEPLOY_BRANCH: 'master'
-   
+
 branches:
    only:
       - master
@@ -22,12 +22,12 @@ build_script:
       mkdir intermediary -Force | Out-Null
       mkdir output -Force | Out-Null
 
-      $env:RECORDS_NUMBER = 1000 # build history depth to search 
+      $env:RECORDS_NUMBER = 1000 # build history depth to search
       $headers = @{
          "Authorization" = "Bearer $env:APPVEYOR_API_TOKEN"
          "Content-type" = "application/json"
       }
-         
+
       $env:HASH = git rev-parse --short HEAD
 
       $history = Invoke-RestMethod -Uri "https://ci.appveyor.com/api/projects/$env:APPVEYOR_ACCOUNT_NAME/$env:APPVEYOR_PROJECT_SLUG/history?recordsNumber=$env:RECORDS_NUMBER" -Headers $headers -Method Get
@@ -67,7 +67,7 @@ build_script:
 
 artifacts:
    - path: 'output\incremental.zip'
-   
+
 deploy:
    release: '$(RELEASE_TAG): $(RELEASE_DESC)'
    tag: '$(RELEASE_TAG)'
