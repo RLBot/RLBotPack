@@ -12,6 +12,7 @@ class ExampleBot(VirxERLU):
         super().initialize_agent()
         self.state = None
         self.do_debug = True
+        self.RTG_flip_time = 0
     def run(self):
         num_foes = len(self.foes)
         my_goal_to_ball, my_ball_distance = (self.ball.location-self.friend_goal.location).normalize(True)
@@ -86,9 +87,9 @@ class ExampleBot(VirxERLU):
                                     closest = boost
                             self.push(goto_boost(closest))
                             self.state = 'kickoff (getting boost)'
-            elif need_to_save or ball_third == -1:
-                left_field = Vector(4200*(-side(self.team)), self.ball.location.y + 1000*(-side(self.team)), 0)
-                right_field = Vector(4200*(side(self.team)), self.ball.location.y + 1000*(-side(self.team)), 0)
+            elif need_to_save:
+                left_field = Vector(4200*(-side(self.team)), self.ball.location.y + 2000*(-side(self.team)), 0)
+                right_field = Vector(4200*(side(self.team)), self.ball.location.y + 2000*(-side(self.team)), 0)
                 self.state = 'need to save'
                 team = 1 if self.team == 1 else -1
                 targets = {'my_goal': (Vector(-team * 850, team * 5100, 320), Vector(team * 850, team * 5100, 320)), 'goal': (self.foe_goal.left_post, self.foe_goal.right_post), 'upfield': (left_field, right_field)}
@@ -106,8 +107,8 @@ class ExampleBot(VirxERLU):
                     return_to_goal = True
                     self.state = 'need to save (RTG)'
             elif (close and me_onside) or (not foe_onside and me_onside):
-                left_field = Vector(4200*(-side(self.team)), self.ball.location.y + 1000*(-side(self.team)), 0)
-                right_field = Vector(4200*(side(self.team)), self.ball.location.y + 1000*(-side(self.team)), 0)
+                left_field = Vector(4200*(-side(self.team)), self.ball.location.y + 2000*(-side(self.team)), 0)
+                right_field = Vector(4200*(side(self.team)), self.ball.location.y + 2000*(-side(self.team)), 0)
                 targets = {'goal': (self.foe_goal.left_post, self.foe_goal.right_post), 'upfield': (left_field, right_field)}
                 shots = self.find_hits(targets)
                 if shots['goal'] is not None:
@@ -143,18 +144,22 @@ class ExampleBot(VirxERLU):
                 return_to_goal = True
                 self.state = 'RTG'
             
-            if return_to_goal and ball_third != -1 and ((self.me.location.y - self.ball.location.y) * side(self.team) > 500) :
+            if return_to_goal and ((self.me.location.y - self.ball.location.y) * side(self.team) > 1000) and (self.me.location-self.ball.location).magnitude() > 500:
                 self.state = 'HIT DA BALL'
                 relative_target = self.ball.location - self.me.location
-                angles, vel = defaultDrive(self, 2300, self.me.local(relative_target))
+                angles, vel = defaultDrive(self, 1400, self.me.local(relative_target))
                 self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
                 self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
             else:
                 if not (side(self.team) * self.me.location.y > 5120):
                     relative_target = self.friend_goal.location - self.me.location
                     angles, vel = defaultDrive(self, 2300, self.me.local(relative_target))
-                    self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
-                    self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
+                    if angles[1] < 0.75 and relative_target.magnitude() > 750 and 500 < self.me.velocity.magnitude() < 1000 and self.time - self.RTG_flip_time > 2:
+                        self.push(flip(self.me.local(relative_target)))
+                        self.RTG_flip_time = self.time
+                    else:
+                        self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
+                        self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
                 else:
                     self.state += ' (In goal)'
 
@@ -184,10 +189,16 @@ class ExampleBot(VirxERLU):
                 if abs((point-other_point).magnitude()) == size:
                     self.renderer.draw_line_3d(point, other_point, color)
     
-    def find_hits(self, targets):
+    def find_hits(self, targets, test_for_ground_shot=True):
         output = {}
         for name, target in targets.items():
             shot = find_shot(self, target)
+            if shot is not None and test_for_ground_shot:
+                ball_pos_at_time = self.get_ball_prediction_struct().slices[round((shot.intercept_time - self.time) * 60) - 1].physics.location
+                ball_vec_at_time = Vector(ball_pos_at_time.x, ball_pos_at_time.y, ball_pos_at_time.z)
+                if shot.__class__.__name__ == 'ground_shot' and ((ball_vec_at_time - self.me.location).magnitude()/(shot.intercept_time-self.time)) < 500:
+                    shot = find_shot(self, target, can_ground=False)
+                    self.print('bad ground shot!')
             output[name] = shot
         return output
         
