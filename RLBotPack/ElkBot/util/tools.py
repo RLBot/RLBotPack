@@ -1,5 +1,20 @@
-from routines import Aerial, double_jump, ground_shot, jump_shot, virxrlcu
-from utils import Vector, cap, math, side
+from enum import Enum
+
+from util.routines import Aerial, double_jump, ground_shot, jump_shot, virxrlcu
+from util.utils import Vector, cap, math, side
+
+class ShotType(Enum):
+    GROUND = 0
+    JUMP = 1
+    DOUBLE_JUMP = 2
+    AERIAL = 3
+
+
+SHOT_SWITCH = {
+    ShotType.GROUND: ground_shot,
+    ShotType.JUMP: jump_shot,
+    ShotType.DOUBLE_JUMP: double_jump
+}
 
 
 def find_ground_shot(agent, target, cap_=6):
@@ -52,7 +67,7 @@ def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_
 
     game_info = (
         agent.boost_accel,
-        agent.best_shot_value
+        agent.ball_radius
     )
 
     gravity = tuple(agent.gravity)
@@ -75,9 +90,9 @@ def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_
     for ball_slice in slices:
         # Gather some data about the slice
         intercept_time = ball_slice.game_seconds
-        time_remaining = intercept_time - agent.time - (1 / 120)
+        T = intercept_time - agent.time - (1 / 120)
 
-        if time_remaining <= 0:
+        if T <= 0:
             return
 
         ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
@@ -89,18 +104,14 @@ def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_
 
         # Check if we can make a shot at this slice
         # This operation is very expensive, so we use C to improve run time
-        shot = virxrlcu.parse_slice_for_shot_with_target(can_ground, can_jump, can_double_jump, can_aerial, time_remaining, *game_info, gravity, ball_info, me, targets)
+        shot = virxrlcu.parse_slice_for_shot_with_target(can_ground, can_jump, can_double_jump, can_aerial, T, *game_info, gravity, ball_info, me, targets)
 
         if shot['found'] == 1:
-            if shot['shot_type'] == 3:
+            shot_type = ShotType(shot["shot_type"])
+            if shot_type == ShotType.AERIAL:
                 return Aerial(intercept_time, (Vector(*shot['targets'][0]), Vector(*shot['targets'][1])), shot['fast'])
 
-            shot_switch = [
-                ground_shot,
-                jump_shot,
-                double_jump
-            ]
-            return shot_switch[shot['shot_type']](intercept_time, (Vector(*shot['targets'][0]), Vector(*shot['targets'][1])))
+            return SHOT_SWITCH[shot_type](intercept_time, (Vector(*shot['targets'][0]), Vector(*shot['targets'][1])))
 
 
 def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True):
@@ -115,7 +126,7 @@ def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump
 
     game_info = (
         agent.boost_accel,
-        agent.best_shot_value
+        agent.ball_radius
     )
 
     gravity = tuple(agent.gravity)
@@ -138,9 +149,9 @@ def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump
     for ball_slice in slices:
         # Gather some data about the slice
         intercept_time = ball_slice.game_seconds
-        time_remaining = intercept_time - agent.time - (1 / 120)
+        T = intercept_time - agent.time - (1 / 120)
 
-        if time_remaining <= 0:
+        if T <= 0:
             return
 
         ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
@@ -152,18 +163,14 @@ def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump
 
         # Check if we can make a shot at this slice
         # This operation is very expensive, so we use C to improve run time
-        shot = virxrlcu.parse_slice_for_shot(can_ground, can_jump, can_double_jump, can_aerial, time_remaining, *game_info, gravity, ball_info, me)
+        shot = virxrlcu.parse_slice_for_shot(can_ground, can_jump, can_double_jump, can_aerial, T, *game_info, gravity, ball_info, me)
 
         if shot['found'] == 1:
-            if shot['shot_type'] == 3:
+            shot_type = ShotType(shot["shot_type"])
+            if shot_type == ShotType.AERIAL:
                 return Aerial(intercept_time, fast_aerial=shot['fast'])
 
-            shot_switch = [
-                ground_shot,
-                jump_shot,
-                double_jump
-            ]
-            return shot_switch[shot['shot_type']](intercept_time)
+            return SHOT_SWITCH[shot_type](intercept_time)
 
 
 def get_slices(agent, cap_):
@@ -174,7 +181,7 @@ def get_slices(agent, cap_):
     if struct is None:
         return
 
-    start_slice = 12
+    start_slice = 6
     end_slices = None
 
     # If we're shooting, crop the struct

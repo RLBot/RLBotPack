@@ -13,11 +13,13 @@ import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.agents.standalone.standalone_bot import StandaloneBot, run_bot
 
+# If you're putting your bot in the botpack, or submitting to a tournament, make this True!
 TOURNAMENT_MODE = True
-# Make False to enable hot reloading
+
+# Make False to enable hot reloading, at the cost of the GUI
 EXTRA_DEBUGGING = False
 
-if not TOURNAMENT_MODE:
+if not TOURNAMENT_MODE and EXTRA_DEBUGGING:
     from gui import Gui
     from match_comms import MatchComms
 
@@ -37,7 +39,7 @@ class VirxERLU(StandaloneBot):
         self.debug_lines = True
         self.debug_3d_bool = True
         self.debug_stack_bool = True
-        self.debug_2d_bool = False
+        self.debug_2d_bool = self.true_name == self.name
         self.show_coords = False
         self.debug_ball_path = False
         self.debug_ball_path_precision = 10
@@ -99,10 +101,18 @@ class VirxERLU(StandaloneBot):
             "heatseeker"
         )
 
+        ball_size = (
+            92.75,
+            69.25,
+            139.5,
+            239.75
+        )
+
         self.gravity = gravity[mutators.GravityOption()]
         self.boost_accel = boost_accel[mutators.BoostStrengthOption()]
         self.boost_amount = boost_amount[mutators.BoostOption()]
         self.game_mode = game_mode[match_settings.GameMode()]
+        self.ball_radius = ball_size[mutators.BallSizeOption()]
 
         self.friends = ()
         self.foes = ()
@@ -127,7 +137,6 @@ class VirxERLU(StandaloneBot):
         self.kickoff_flag = False
         self.kickoff_done = True
         self.shooting = False
-        self.best_shot_value = 92.75
         self.odd_tick = -1
         self.delta_time = 1 / 120
 
@@ -256,7 +265,7 @@ class VirxERLU(StandaloneBot):
         if self.tournament and self.matchcomms_root is not None:
             while 1:
                 try:
-                    msg = self.agent.matchcomms.incoming_broadcast.get_nowait()
+                    msg = self.matchcomms.incoming_broadcast.get_nowait()
                 except Exception:
                     break
                 
@@ -288,8 +297,9 @@ class VirxERLU(StandaloneBot):
 
                 try:
                     self.run()  # Run strategy code; This is a very expensive function to run
-                except Exception as e:
-                    print(f"ERROR in {self.name}:")
+                except Exception:
+                    t_file = os.path.join(self.traceback_file[0], self.name+self.traceback_file[1])
+                    print(f"ERROR in {self.name}; see '{t_file}'")
                     print_exc()
 
                 # run the routine on the end of the stack
@@ -297,8 +307,9 @@ class VirxERLU(StandaloneBot):
                     try:
                         r_name = self.stack[-1].__class__.__name__
                         self.stack[-1].run(self)
-                    except Exception as e:
-                        print(f"ERROR in {self.name}:")
+                    except Exception:
+                        t_file = os.path.join(self.traceback_file[0], r_name+self.traceback_file[1])
+                        print(f"ERROR in {self.name}'s {r_name} routine; see '{t_file}'")
                         print_exc()
 
                 if self.debugging:
@@ -352,8 +363,9 @@ class VirxERLU(StandaloneBot):
                     self.debug = [[], []]
 
             return SimpleControllerState() if self.disable_driving else self.controller
-        except Exception as e:
-            print(f"ERROR in {self.name}:")
+        except Exception:
+            t_file = os.path.join(self.traceback_file[0], "VirxERLU"+self.traceback_file[1])
+            print(f"ERROR with VirxERLU in {self.name}; see '{t_file}' and please report the bug at 'https://github.com/VirxEC/VirxERLU/issues'")
             print_exc()
             return SimpleControllerState()
 
@@ -374,10 +386,11 @@ class car_object:
     # The carObject, and kin, convert the gametickpacket in something a little friendlier to use,
     # and are updated by VirxERLU as the game runs
     def __init__(self, index, packet=None):
-        self.location = Vector()
+        self._vec = Vector  # ignore this property
+        self.location = self._vec()
         self.orientation = Matrix3()
-        self.velocity = Vector()
-        self.angular_velocity = Vector()
+        self.velocity = self._vec()
+        self.angular_velocity = self._vec()
         self.demolished = False
         self.airborne = False
         self.supersonic = False
@@ -446,9 +459,9 @@ class car_object:
     def update(self, packet):
         car = packet.game_cars[self.index]
         car_phy = car.physics
-        self.location = Vector(car_phy.location.x, car_phy.location.y, car_phy.location.z)
-        self.velocity = Vector(car_phy.velocity.x, car_phy.velocity.y, car_phy.velocity.z)
-        self.orientation = Matrix3(car_phy.rotation.pitch, car_phy.rotation.yaw, car_phy.rotation.roll)
+        self.location = self._vec.from_vector(car_phy.location)
+        self.velocity = self._vec.from_vector(car_phy.velocity)
+        self.orientation = Matrix3.from_rotator(car_phy.rotation)
         self.angular_velocity = self.orientation.dot((car_phy.angular_velocity.x, car_phy.angular_velocity.y, car_phy.angular_velocity.z))
         self.demolished = car.is_demolished
         self.airborne = not car.has_wheel_contact
@@ -504,8 +517,9 @@ class last_touch:
 
 class ball_object:
     def __init__(self):
-        self.location = Vector()
-        self.velocity = Vector()
+        self._vec = Vector  # ignore this property
+        self.location = self._vec()
+        self.velocity = self._vec()
         self.latest_touched_time = 0
         self.latest_touched_team = 0
 
@@ -517,8 +531,8 @@ class ball_object:
 
     def update(self, packet):
         ball = packet.game_ball
-        self.location = Vector(ball.physics.location.x, ball.physics.location.y, ball.physics.location.z)
-        self.velocity = Vector(ball.physics.velocity.x, ball.physics.velocity.y, ball.physics.velocity.z)
+        self.location = self._vec.from_vector(ball.physics.location)
+        self.velocity = self._vec.from_vector(ball.physics.velocity)
         self.latest_touched_time = ball.latest_touch.time_seconds
         self.latest_touched_team = ball.latest_touch.team
 
@@ -526,7 +540,7 @@ class ball_object:
 class boost_object:
     def __init__(self, index, location, large):
         self.index = index
-        self.location = Vector(location.x, location.y, location.z)
+        self.location = Vector.from_vector(location)
         self.active = True
         self.large = large
 
@@ -595,7 +609,11 @@ class Matrix3:
         return self.data[key]
 
     def __str__(self):
-        return f"[{self.forward}\n{self.right}\n{self.up}]"
+        return f"[{self.forward}\n {self.right}\n {self.up}]"
+
+    @staticmethod
+    def from_rotator(rotator) -> Matrix3:
+        return Matrix3(rotator.pitch, rotator.yaw, rotator.roll)
 
     def dot(self, vector):
         return Vector(self.forward.dot(vector), self.right.dot(vector), self.up.dot(vector))
@@ -706,6 +724,10 @@ class Vector:
     def __round__(self, decimals=0) -> Vector:
         # Rounds all of the values
         return Vector(*np.around(self._np, decimals=decimals))
+
+    @staticmethod
+    def from_vector(vec) -> Vector:
+        return Vector(vec.x, vec.y, vec.z)
 
     def magnitude(self) -> float:
         # Returns the length of the vector
