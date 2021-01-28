@@ -1,7 +1,7 @@
 import virxrlcu
 
-from agent import VirxERLU
-from utils import (Vector, almost_equals, cap, cap_in_field, defaultDrive,
+from util.agent import VirxERLU
+from util.utils import (Vector, almost_equals, cap, cap_in_field, defaultDrive,
                         defaultPD, dodge_impulse, lerp, math, peek_generator,
                         side, sign)
 
@@ -22,33 +22,34 @@ class wave_dash:
         self.start_time = -1
         self.target = target
 
-    def run(self, agent: VirxERLU):
-        if self.start_time == -1:
-            self.start_time = agent.time
-        T = agent.time - self.start_time
-
-        self.step += 1
-
         if self.target is not None:
             self.direction = 0 if abs(self.target.x) > abs(self.target.y) else 1
 
             if (self.direction == 0 and self.target.x < 0) or (self.direction == 1 and self.target.y < 0):
                 self.direction += 2
 
-        forward_target = agent.me.velocity.flatten().normalize() * 100
+    def run(self, agent: VirxERLU):
+        if self.start_time == -1:
+            self.start_time = agent.time
+
+        T = agent.time - self.start_time
+
+        self.step += 1
+
+        forward_target = agent.me.velocity.flatten().normalize() * (agent.me.hitbox.length / 2)
 
         target_switch = {
-            0: forward_target + Vector(z=50),
+            0: forward_target + Vector(z=25),
             1: forward_target,
-            2: forward_target - Vector(z=50),
+            2: forward_target - Vector(z=25),
             3: forward_target
         }
 
         target_up = {
             0: Vector(z=1),
-            1: Vector(y=-50, z=1),
+            1: Vector(y=-1, z=1),
             2: Vector(z=1),
-            3: Vector(y=50, z=1)
+            3: Vector(y=1, z=1)
         }
 
         defaultPD(agent, agent.me.local(target_switch[self.direction]), up=agent.me.local(target_up[self.direction]))
@@ -67,15 +68,15 @@ class wave_dash:
             agent.pop()
         elif T > 2:
             agent.pop()
-            agent.push(recovery(self.target))
-        elif agent.me.location.z + (agent.me.velocity.z * 0.2) < 5:
+            agent.push(recovery())
+        elif agent.me.location.z + (agent.me.velocity.z * 0.15) < 5:
             agent.controller.jump = True
             agent.controller.yaw = 0
             if self.direction in {0, 2}:
                 agent.controller.roll = 0
                 agent.controller.pitch = -1 if self.direction is 0 else 1
             else:
-                agent.controller.roll = -1 if self.direction is 1 else 1
+                agent.controller.roll = 1 if self.direction is 1 else -1
                 agent.controller.pitch = 0
 
 
@@ -107,22 +108,21 @@ class double_jump:
         # Capping T above 0 to prevent division problems
         time_remaining = cap(T, 0.000001, 6)
 
-        if not self.jumping or self.ball_location is None:
+        if (not self.jumping and T > 0.1 and agent.odd_tick % 2 == 0) or self.ball_location is None:
             slice_n = round(T * 60) - 1
-            agent.dbg_2d(f"Shot slice #: {slice_n}")
-
             ball = agent.ball_prediction_struct.slices[slice_n].physics.location
+
             self.ball_location = Vector(ball.x, ball.y, ball.z)
             self.needed_jump_time = virxrlcu.get_double_jump_time(ball.z - agent.me.location.z, agent.me.velocity.z, agent.gravity.z)
 
         direction = (self.ball_location - agent.me.location).normalize()
-        self.shot_vector = direction if self.targets is None else direction.clamp2D((self.targets[0] - self.ball_location).normalize(), (self.targets[1] - self.ball_location).normalize())
-        self.offset_target = self.ball_location - (self.shot_vector * agent.best_shot_value)
-        agent.sphere(self.ball_location, 92.75)
+        self.shot_vector = direction if self.targets is None else direction.clamp((self.targets[0] - self.ball_location).normalize(), (self.targets[1] - self.ball_location).normalize())
+        self.offset_target = self.ball_location - (self.shot_vector * agent.ball_radius)
+        agent.sphere(self.ball_location, agent.ball_radius)
 
         car_to_ball = self.ball_location - agent.me.location
         final_target = self.offset_target.copy().flatten()
-        Tj = T - self.needed_jump_time * 1.15
+        Tj = T - self.needed_jump_time * 1.075
         agent.dbg_2d(f"Needed jump time: {round(self.needed_jump_time, 2)}")
 
         if Tj > 0 and self.targets is not None:
@@ -133,11 +133,10 @@ class double_jump:
 
             # The adjustment causes the car to circle around the dodge point in an effort to line up with the shot vector
             # The adjustment slowly decreases to 0 as the bot nears the time to jump
-            adjustment = car_to_offset_target.angle2D(self.shot_vector) * Tj * 500  # size of adjustment
-            # we don't adjust the final target if we are already jumping
+            adjustment = car_to_offset_target.angle2D(self.shot_vector) * min(Tj, 3) * 750  # size of adjustment
             final_target += car_to_dodge_perp.normalize() * adjustment
 
-        distance_remaining = final_target.flat_dist(agent.me.location)
+        distance_remaining = self.offset_target.flat_dist(agent.me.location)
 
         # Some adjustment to the final target to ensure it's inside the field and we don't try to drive through any goalposts or walls to reach it
         final_target = cap_in_field(agent, final_target)
@@ -155,39 +154,37 @@ class double_jump:
         vf = agent.me.velocity + agent.gravity * T
 
         distance_remaining = agent.me.local_location(self.offset_target).x if agent.me.airborne else distance_remaining
-        distance_remaining -= agent.me.hitbox.length / 3
+        distance_remaining -= agent.me.hitbox.length * 0.45
+        distance_remaining = max(distance_remaining, 0)
         speed_required = distance_remaining / time_remaining
         agent.dbg_2d(f"Speed required: {round(speed_required, 2)}")
-
-        if speed_required < 1900 and agent.me.boost > 50 and T > 2 and distance_remaining > 2560:
-            agent.dbg_2d("Building speed")
-            speed_required *= 0.75
 
         if not self.jumping:
             velocity = defaultDrive(agent, speed_required * direction, local_final_target)[1]
             if velocity == 0: velocity = 1
 
             local_offset_target = agent.me.local_location(self.offset_target.flatten())
+            true_angle_to_target = abs(Vector(x=1).angle2D(local_offset_target))
             local_vf = agent.me.local(vf.flatten())
-            time = distance_remaining / (velocity + dodge_impulse(agent))
+            true_distance_remaining = self.offset_target.flat_dist(agent.me.location)
+            time = true_distance_remaining / (abs(velocity) + dodge_impulse(agent))
 
-            if ((abs(velocity) < 100 and distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < 92 and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length / 3) and direction * local_offset_target.x > 0)) and T <= self.needed_jump_time * 1.025:
+            if ((abs(velocity) < 100 and true_distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < agent.ball_radius and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length * 0.45) and direction * local_offset_target.x > 0)) and T <= self.needed_jump_time * 1.025:
                 self.jumping = True
             elif agent.me.airborne:
                 agent.push(recovery(final_target if Tj > 0 else None))
-            elif T <= self.needed_jump_time or (Tj > 0 and distance_remaining > 50 and (not virxrlcu.double_jump_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining))):
+            elif T <= self.needed_jump_time or (Tj > 0 and true_distance_remaining > agent.me.hitbox.length / 2 and (not virxrlcu.double_jump_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining))):
                 # If we're out of time or the ball was hit away or we just can't get enough speed, pop
                 agent.pop()
                 agent.shooting = False
                 if agent.me.airborne:
                     agent.push(ball_recovery())
-            elif agent.boost_amount != 'unlimited' and agent.me.boost < 48 and angle_to_target < 0.03 and velocity > 600 and time >= self.needed_jump_time * 1.15 + 1.75:
-                if agent.gravity.z < -450 and time < 5:
-                    agent.push(wave_dash(agent.me.local_location(self.offset_target)))
-                else:
+            elif agent.boost_amount != 'unlimited' and self.needed_jump_time * 1.075 > time:
+                time -= self.needed_jump_time * 1.075
+                if agent.me.boost < 48 and angle_to_target < 0.03 and (true_angle_to_target < 0.1 or distance_remaining > 4480) and velocity > 600 and time >= 1:
                     agent.push(flip(agent.me.local_location(self.offset_target)))
-            elif agent.boost_amount != 'unlimited' and angle_to_target >= 2 and velocity < 200 and time >= self.needed_jump_time * 1.15 + 2 and distance_remaining > 1280:
-                agent.push(flip(agent.me.local_location(self.offset_target), True))
+                elif direction == -1 and velocity < 200 and time >= 1.5:
+                    agent.push(flip(agent.me.local_location(self.offset_target), True))
         else:
             # Mark the time we started jumping so we know when to dodge
             if self.jump_time == -1:
@@ -273,25 +270,24 @@ class Aerial:
         vf = agent.me.velocity + agent.gravity * T
 
         slice_n = math.ceil(T * 60) - 1
-        agent.dbg_2d(f"Shot slice #: {slice_n}")
 
-        if T > 0.1 or self.ball is None:
+        if (T > 0.1 and agent.odd_tick % 2 == 0) or self.ball is None:
             ball = agent.ball_prediction_struct.slices[slice_n].physics.location
             self.ball = Vector(ball.x, ball.y, ball.z)
             self.ceiling = agent.me.location.z > 2044 - agent.me.hitbox.height * 2 and not agent.me.jumped
 
         direction = (agent.ball.location - agent.me.location).normalize()
         self.shot_vector = direction if self.targets is None else direction.clamp((self.targets[0] - self.ball).normalize(), (self.targets[1] - self.ball).normalize())
-        self.target = self.ball - (self.shot_vector * agent.best_shot_value)
-        agent.sphere(self.ball, 92.75)
+        self.target = self.ball - (self.shot_vector * agent.ball_radius)
+        agent.sphere(self.ball, agent.ball_radius)
 
         if self.ceiling:
-            self.target -= Vector(z=92)
+            self.target -= Vector(z=agent.ball_radius)
 
-        if self.jumping or not agent.me.airborne:
+        if self.jumping or self.jump_time == -1:
             agent.dbg_2d("Jumping")
 
-            if not self.jumping or not agent.me.airborne:
+            if not self.jumping or self.jump_time == -1:
                 self.jump_type_fast = self.fast_aerial
                 self.jumping = True
                 self.jump_time = agent.time
@@ -344,7 +340,7 @@ class Aerial:
         agent.line(self.target - Vector(z=100), self.target + Vector(z=100), agent.renderer.green())
 
         if not self.dodging:
-            target = delta_x if delta_x.magnitude() > 50 else self.shot_vector
+            target = delta_x if delta_x.magnitude() >= agent.boost_accel * agent.delta_time * 0.1 else self.shot_vector
             target = agent.me.local(target)
 
             if agent.controller.jump:
@@ -359,22 +355,23 @@ class Aerial:
             if T > 1 and not self.jumping: agent.controller.roll = 1 if self.shot_vector.z < 0 else -1
             # the change in velocity the bot needs to put it on an intercept course with the target
             delta_v = delta_x.dot(agent.me.forward) / T
-            if not self.jumping and agent.me.boost > 0 and delta_v >= agent.boost_accel * 0.1:
+            if not self.jumping and agent.me.boost > 0 and delta_v >= agent.boost_accel * agent.delta_time * 0.1:
                 agent.controller.boost = True
-                delta_v -= agent.boost_accel * 0.1
+                delta_v -= agent.boost_accel * agent.delta_time * 0.1
 
-            if delta_v >= throttle_accel * 0.1:
-                agent.controller.throttle = cap(delta_v / (throttle_accel * 0.1), -1, 1)
+            if abs(delta_v) >= throttle_accel * agent.delta_time:
+                agent.controller.throttle = cap(delta_v / (throttle_accel * agent.delta_time), -1, 1)
 
-        if T <= -0.2 or (not self.jumping and T > 1.5 and not virxrlcu.aerial_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), tuple(self.target))):
+        if T <= -0.2 or (not self.jumping and not agent.me.airborne) or (not self.jumping and T > 1.5 and not virxrlcu.aerial_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), tuple(self.target))):
             agent.pop()
             agent.shooting = False
             agent.push(ball_recovery())
-        elif (self.ceiling and self.target.dist(agent.me.location) < 92 + agent.me.hitbox.length and not agent.me.doublejumped and agent.me.location.z < agent.ball.location.z + 92 and self.target.y * side(agent.team) > -4240) or (not self.ceiling and not agent.me.doublejumped and T < 0.1):
+        elif (self.ceiling and self.target.dist(agent.me.location) < agent.ball_radius + agent.me.hitbox.length and not agent.me.doublejumped and agent.me.location.z < agent.ball.location.z + agent.ball_radius and self.target.y * side(agent.team) > -4240) or (not self.ceiling and not agent.me.doublejumped and T < 0.1):
             agent.dbg_2d("Flipping")
-            local_target = agent.me.local_location(self.target).flatten().normalize()
-            agent.controller.pitch = -local_target.x
-            agent.controller.yaw = local_target.y
+            vector = agent.me.local_location(self.target).flatten().normalize()
+            scale = 1 / max(abs(vector.x), abs(vector.y))
+            self.p = cap(-vector.x * scale, -1, 1)
+            self.y = cap(vector.y * scale, -1, 1)
             agent.controller.jump = True
 
 
@@ -382,10 +379,12 @@ class flip:
     # Flip takes a vector in local coordinates and flips/dodges in that direction
     # cancel causes the flip to cancel halfway through, which can be used to half-flip
     def __init__(self, vector, cancel=False):
-        vector = vector.flatten().normalize()
-        self.pitch = -vector.x
-        self.yaw = vector.y
+        vector = vector.flatten().normalize().normalize()
+        scale = 1 / max(abs(vector.x), abs(vector.y))
+        self.pitch = cap(-vector.x * scale, -1, 1)
+        self.yaw = cap(vector.y * scale, -1, 1)
         self.cancel = cancel
+
         # the time the jump began
         self.time = -1
         # keeps track of the frames the jump button has been released
@@ -393,17 +392,18 @@ class flip:
 
     def run(self, agent: VirxERLU, manual=False):
         if self.time == -1:
-            elapsed = 0
             self.time = agent.time
-        else:
-            elapsed = agent.time - self.time
 
-        if elapsed < 0.09:
+        elapsed = agent.time - self.time
+
+        if elapsed < 0.1:
             agent.controller.jump = True
-        elif elapsed >= 0.09 and self.counter < 3:
+        elif elapsed >= 0.1 and self.counter < 3:
             agent.controller.jump = False
+            agent.controller.pitch = self.pitch
+            agent.controller.yaw = self.yaw
             self.counter += 1
-        elif elapsed < 0.4 or (not self.cancel and elapsed < 0.9):
+        elif agent.me.airborne and (elapsed < 0.4 or (not self.cancel and elapsed < 0.9)):
             agent.controller.jump = True
             agent.controller.pitch = self.pitch
             agent.controller.yaw = self.yaw
@@ -429,10 +429,13 @@ class brake:
 class goto:
     # Drives towards a designated (stationary) target
     # Optional vector controls where the car should be pointing upon reaching the target
-    def __init__(self, target, vector=None, brake=False):
+    # Brake brings the car to slow down to 0 when it gets to it's destination
+    # Slow is for small targets, and it forces the car to slow down a bit when it gets close to the target
+    def __init__(self, target, vector=None, brake=False, slow=False):
         self.target = target
         self.vector = vector
         self.brake = brake
+        self.slow = slow
 
         self.f_brake = False
         self.rule1_timer = -1
@@ -449,7 +452,7 @@ class goto:
             brake.run(agent, manual=manual)
             return
 
-        if not self.brake and not manual and distance_remaining < 640:
+        if not self.brake and not manual and distance_remaining < 320:
             agent.pop()
             return
 
@@ -465,12 +468,14 @@ class goto:
         final_target = cap_in_field(agent, final_target)  # Some adjustment to the final target to ensure it's inside the field and we don't try to drive through any goalposts to reach it
         local_target = agent.me.local_location(final_target)
         angle_to_target = abs(Vector(x=1).angle2D(local_target))
-        direction = 1 if angle_to_target < 2 or agent.me.local_velocity().x > 1000 else -1
+        direction = 1 if angle_to_target < 1.6 or agent.me.local_velocity().x > 1000 else -1
         agent.dbg_2d(f"Angle to target: {round(angle_to_target, 1)}")
 
-        velocity = defaultDrive(agent, 2300 * direction, local_target)[1]
+        velocity = defaultDrive(agent, (2300 if distance_remaining > 1280 or not self.slow else cap(distance_remaining * 2, 1200, 2300)) * direction, local_target)[1]
         if distance_remaining < 1280: agent.controller.boost = False
         if velocity == 0: velocity = 1
+
+        time = distance_remaining / (abs(velocity) + dodge_impulse(agent))
 
         # this is to break rule 1's with TM8'S ONLY
         # 251 is the distance between center of the 2 longest cars in the game, with a bit extra
@@ -485,15 +490,16 @@ class goto:
 
         if agent.me.airborne:
             agent.push(recovery(self.target))
-        elif agent.boost_amount != 'unlimited' and agent.me.boost < 60 and angle_to_target < 0.03 and velocity > 500 and distance_remaining / (velocity + dodge_impulse(agent)) > 1.25:
+        elif agent.boost_amount != 'unlimited' and agent.me.boost < 60 and angle_to_target < 0.03 and velocity > 500 and time > 1.5:
             agent.push(flip(agent.me.local_location(self.target)))
-        elif agent.boost_amount != 'unlimited' and direction == -1 and velocity < 200 and distance_remaining / (velocity + dodge_impulse(agent)) > 1.75 and distance_remaining > 1280:
+        elif agent.boost_amount != 'unlimited' and direction == -1 and velocity < 200 and time > 1.5:
             agent.push(flip(agent.me.local_location(self.target), True))
 
 
 class shadow:
     def __init__(self):
         self.goto = goto(Vector(), brake=True)
+        self.retreat = retreat()
 
     def run(self, agent: VirxERLU):
         ball_loc = self.get_ball_loc(agent, True)
@@ -520,11 +526,11 @@ class shadow:
     def get_ball_loc(self, agent, render=False):
         ball_slice = agent.ball_prediction_struct.slices[min(round(agent.future_ball_location_slice * 1.1), 6)].physics.location
         ball_loc = Vector(ball_slice.x, ball_slice.y)
-        if render: agent.sphere(ball_loc + Vector(z=93), 92.75, color=agent.renderer.black())
+        if render: agent.sphere(ball_loc + Vector(z=agent.ball_radius), agent.ball_radius, color=agent.renderer.black())
         ball_loc.y *= side(agent.team)
 
         if ball_loc.y < -2560 or (ball_loc.y < agent.ball.location.y * side(agent.team)):
-            ball_loc = Vector(agent.ball.location.x, agent.ball.location.y * side(agent.team) + 640)
+            ball_loc = Vector(agent.ball.location.x, agent.ball.location.y * side(agent.team) - 640)
 
         return ball_loc
 
@@ -538,7 +544,7 @@ class shadow:
         if target.y * side(agent.team) > -1280:
             # use linear algebra to find the proper x coord for us to stop a shot going to the net
             # y = mx + b <- yes, finally! 7th grade math is paying off xD
-            p1 = agent.friend_goal.location.flatten()
+            p1 = self.retreat.get_target(agent)
             p2 = ball_loc * Vector(x=1, y=side(agent.team))
             try:
                 m = (p2.y - p1.y) / (p2.x - p1.x)
@@ -548,7 +554,7 @@ class shadow:
             except ZeroDivisionError:
                 target.x = 0
         else:
-            target.x = (abs(ball_loc.x) + 320) * sign(ball_loc.x)
+            target.x = (abs(ball_loc.x) + 640) * sign(ball_loc.x)
 
         return Vector(target.x, target.y)
 
@@ -579,7 +585,7 @@ class retreat:
     def get_ball_loc(self, agent: VirxERLU, render=False):
         ball_slice = agent.ball_prediction_struct.slices[agent.future_ball_location_slice].physics.location
         ball = Vector(ball_slice.x, cap(ball_slice.y, -5120, 5120))
-        if render: agent.sphere(ball + Vector(z=93), 92.75, color=agent.renderer.black())
+        if render: agent.sphere(ball + Vector(z=agent.ball_radius), agent.ball_radius, color=agent.renderer.black())
         ball.y *= side(agent.team)
 
         if ball.y < agent.ball.location.y * side(agent.team):
@@ -600,30 +606,31 @@ class retreat:
             ball = self.get_ball_loc(agent)
         self_team = side(agent.team)
 
+        horizontal_offset = 150
+        outside_goal_offset = -125
+        inside_goal_offset = 150
+
         if ball.y < -640:
             target = agent.friend_goal.location
-        elif agent.me.location.y * side(agent.team) < ball.y and ball.y < 4500:
-            self_side = sign(agent.me.location.x)
-            target = agent.friend_goal.right_post if self_side == sign(agent.friend_goal.right_post.x) else agent.friend_goal.left_post
         elif ball.x * self_team < agent.friend_goal.right_post.x * self_team:
             target = agent.friend_goal.right_post
 
             while self.friend_near_target(agent, target):
-                target.x = (target.x * self_team + 150 * self_team) * self_team
+                target.x = (target.x * self_team + horizontal_offset * self_team) * self_team
         elif ball.x * self_team > agent.friend_goal.left_post.x * self_team:
             target = agent.friend_goal.left_post
 
             while self.friend_near_target(agent, target):
-                target.x = (target.x * self_team - 150 * self_team) * self_team
+                target.x = (target.x * self_team - horizontal_offset * self_team) * self_team
         else:
             target = agent.friend_goal.location
             target.x = ball.x
 
             while self.friend_near_target(agent, target):
-                target.x = (target.x * self_team - 150 * sign(ball.x) * self_team) * self_team
+                target.x = (target.x * self_team - horizontal_offset * sign(ball.x) * self_team) * self_team
 
         target = target.copy()
-        target.y += 250 * side(agent.team) if abs(target.x) < 800 else -245 * side(agent.team)
+        target.y += (inside_goal_offset if abs(target.x) < 800 else outside_goal_offset) * side(agent.team)
 
         return target.flatten()
 
@@ -637,14 +644,14 @@ class face_target:
 
     @staticmethod
     def get_ball_target(agent):
-        ball = agent.ball_prediction_struct.slices[agent.min_intercept_slice].physics.location
+        ball = agent.ball_prediction_struct.slices[agent.future_ball_location_slice].physics.location
         return Vector(ball.x, cap(ball.y, -5120, 5120))
 
     def run(self, agent: VirxERLU):
         if self.ball:
-            target = self.get_ball_target(agent) - agent.me.location.flatten()
+            target = self.get_ball_target(agent) - agent.me.location
         else:
-            target = agent.me.velocity.flatten() if self.target is None else (self.target - agent.me.location).flatten()
+            target = agent.me.velocity if self.target is None else self.target - agent.me.location
 
         if agent.gravity.z < -550 and agent.gravity.z > -750:
             if self.counter == 0 and abs(Vector(x=1).angle(target)) <= 0.05:
@@ -657,7 +664,7 @@ class face_target:
             if self.counter < 3:
                 self.counter += 1
 
-            target = agent.me.local(target)
+            target = agent.me.local(target.flatten())
             if self.counter < 3:
                 agent.controller.jump = True
             elif agent.me.airborne and abs(Vector(x=1).angle(target)) > 0.05:
@@ -665,8 +672,8 @@ class face_target:
             else:
                 agent.pop()
         else:
-            target = agent.me.local(target)
-            angle_to_target = abs(Vector(x=1).angle2D(target))
+            target = agent.me.local(target.flatten())
+            angle_to_target = abs(Vector(x=1).angle(target))
             if angle_to_target > 0.1:
                 if self.start_loc is None:
                     self.start_loc = agent.me.location
@@ -686,10 +693,10 @@ class goto_boost:
     # very similar to goto() but designed for grabbing boost
     def __init__(self, boost):
         self.boost = boost
-        self.goto = goto(self.boost.location)
+        self.goto = goto(self.boost.location, slow=not self.boost.large)
 
     def run(self, agent: VirxERLU):
-        if not self.boost.active:
+        if not self.boost.active or agent.me.boost == 100:
             agent.pop()
             return
 
@@ -724,22 +731,21 @@ class jump_shot:
         # Capping T above 0 to prevent division problems
         time_remaining = cap(T, 0.000001, 6)
 
-        if not self.jumping or self.ball_location is None:
+        if (not self.jumping and T > 0.1 and agent.odd_tick % 2 == 0) or self.ball_location is None:
             slice_n = round(T * 60) - 1
-            agent.dbg_2d(f"Shot slice #: {slice_n}")
-
             ball = agent.ball_prediction_struct.slices[slice_n].physics.location
+
             self.ball_location = Vector(ball.x, ball.y, ball.z)
             self.needed_jump_time = virxrlcu.get_jump_time(ball.z - agent.me.location.z, agent.me.velocity.z, agent.gravity.z)
 
         direction = (self.ball_location - agent.me.location).normalize()
         self.shot_vector = direction if self.targets is None else direction.clamp2D((self.targets[0] - self.ball_location).normalize(), (self.targets[1] - self.ball_location).normalize())
-        self.offset_target = self.ball_location - (self.shot_vector * agent.best_shot_value)
-        agent.sphere(self.ball_location, 92.75)
+        self.offset_target = self.ball_location - (self.shot_vector * agent.ball_radius)
+        agent.sphere(self.ball_location, agent.ball_radius)
 
         car_to_ball = self.ball_location - agent.me.location
         final_target = self.offset_target.copy().flatten()
-        Tj = T - self.needed_jump_time * 1.15
+        Tj = T - self.needed_jump_time * 1.075
         agent.dbg_2d(f"Needed jump time: {round(self.needed_jump_time, 2)}")
 
         if Tj > 0 and self.targets is not None:
@@ -750,28 +756,27 @@ class jump_shot:
 
             # The adjustment causes the car to circle around the dodge point in an effort to line up with the shot vector
             # The adjustment slowly decreases to 0 as the bot nears the time to jump
-            adjustment = car_to_offset_target.angle2D(self.shot_vector) * Tj * 500  # size of adjustment
+            adjustment = car_to_offset_target.angle2D(self.shot_vector) * cap(Tj, 0.5, 3) * 750  # size of adjustment
             final_target += car_to_offset_perp.normalize() * adjustment
 
-        distance_remaining = final_target.flat_dist(agent.me.location)
+        distance_remaining = self.offset_target.flat_dist(agent.me.location)
 
         # Some adjustment to the final target to ensure it's inside the field and we don't try to drive through any goalposts or walls to reach it (again)
         final_target = cap_in_field(agent, final_target)
         local_final_target = agent.me.local_location(final_target)
 
         # whether we should go forwards or backwards
-        angle_to_target = abs(Vector(x=1).angle2D(local_final_target))
+        angle_to_target = abs(Vector(x=1).angle2D(agent.me.local_location(agent.ball.location) if self.jumping else local_final_target))
         direction = 1 if angle_to_target < 1.6 or agent.me.local_velocity().x > 1000 else -1
 
         # drawing debug lines to show the dodge point and final target (which differs due to the adjustment)
         agent.line(agent.me.location, self.offset_target, agent.renderer.white())
-        agent.line(self.offset_target-Vector(z=100), self.offset_target+Vector(z=100), agent.renderer.green())
-        agent.line(final_target-Vector(z=100), final_target+Vector(z=100), agent.renderer.purple())
+        agent.line(self.offset_target-Vector(z=agent.ball_radius), self.offset_target+Vector(z=agent.ball_radius), agent.renderer.green())
+        agent.line(final_target-Vector(z=agent.ball_radius), final_target+Vector(z=agent.ball_radius), agent.renderer.purple())
 
         vf = agent.me.velocity + agent.gravity * T
 
-        distance_remaining = agent.me.local_location(self.offset_target).x if agent.me.airborne else distance_remaining
-        distance_remaining -= agent.me.hitbox.length / 3
+        distance_remaining = max((agent.me.local_location(self.offset_target).x if self.jumping else distance_remaining) - agent.me.hitbox.length * 0.45, 0)
         speed_required = distance_remaining / time_remaining
         agent.dbg_2d(f"Speed required: {round(speed_required, 2)}")
 
@@ -786,14 +791,16 @@ class jump_shot:
             if velocity == 0: velocity = 1
 
             local_offset_target = agent.me.local_location(self.offset_target.flatten())
+            true_angle_to_target = abs(Vector(x=1).angle2D(local_offset_target))
             local_vf = agent.me.local(vf.flatten())
-            time = distance_remaining / (velocity + dodge_impulse(agent))
+            true_distance_remaining = self.offset_target.flat_dist(agent.me.location)
+            dodge_time = true_distance_remaining / (abs(velocity) + dodge_impulse(agent))
 
-            if ((abs(velocity) < 100 and distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < 92 and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length / 3) and direction * local_offset_target.x > 0)) and T <= self.needed_jump_time * 1.025:
+            if ((abs(velocity) < 100 and true_distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < agent.ball_radius and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length * 0.45) and direction * local_offset_target.x > 0)) and T <= self.needed_jump_time * 1.025:
                 self.jumping = True
             elif agent.me.airborne:
                 agent.push(recovery(final_target if Tj > 0 else None))
-            elif T <= self.needed_jump_time or (Tj > 0 and distance_remaining > 50 and (not virxrlcu.jump_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining))):
+            elif T <= self.needed_jump_time or (Tj > 0 and true_distance_remaining > agent.me.hitbox.length / 2 and (not virxrlcu.jump_shot_is_viable(T, agent.boost_accel, tuple(agent.gravity), agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining))):
                 # If we're out of time or not fast enough to be within 45 units of target at the intercept time, we pop
                 agent.pop()
                 agent.shooting = False
@@ -801,13 +808,12 @@ class jump_shot:
                 agent.shot_time = -1
                 if agent.me.airborne:
                     agent.push(recovery())
-            elif agent.boost_amount != 'unlimited' and agent.me.boost < 48 and angle_to_target < 0.03 and velocity > 600 and time >= self.needed_jump_time * 1.15 + 1.5:
-                if agent.gravity.z < -450 and time < 5:
-                    agent.push(wave_dash(agent.me.local_location(self.offset_target)))
-                else:
+            elif agent.boost_amount != 'unlimited' and self.needed_jump_time * 1.075 > dodge_time:
+                dodge_time -= self.needed_jump_time * 1.075
+                if agent.me.boost < 48 and angle_to_target < 0.03 and (true_angle_to_target < 0.1 or distance_remaining > 4480) and velocity > 600 and dodge_time >= 1:
                     agent.push(flip(agent.me.local_location(self.offset_target)))
-            elif agent.boost_amount != 'unlimited' and direction == -1 and distance_remaining > 2560 and velocity < 200 and time >= self.needed_jump_time * 1.15 + 2 and distance_remaining > 1280:
-                agent.push(flip(agent.me.local_location(self.offset_target), True))
+                elif direction == -1 and velocity < 200 and dodge_time >= 1.5:
+                    agent.push(flip(agent.me.local_location(self.offset_target), True))
         else:
             if self.jump_time == -1:
                 self.jump_time = agent.time
@@ -828,14 +834,14 @@ class jump_shot:
             delta_x = self.offset_target - xf
             d_direction = delta_x.normalize()
 
-            if direction == 1 and abs(agent.me.forward.dot(d_direction)) > 0.5 and self.counter < 3:
+            if T > 0 and direction == 1 and abs(agent.me.forward.dot(d_direction)) > 0.75:
                 delta_v = delta_x.dot(agent.me.forward) / T
                 if agent.me.boost > 0 and delta_v >= agent.boost_accel * 0.1:
                     agent.controller.boost = True
                     delta_v -= agent.boost_accel * 0.1
 
-                if abs(delta_v) > throttle_accel * 0.1:
-                    agent.controller.throttle = cap(delta_v / (throttle_accel * 0.1), -1, 1)
+                if abs(delta_v) >= throttle_accel * agent.delta_time:
+                    agent.controller.throttle = cap(delta_v / (throttle_accel * agent.delta_time), -1, 1)
 
             if T <= -0.8 or (not agent.me.airborne and self.counter >= 3):
                 agent.pop()
@@ -845,11 +851,13 @@ class jump_shot:
                 agent.push(recovery())
                 return
             else:
-                if self.counter == 3 and agent.me.location.dist(agent.ball.location - (self.shot_vector * agent.best_shot_value)) < (92.75 + agent.me.hitbox.length) * 1.02 and T <= 0.05:
+                local_flip_target = agent.ball.location - (self.shot_vector * agent.ball_radius)
+                if self.counter == 3 and agent.me.location.dist(local_flip_target) < (agent.ball_radius + agent.me.hitbox.length) * 1.02 and T <= 0.05:
                     # Get the required pitch and yaw to flip correctly
-                    vector = agent.me.local_location(self.offset_target).flatten().normalize()
-                    self.p = -vector.x
-                    self.y = vector.y
+                    vector = Vector(agent.me.local_location(agent.ball.location).x, agent.me.local_location(local_flip_target).y).normalize()
+                    scale = 1 / max(abs(vector.x), abs(vector.y))
+                    self.p = cap(-vector.x * scale, -1, 1)
+                    self.y = cap(vector.y * scale, -1, 1)
 
                     agent.controller.pitch = self.p
                     agent.controller.yaw = self.y
@@ -896,7 +904,7 @@ class ground_shot:
         # Capping T above 0 to prevent division problems
         time_remaining = cap(T, 0.000001, 6)
 
-        if T > 0.1 or self.ball_location is None:
+        if(T > 0.1 and agent.odd_tick % 2 == 0) or self.ball_location is None:
             slice_n = round(T * 60) - 1
             agent.dbg_2d(f"Shot slice #: {slice_n}")
 
@@ -905,14 +913,14 @@ class ground_shot:
 
         direction = (self.ball_location - agent.me.location).normalize()
         self.shot_vector = direction if self.targets is None else direction.clamp2D((self.targets[0] - self.ball_location).normalize(), (self.targets[1] - self.ball_location).normalize())
-        self.offset_target = self.ball_location - (self.shot_vector * agent.best_shot_value)
-        agent.sphere(self.ball_location, 92.75)
+        self.offset_target = self.ball_location - (self.shot_vector * agent.ball_radius)
+        agent.sphere(self.ball_location, agent.ball_radius)
 
         l_ball = agent.me.local(agent.ball.location)
         car_to_ball = agent.ball.location - agent.me.location
-        if abs(l_ball.y) < 92.75 + agent.me.hitbox.width / 2 and abs(l_ball.z) < 92.75 + agent.me.hitbox.height / 2:
-            final_target = agent.ball.location - (self.shot_vector * agent.best_shot_value)
-            distance_remaining = final_target.flat_dist(agent.me.location) - agent.me.hitbox.length / 3
+        if abs(l_ball.y) < agent.ball_radius + agent.me.hitbox.width / 2 and abs(l_ball.z) < agent.ball_radius + agent.me.hitbox.height / 2:
+            final_target = agent.ball.location - (self.shot_vector * agent.ball_radius)
+            distance_remaining = max(agent.me.local_location(final_target).x - agent.me.hitbox.length * 0.45, 0)
             speed_required = 2300
             agent.dbg_2d(f"Max speed")
         else:
@@ -927,17 +935,13 @@ class ground_shot:
 
                 # The adjustment causes the car to circle around the dodge point in an effort to line up with the shot vector
                 # The adjustment slowly decreases to 0 as the bot nears the time to jump
-                adjustment = car_to_offset_target.angle2D(self.shot_vector) * T * 500  # size of adjustment
+                adjustment = car_to_offset_target.angle2D(self.shot_vector) * cap(T, 0.5, 3) * 750  # size of adjustment
                 # we don't adjust the final target if we are already jumping
                 final_target += car_to_offset_perp.normalize() * adjustment
 
-            distance_remaining = final_target.flat_dist(agent.me.location) - agent.me.hitbox.length / 3
+            distance_remaining = max(self.offset_target.flat_dist(agent.me.location) - agent.me.hitbox.length * 0.45, 0)
             speed_required = distance_remaining / time_remaining
             agent.dbg_2d(f"Speed required: {speed_required}")
-
-            if speed_required < 1900 and agent.me.boost > 50 and T > 2 and distance_remaining > 2560:
-                agent.dbg_2d("Building speed")
-                speed_required *= 0.75
 
         # Some adjustment to the final target to ensure it's inside the field and we don't try to drive through any goalposts or walls to reach it (again)
         final_target = cap_in_field(agent, final_target)
@@ -957,16 +961,20 @@ class ground_shot:
         if velocity == 0: velocity = 1
 
         local_offset_target = agent.me.local_location(self.offset_target.flatten())
-        time = distance_remaining / (velocity + dodge_impulse(agent))
+        true_angle_to_target = abs(Vector(x=1).angle2D(local_offset_target))
+        true_distance_remaining = self.offset_target.flat_dist(agent.me.location)
+        time = true_distance_remaining / (abs(velocity) + dodge_impulse(agent))
 
         vf = agent.me.velocity + agent.gravity * T
         local_vf = agent.me.local(vf.flatten())
 
-        if T < 0.35 and T > 0.1 and min(abs(velocity) + dodge_impulse(agent), 2300) <= (abs(speed_required) if agent.me.boost > 12 else 1900) and ((abs(velocity) < 100 and distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < 92 and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length / 3) and direction * local_offset_target.x > 0)):
-            agent.push(flip(agent.me.local_location(self.offset_target), cancel=angle_to_target > 2))
+        if T > 0.25 and T < 0.35 and (direction == -1 or abs(velocity) + dodge_impulse(agent) <= (abs(speed_required) if agent.me.boost > 24 else 1900) or self.shot_vector.angle2D((final_target - agent.me.location)) > 0.05) and ((abs(velocity) < 100 and true_distance_remaining < agent.me.hitbox.length / 2) or (abs(local_offset_target.y) < agent.ball_radius and direction * local_vf.x >= direction * (local_offset_target.x - agent.me.hitbox.length / 2) and direction * local_offset_target.x > 0)):
+            agent.pop()
+            local_flip_target = agent.me.local_location(agent.ball.location - (self.shot_vector * agent.ball_radius)) + Vector(agent.ball_radius)
+            agent.push(flip(local_flip_target, cancel=abs(Vector(x=1).angle2D(local_flip_target)) > 1.6))
         elif agent.me.airborne:
             agent.push(recovery(final_target if T > 0.5 else None))
-        elif T <= 0 or (T > 0.35 and distance_remaining > 50 and not virxrlcu.ground_shot_is_viable(T, agent.boost_accel, agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining)):
+        elif T <= 0 or (T > 0.75 and true_distance_remaining > agent.me.hitbox.length / 2 and not virxrlcu.ground_shot_is_viable(T, agent.boost_accel, agent.me.get_raw(agent), self.offset_target.z, tuple((final_target - agent.me.location).normalize()), distance_remaining)):
             # If we're out of time or not fast enough, we pop
             agent.pop()
             agent.shooting = False
@@ -974,11 +982,11 @@ class ground_shot:
             agent.shot_time = -1
             if agent.me.airborne:
                 agent.push(recovery())
-        elif agent.boost_amount != 'unlimited' and agent.me.boost < 48 and angle_to_target < 0.03 and velocity > 500 and T > 1 and time >= 1.5:
-            speed_gain_routine = wave_dash if agent.gravity.z < -450 and time < 3 and time > 1 else flip
-            agent.push(speed_gain_routine(agent.me.local_location(self.offset_target)))
-        elif agent.boost_amount != 'unlimited' and direction == -1 and velocity < 200 and time >= 2:
-            agent.push(flip(agent.me.local_location(self.offset_target), True))
+        elif agent.boost_amount != 'unlimited' and T + 0.1 > time:
+            if agent.me.boost < 48 and angle_to_target < 0.03 and (true_angle_to_target < 0.1 or distance_remaining > 4480) and velocity > 500 and time > 1:
+                agent.push(flip(agent.me.local_location(self.offset_target)))
+            elif direction == -1 and velocity < 200 and time >= 1.5:
+                agent.push(flip(agent.me.local_location(self.offset_target), True))
 
 
 class generic_kickoff:
@@ -1092,7 +1100,7 @@ class short_shot:
         target_vector = -ball_to_target.clamp2D(left_vector, right_vector)
         final_target = agent.ball.location + (target_vector*(distance/2))
         angle_to_target = abs(Vector(x=1).angle2D(agent.me.local_location(final_target)))
-        distance_remaining = agent.me.location.dist(final_target) - agent.me.hitbox.length / 3
+        distance_remaining = agent.me.location.dist(final_target) - agent.me.hitbox.length * 0.45
 
         # Some adjustment to the final target to ensure we don't try to drive through any goalposts to reach it
         final_target = cap_in_field(agent, final_target)
@@ -1104,17 +1112,18 @@ class short_shot:
 
         if velocity == 0: velocity = 1
 
+        time = distance_remaining / (abs(velocity) + dodge_impulse(agent))
         if abs(angles[1]) < 0.05 and (eta < 0.45 or distance < 150):
             agent.pop()
             agent.shooting = False
             agent.shot_weight = -1
             agent.shot_time = -1
             agent.push(flip(agent.me.local(car_to_ball)))
-        elif agent.boost_amount != 'unlimited' and agent.me.location.z < 50 and agent.me.boost < 48 and angle_to_target < 0.03 and velocity > 500 and T > 1 and time >= T + 1.5:
+        elif agent.boost_amount != 'unlimited' and agent.me.location.z < 50 and agent.me.boost < 48 and angle_to_target < 0.03 and velocity > 500 and time >= 1.5:
             speed_gain_routine = wave_dash if agent.gravity.z < -450 and time < 3 and time > 1 else flip
-            agent.push(speed_gain_routine(agent.me.local_location(self.target)))
-        elif agent.boost_amount != 'unlimited' and agent.me.location.z < 50 and direction == -1 and velocity < 200 and time >= T + 1.5:
-            agent.push(flip(agent.me.local_location(self.target), True))
+            agent.push(speed_gain_routine(agent.me.local_location(agent.ball.location)))
+        elif agent.boost_amount != 'unlimited' and agent.me.location.z < 50 and direction == -1 and velocity < 200 and time >= 1.5:
+            agent.push(flip(agent.me.local_location(agent.ball.location), True))
 
 class boost_down:
     def __init__(self):

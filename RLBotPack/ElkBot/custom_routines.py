@@ -1,6 +1,6 @@
-from agent import VirxERLU
-from routines import *
-from utils import (Vector, almost_equals, cap, cap_in_field, defaultDrive,
+from util.agent import VirxERLU
+from util.routines import *
+from util.utils import (Vector, almost_equals, cap, cap_in_field, defaultDrive,
                         defaultPD, dodge_impulse, lerp, math, peek_generator,
                         side, sign)
 
