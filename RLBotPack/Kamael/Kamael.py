@@ -17,6 +17,8 @@ import cProfile, pstats, io
 import time
 import numpy as np
 from threading import Thread
+#from playsound import playsound
+
 
 
 def profile(fnc):
@@ -188,11 +190,28 @@ class Kamael(BaseAgent):
         self.ally_hit_count = 0
         self.ally_hit_info = []
         self.aerial_min = 200
+        self.match_ended = False
+        self.roof_height = None
+        self.ball_size = 93
+        self.demo_monster = False
+        self.ignore_list_names = self.get_ignore_list() #["adversitybot","st. peter","bribblebot","invisibot","sniper","blind and deaf"]
+        self.ignore_list_indexes = None
+        self.team_size_limit = 4
+
+    def get_ignore_list(self):
+        import pathlib
+        ignore_list = []
+        with open (str(pathlib.Path(__file__).parent.absolute()) + "\\bot_ignore_list.txt") as specials:
+            for name in specials.readlines():
+                ignore_list.append(str(name.strip()).lower())
+        return ignore_list
+
 
     def retire(self):
         self.game_active = False
         if self.hit_finding_thread != None:
             self.hit_finding_thread.close()
+
         print(f"{self.name} thread has exited")
 
     def init_match_config(self, match_config: "MatchConfig"):
@@ -257,14 +276,44 @@ class Kamael(BaseAgent):
             return 6
 
     def setHalfFlip(self):
-        self.activeState = BlessingOfDexterity(self)
+        #_time = self.time
+        #if _time - self.flipTimer >= 1.9:
+        controls = []
+        timers = []
+
+        control_1 = SimpleControllerState()
+        control_1.throttle = -1
+        control_1.jump = True
+
+        controls.append(control_1)
+        timers.append(0.125)
+
+        controls.append(SimpleControllerState())
+        timers.append(self.fakeDeltaTime*4)
+
+        control_3 = SimpleControllerState()
+        control_3.throttle = -1
+        control_3.pitch = 1
+        control_3.jump = True
+        controls.append(control_3)
+        timers.append(self.fakeDeltaTime * 4)
+
+        control_4 = SimpleControllerState()
+        control_4.throttle = -1
+        control_4.pitch = -1
+        control_4.roll = -.1
+        #control_4.jump = True
+
+        controls.append(control_4)
+        timers.append(0.5)
+
+        self.activeState = Divine_Mandate(self, controls, timers)
+
         self.flipTimer = self.time
 
     def aerialGetter(self, pred, target, time):
         return Wings_Of_Justice(self, pred, target, time)
 
-    # def aerialGetter(self, pred, aim_loc, tth):
-    #     return Wings_Of_Justice(self, pred, aim_loc, tth)
 
     def setJumpPhysics(self):
         self.jumpPhysics.location = self.me.location
@@ -373,6 +422,9 @@ class Kamael(BaseAgent):
     #     self.gameInfo = game_info_obj
 
     def preprocess(self, game):
+        self.ball_size = game.game_ball.collision_shape.sphere.diameter/2
+
+
         self.gameInfo.update(game)
         self.oldPreds = self.ballPred
         self.ballPred = self.get_ball_prediction_struct()
@@ -460,11 +512,6 @@ class Kamael(BaseAgent):
             self.groundCutOff = 93 + (self.carHeight + 17) * 0.8
             self.hitbox_set = True
 
-            # roughly 147 is touching the ball if facing straight on with octane hitbox
-            self.reachLength = (93 + self.carLength * 0.5) * 0.95
-            # if self.team == 0:
-            #     self.reachLength = (93 + self.carLength * 0.5) * .9
-            # print(f"reach length: {self.reachLength}")
             self.defaultOffset = Vector(
                 [
                     car.hitbox_offset.x * 1,
@@ -552,15 +599,17 @@ class Kamael(BaseAgent):
                 self.doubleJumpLimit = self.singleJumpLimit + 100
                 self.DoubleJumpShotsEnabled = False
 
-            self.enemyGoalLocations.append(
-                Vector([893 * sign(self.team), 5120 * -sign(self.team), 0])
-            )
+            self.enemyGoalLocations.append(Vector([893 * sign(self.team), 5120 * -sign(self.team), 0]))
             self.enemyGoalLocations.append(Vector([0, 5120 * -sign(self.team), 0]))
-            self.enemyGoalLocations.append(
-                Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0])
-            )
+            self.enemyGoalLocations.append(Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0]))
 
-        # print(f"{Vector([car.hitbox_offset.x,car.hitbox_offset.y,car.hitbox_offset.z])} {self.time}")
+            add_car_offset(self,projecting=False)
+            # roughly 147 is touching the ball if facing straight on with octane hitbox
+            adjusted_roof_height = self.roof_height
+            self.reachLength = math.floor(
+                math.sqrt(adjusted_roof_height * (self.ball_size * 2 - adjusted_roof_height))) + self.carLength * .5
+            print(f"self.reachLength is: {self.reachLength}")
+
         add_car_offset(self, projecting=self.debugging)
 
         if self.stubbornessTimer > 0:
@@ -590,8 +639,31 @@ class Kamael(BaseAgent):
 
         self.allies.clear()
         self.enemies.clear()
+        if not self.ignore_list_indexes:
+            active_teammates = []
+            self.ignore_list_indexes = []
+            for i in range(game.num_cars):
+                if i != self.index:
+                    car = game.game_cars[i]
+                    if car.team == self.team:
+                        for name in self.ignore_list_names:
+                            if str(car.name).lower().find(name) != -1:
+                                self.ignore_list_indexes.append(i)
+                                print(f"ignoring {car.name}!")
+                        if i not in self.ignore_list_indexes:
+                            active_teammates.append(i)
+                else:
+                    active_teammates.append(self.index)
+            if active_teammates.index(self.index) > self.team_size_limit-1:
+                self.demo_monster = True
+
+            if len(active_teammates) > self.team_size_limit:
+                for ally in active_teammates[self.team_size_limit:]:
+                    self.ignore_list_indexes.append(ally)
+
+
         for i in range(game.num_cars):
-            if i != self.index:
+            if i != self.index and i not in self.ignore_list_indexes:
                 car = game.game_cars[i]
                 _obj = physicsObject()
                 _obj.index = i
@@ -748,7 +820,7 @@ class Kamael(BaseAgent):
                 else:
                     predictions_valid = False
 
-                refresh_timer = 0.25
+                refresh_timer = 0.15
                 # if len(self.allies) < 1:
                 #     refresh_timer = 0.25
 
@@ -1045,6 +1117,8 @@ class Kamael(BaseAgent):
                 leftPost = Vector([893 * sign(self.team), 5120 * -sign(self.team), 0])
                 rightPost = Vector([893 * -sign(self.team), 5120 * -sign(self.team), 0])
                 res = len(self.allies) + 1
+                if self.demo_monster:
+                    res = 60
                 self.hits = findHits(
                     self,
                     self.groundCutOff,
@@ -1055,9 +1129,9 @@ class Kamael(BaseAgent):
 
                 self.test_pred = predictionStruct(
                     convertStructLocationToVector(
-                        self.ballPred.slices[self.ballPred.num_slices - 2]
+                        self.ballPred.slices[self.ballPred.num_slices - 1]
                     ),
-                    self.ballPred.slices[self.ballPred.num_slices - 2].game_seconds
+                    self.ballPred.slices[self.ballPred.num_slices - 1].game_seconds
                     * 1.0,
                 )
                 self.sorted_hits = SortHits(self.hits)
@@ -1067,10 +1141,10 @@ class Kamael(BaseAgent):
                         self.time + 10,
                         0,
                         convertStructLocationToVector(
-                            self.ballPred.slices[self.ballPred.num_slices - 2]
+                            self.ballPred.slices[self.ballPred.num_slices - 1]
                         ),
                         convertStructVelocityToVector(
-                            self.ballPred.slices[self.ballPred.num_slices - 2]
+                            self.ballPred.slices[self.ballPred.num_slices - 1]
                         ),
                         False,
                         10,
@@ -1079,28 +1153,17 @@ class Kamael(BaseAgent):
                 self.update_time = self.time * 1
                 # print(f"Updating hits {self.time}")
 
-    # @profile
+    #@profile
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        # 47 bp 60 current with lineupshot being semi exempt from mirrorshot
-        # new test idea: if mirror_info[0] and 2 in mirror_info[1], playback
         oldTimer = self.time
         self.log.clear()
         self.preprocess(packet)
 
         if len(self.allies) > 0 and not self.ignore_kickoffs:
-            # if self.team == 0:
-            #     team_manager(self)
-            # else:
             newTeamStateManager(self)
-            # dummyState(self)
 
         else:
             soloStateManager_testing(self)
-            # dribbleTesting(self)
-            # guidanceTesting(self)
-            # aerialTesting(self)
-
-        # return self.run_boost_duration_tests()
 
         if self.activeState != None:
             action = self.activeState.update()
@@ -1108,7 +1171,6 @@ class Kamael(BaseAgent):
         else:
             self.activeState = PreemptiveStrike(self)
             action = self.activeState.update()
-            # self.log.append(f"active state was None {self.time}")
         self.controller_state = action
 
         if self.debugging:

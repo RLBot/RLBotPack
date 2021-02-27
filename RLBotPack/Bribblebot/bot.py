@@ -96,7 +96,7 @@ class BribbleBot(BaseAgent):
 			if int(self.lastTime) != int(self.packet.game_info.seconds_elapsed):
 				# if self.skippedTicks > 0:
 				print(f"did {self.doneTicks}, skipped {self.skippedTicks}")
-				if self.firstTpsReport:
+				if self.firstTpsReport or self.packet.game_ball.physics.location.x == 0 and self.packet.game_ball.physics.location.y == 0:
 					self.firstTpsReport = False
 				elif self.doneTicks < 110:
 					self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Custom_Excuses_Lag)

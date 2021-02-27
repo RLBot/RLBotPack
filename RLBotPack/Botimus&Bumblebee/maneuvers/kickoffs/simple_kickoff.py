@@ -21,9 +21,10 @@ class SimpleKickoff(Kickoff):
         car = self.car
 
         if self.phase == 1:
-            if norm(car.velocity) > 1400:
+            speed_threshold = 1550 if abs(self.car.position[0]) < 100 else 1400
+            if norm(car.velocity) > speed_threshold:
                 self.phase = 2
-                self.action = AirDodge(car, 0.05, car.position + car.velocity)
+                self.action = AirDodge(car, 0.1, car.position + car.velocity)
 
         if self.phase == 2:
             self.action.controls.boost = self.action.state_timer < 0.1
@@ -33,9 +34,9 @@ class SimpleKickoff(Kickoff):
                 self.phase = 3
 
         if self.phase == 3:
-            if distance(car, vec3(0, 0, 93)) < norm(car.velocity) * 0.4:
+            if distance(car, vec3(0, 0, 93)) < norm(car.velocity) * 0.3:
                 self.phase = 4
-                self.action = AirDodge(car, 0.05, self.info.ball.position)
+                self.action = AirDodge(car, 0.1, self.info.ball.position)
 
                 self.counter_fake_kickoff()
         

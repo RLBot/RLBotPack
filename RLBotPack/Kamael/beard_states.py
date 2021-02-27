@@ -23,34 +23,29 @@ Far back center	loc: (0.0, -4608), yaw: 0.5 pi	loc: (0.0, 4608), yaw: -0.5 pi
 
 def locked_in(agent, agentType):
     if agentType == LeapOfFaith:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
     if agentType == Divine_Mandate:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
     if agentType == airLaunch:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
 
     if agentType == BlessingOfDexterity:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
 
     if agentType == Wings_Of_Justice:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
 
     if agentType == DivineGuidance:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
 
     if agentType == RighteousVolley:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
 
     if agentType == Special_Delivery:
-        if agent.activeState.active != False:
-            return True
+        return agent.activeState.active
+
+    # if agentType == Kickoff_boosties:
+    #     return agent.activeState.active
 
     return False
 
@@ -101,20 +96,23 @@ class State:
 
 
 class Kickoff_boosties(baseState):
+    def __init__(self,agent):
+        super().__init__(agent)
+
     def update(self):
+        self.active = self.agent.gameInfo.is_kickoff_pause or not self.agent.gameInfo.is_round_active
         return kickoff_boost_grabber(self.agent)
 
 
 class airLaunch(baseState):
     def __init__(self, agent):
-        baseState.__init__(self, agent)
+        super().__init__(agent)
         self.initiated = agent.time
         self.jumpTimer = agent.time
         self.firstJump = False
         self.secondJump = False
         self.firstJumpHold = 0.5
         self.secondJumpHold = 0.4
-        self.active = True
 
     def update(self):
         stateController = SimpleControllerState()
@@ -259,7 +257,7 @@ class Wings_Of_Justice:
         self.powershot = (
             distance2D(target, Vector([0, 5200 * -sign(agent.team), 0])) > 2000
         )
-        self.point_time = 1.5
+        self.point_time = 1
 
     def setup(self):
         # print(f"in setup {self.agent.time}")
@@ -381,7 +379,7 @@ class Wings_Of_Justice:
         aligned_threshold = 0.7
         current_alignment = self.agent._forward.dotProduct(delta_a.normalize())
 
-        if dt > self.point_time or delta_a.magnitude() > boost_req:
+        if dt > self.point_time or (delta_a.magnitude() > self.agent.aerialAccelerationTick*8):
             align_car_to(controls, self.agent.me.avelocity, delta_a, self.agent)
             aligned = current_alignment > aligned_threshold
             controls.boost = aligned and delta_a.magnitude() > boost_req
@@ -393,28 +391,20 @@ class Wings_Of_Justice:
                     f"required acceleration too high {delta_a.magnitude()}"
                 )
         else:
-            if (
-                distance2D(
-                    self.pred.location, Vector([0, 5200 * -sign(self.agent.team), 0])
-                )
-                > 2000
-            ):
-                offset = Vector([0, 0, -25])
-            else:
-                offset = Vector([0, 0, 10])
-            target = self.pred.location + offset
+            target = self.pred.location #+ offset
             if not pred_valid:
-                target = self.agent.ball.location + offset
+                target = self.agent.ball.location # + offset
+
             (
                 controls.steer,
                 controls.yaw,
                 controls.pitch,
                 _roll,
-                _,
+                error,
             ) = point_at_position(self.agent, target)
-            controls.roll = turnController(
-                self.agent.me.rotation[2], self.agent.me.rotational_velocity[0] / 4
-            )
+
+            #controls.boost = error <= aligned_threshold
+
 
         if not pred_valid:
             if self.launch_projection != None:
@@ -449,12 +439,9 @@ class Celestial_Arrest(baseState):
 class Special_Delivery(baseState):
     def __init__(self, agent):
         super().__init__(agent)
-        # self.jump_action = Divine_Mandate(self.agent,[SimpleControllerState(jump=True,pitch=1),SimpleControllerState(pitch=1),SimpleControllerState(jump=True)],[self.agent.fakeDeltaTime*9,self.agent.fakeDeltaTime*6,self.agent.fakeDeltaTime*3])
         self.jump_action = LeapOfFaith(agent, 2)
-        self.active = True
 
     def update(self):
-        # print("special delivery in update")
         if self.jump_action.active:
             return self.jump_action.update()
 
@@ -465,16 +452,16 @@ class Special_Delivery(baseState):
             controls.steer,
             controls.yaw,
             controls.pitch,
-            controls.roll,
+            _roll,
             error,
         ) = point_at_position(self.agent, self.agent.ball.location + offset)
 
-        controls.boost = error < 0.75
+        controls.boost = error < 0.7
 
         if (
             self.agent.me.boostLevel <= 0
-            or self.agent.me.location[2] < 60
-            or findDistance(self.agent.me.location, self.agent.ball.location) > 400
+            or self.agent.me.location[2] < 55
+            or findDistance(self.agent.me.location, self.agent.ball.location) > 375
             or error > 5
             or self.agent.onSurface
         ):
@@ -487,8 +474,7 @@ class Special_Delivery(baseState):
 
 class LeapOfFaith(baseState):
     def __init__(self, agent, targetCode, target=None):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
         self.targetCode = targetCode  # 0 flip at ball , 1 flip forward, 2 double jump, 3 flip backwards, 4 flip left, 5 flip right, 6 flip at target ,7 left forward diagnal flip, 8 right forward diagnal flip , -1 hold single jump
         self.flip_obj = FlipStatus(agent.time)
         self.target = target
@@ -729,13 +715,11 @@ class Divine_Mandate:
 
 class RighteousVolley(baseState):
     def __init__(self, agent, delay, target):
-        baseState.__init__(self, agent)
+        super().__init__(agent)
         self.smartAngle = False
         self.target = target
         height = target[2]
         boomerDelay = 0.05
-        # if len(agent.allies) < 1:
-        #     boomerDelay = 0
         delay = clamp(1.25, 0.3, delay + boomerDelay)
         if delay >= 0.3:
             if height <= 200:
@@ -798,15 +782,31 @@ class RighteousVolley(baseState):
             return controller_state
 
 
-class DivineRetribution:
-    def __init__(self, agent, targetCar):
+class Divine_Retribution:
+    def __init__(self, agent):
         self.agent = agent
-        self.targetCar = targetCar
         self.active = True
 
     def update(self,):
-        action = demoTarget(self.agent, self.targetCar)
-        return action
+        best_target = unpicky_demo_picker(self.agent)
+        boostTarget, dist = boostSwipe(self.agent)
+
+        if best_target != None and ((self.agent.me.boostLevel > 12 or self.agent.currentSpd >= 2200) or (boostTarget == None or dist > 3000)):
+            return demoTarget(self.agent, best_target)
+
+        else:
+
+            if (
+                boostTarget != None and dist < 5000 and self.agent.me.boostLevel < 100
+            ):
+                return driveController(self.agent, boostTarget.flatten(), self.agent.time, expedite=True)
+
+            boost_suggestion = boost_suggester(self.agent, buffer=-20000, mode=0)
+            if boost_suggestion != None and not self.agent.boostMonster:
+                target = boost_suggestion.location.scale(1)
+                return driveController(self.agent, target.flatten(), 0)
+            else:
+                return playBack(self.agent)
 
 
 class DemolitionBot:
@@ -837,8 +837,7 @@ class DemolitionBot:
 
 class GroundShot(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         return lineupShot(self.agent, 3)
@@ -846,8 +845,7 @@ class GroundShot(baseState):
 
 class GroundAssault(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         return lineupShot(self.agent, 1)
@@ -855,12 +853,11 @@ class GroundAssault(baseState):
 
 class DivineGuidance(baseState):
     def __init__(self, agent, target):
+        super().__init__(agent)
         self.controller = SimpleControllerState()
         self.controller.jump = True
-        self.agent = agent
         self.target = Vector([target[0], target[1], 30])
         self.start_time = agent.time
-        self.active = True
 
     def update(self):
         temp_controller = SimpleControllerState(jump=True)
@@ -886,19 +883,22 @@ class DivineGuidance(baseState):
             if self.agent.time - self.start_time > 0.2:
                 self.active = False
 
+
         return temp_controller
 
 
 class HolyGrenade(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         return handleBounceShot(self.agent)
 
 
 class HolyProtector(baseState):
+    def __init__(self,agent):
+        super().__init__(agent)
+
     def update(self):
         return ShellTime(self.agent)
 
@@ -909,7 +909,7 @@ class AerialDefend(baseState):
 
 class TurnTowardsPosition(baseState):
     def __init__(self, agent, target, targetCode):  # 0 = ball.location
-        baseState.__init__(self, agent)
+        super().__init__(agent)
         self.target = target
         self.threshold = 1
         self.targetCode = targetCode
@@ -967,7 +967,7 @@ def getKickoffPosition(vec):
 
 class Kickoff(baseState):
     def __init__(self, agent):
-        self.agent = agent
+        super().__init__(agent)
         self.started = False
         self.firstFlip = False
         self.secondFlip = False
@@ -975,7 +975,6 @@ class Kickoff(baseState):
         #         #     self.finalFlipDistance = 500
         #         # else:
         self.finalFlipDistance = 750
-        self.active = True
         self.startTime = agent.time
         self.flipState = None
 
@@ -1071,8 +1070,7 @@ class Kickoff(baseState):
 
 class Kickoff_Boosties(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
         self.setup()
 
     def setup(self):
@@ -1100,9 +1098,8 @@ class Kickoff_Boosties(baseState):
 
 class HeavenlyReprieve(baseState):
     def __init__(self, agent, boostloc):
-        self.agent = agent
+        super().__init__(agent)
         self.boostLoc = boostloc
-        self.active = True
 
     def update(self):
         result = inCornerWithBoost(self.agent)
@@ -1114,11 +1111,10 @@ class HeavenlyReprieve(baseState):
 
 class PreemptiveStrike(baseState):
     def __init__(self, agent):
-        self.agent = agent
+        super().__init__(agent)
         self.started = False
         self.firstFlip = None
         self.secondFlip = None
-        self.active = True
         self.startTime = agent.time
         self.kickoff_type = getKickoffPosition(agent.me.location)
         # 0 == wide diagonal, 1 == short disgonal, 2 == middle
@@ -2188,8 +2184,7 @@ class PreemptiveStrike_BAK(baseState):  # real kickoff
 
 class DivineGrace(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
         # self.run_simulation()
         # print(f"default elevation is: {self.agent.defaultElevation}")
         self.x_limit = 4096 - self.agent.defaultElevation
@@ -2589,8 +2584,7 @@ class catchTesting(baseState):
 
 class WardAgainstEvil(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         if goalie_shot(self.agent, self.agent.currentHit):
@@ -2602,8 +2596,7 @@ class WardAgainstEvil(baseState):
 
 class BlessingOfDexterity(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
         self.firstJump = False
         self.secondJump = False
         self.jumpStart = 0
@@ -2655,8 +2648,7 @@ class BlessingOfDexterity(baseState):
 
 class Do_No_Evil(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         if self.agent.scorePred == None:
@@ -2672,8 +2664,7 @@ class Do_No_Evil(baseState):
 
 class Chase(baseState):
     def __init__(self, agent):
-        self.agent = agent
-        self.active = True
+        super().__init__(agent)
 
     def update(self):
         if not kickOffTest(self.agent):
@@ -3319,6 +3310,7 @@ def newTeamStateManager(agent):
             if locked_in(agent, agentType):
                 return
 
+
             fastesthit = agent.sorted_hits[0]  # find_soonest_hit(agent)
             hit = fastesthit
 
@@ -3370,6 +3362,13 @@ def newTeamStateManager(agent):
                         agent.activeState = DivineGrace(agent)
                     return
 
+            if agent.demo_monster:
+                agent.currentHit = hit
+                agent.ballDelay = tempDelay
+                if agent.activeState != Divine_Retribution:
+                    agent.activeState = Divine_Retribution(agent)
+                return
+
             lastMan = agent.lastMan
             catchViable = False
             inclusive_team = agent.allies[:]
@@ -3396,10 +3395,19 @@ def newTeamStateManager(agent):
                     or agent.gameInfo.is_kickoff_pause
                 ):
                     man = 2
+                    if agent.me.location == agent.lastMan:
+                        man = 3
+                    agent.rotationNumber = man
+
                     agent.currentHit = fastesthit
                     agent.ballDelay = fastesthit.time_difference()
-                    if agentType != Kickoff_Boosties:
-                        agent.activeState = Kickoff_Boosties(agent)
+                    # if agentType != Kickoff_Boosties and agent.team == 0:
+                    #     agent.activeState = Kickoff_Boosties(agent)
+                    #     return
+                    # else:
+                    #     #print("not locked in?")
+                    if agentType != BlessingOfSafety:
+                        agent.activeState = BlessingOfSafety(agent)
                     return
                 else:
                     man = 1
@@ -4145,6 +4153,7 @@ def soloStateManager(agent):
 
 def soloStateManager_testing(agent):
     agentType = type(agent.activeState)
+
     if (
         agentType != PreemptiveStrike
         or agentType == PreemptiveStrike

@@ -1,7 +1,7 @@
 import math
 
 from maneuvers.maneuver import Maneuver
-from rlutilities.linear_algebra import vec3, dot
+from rlutilities.linear_algebra import vec3, dot, norm, normalize
 from tools.arena import Arena
 from tools.drawing import DrawingTool
 from tools.math import abs_clamp, clamp11, clamp
@@ -30,7 +30,8 @@ class Drive(Maneuver):
             target[0] = abs_clamp(target[0], 700)
 
         if not self.drive_on_walls:
-            if self.car.position[2] > 200:
+            seam_radius = 100 if abs(self.car.position[1]) > Arena.size[1] - 100 else 200
+            if self.car.position[2] > seam_radius:
                 target = ground(self.car)
 
         local_target = local(self.car, target)
@@ -44,10 +45,14 @@ class Drive(Maneuver):
         self.controls.steer = clamp11(2.5 * phi)
 
         # powersliding
-        if abs(phi) > 1.5 and self.car.position[2] < 200 and ground_distance(self.car, target) < 2500:
+        self.controls.handbrake = 0
+        if (
+            abs(phi) > 1.5
+            and self.car.position[2] < 300
+            and (ground_distance(self.car, target) < 3500 or abs(self.car.position[0]) > 3500)
+            and dot(normalize(self.car.velocity), self.car.forward()) > 0.85
+        ):
             self.controls.handbrake = 1
-        else:
-            self.controls.handbrake = 0
 
         # forward velocity
         vf = dot(self.car.velocity, self.car.forward())
@@ -64,7 +69,7 @@ class Drive(Maneuver):
         else:
             if (vf - self.target_speed) > 400:  # 75
                 self.controls.throttle = -1.0
-            else:
+            elif (vf - self.target_speed) > 100:
                 if self.car.up()[2] > 0.85:
                     self.controls.throttle = 0.0
                 else:
@@ -79,7 +84,7 @@ class Drive(Maneuver):
             self.controls.handbrake = 0
 
         # don't boost if not facing target
-        if abs(phi) > 0.3 and vf > 600:
+        if abs(phi) > 0.3:
             self.controls.boost = 0
 
         # finish when close

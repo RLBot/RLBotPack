@@ -13,9 +13,10 @@ class MirrorStrike(DodgeStrike):
     """
     def __init__(self, car: Car, info: GameInfo, target: vec3):
         self.actual_target = target
+        self.info = info
 
         mirrors = [self.mirrored_pos(target, 1), self.mirrored_pos(target, -1)]
-        target = Strike.pick_easiest_target(car, info.ball, mirrors)
+        target = self.pick_easiest_target(car, info.ball, mirrors)
 
         super().__init__(car, info, target)
 
