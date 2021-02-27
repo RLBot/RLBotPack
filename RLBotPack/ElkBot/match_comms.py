@@ -14,6 +14,11 @@ class MatchComms(Thread):
     def run(self):
         while self.online:
             try:
-                self.agent.handle_match_comm(self.agent.matchcomms.incoming_broadcast.get())
+                msg = self.agent.matchcomms.incoming_broadcast.get()
+                if msg.get('tmcp_version') != None:
+                    if msg.get("team") == self.agent.team and msg.get("index") != self.agent.index:
+                        self.agent.handle_tmcp_packet(msg)
+                else:
+                    self.agent.handle_match_comm(msg)
             except Exception:
                 print_exc()
