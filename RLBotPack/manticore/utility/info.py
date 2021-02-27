@@ -1,6 +1,9 @@
+from typing import Optional
+
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket, FieldInfo
 from rlbot.utils.structures.quick_chats import QuickChats
+from tmcp import TMCPMessage, ActionType
 
 from strategy.objective import Objective
 from utility.easing import lin_fall
@@ -312,6 +315,55 @@ class GameInfo:
         if 0 <= sender < len(self.cars):
             car = self.cars[sender]
             car.last_quick_chat = QuickChat(sender, sender_team, message, self.time)
+
+    def handle_tmcp_message(self, message: TMCPMessage):
+        if 0 <= message.index < len(self.cars):
+            # We transform the message into a quick chat message
+
+            # if message.action_type == ActionType.BALL:
+            #     quickchat_version = QuickChats.Information_IGotIt
+            # elif message.action_type == ActionType.WAIT:
+            #     quickchat_version = QuickChats.Information_AllYours
+            # elif message.action_type == ActionType.BOOST:
+            #     quickchat_version = QuickChats.Information_NeedBoost
+            # elif message.action_type == ActionType.DEMO:
+            #     quickchat_version = QuickChats.Information_TakeTheShot
+            # elif message.action_type == ActionType.DEFEND:
+            #     quickchat_version = QuickChats.Information_Defending
+
+            mapping = {
+                ActionType.BALL: QuickChats.Information_IGotIt,
+                ActionType.WAIT: QuickChats.Information_AllYours,
+                ActionType.BOOST: QuickChats.Information_NeedBoost,
+                ActionType.DEMO: QuickChats.Information_TakeTheShot,
+                ActionType.DEFEND: QuickChats.Information_Defending
+            }
+
+            quickchat_version = mapping[message.action_type]
+            car = self.cars[message.index]
+            car.last_quick_chat = QuickChat(message.index, car.team, quickchat_version, self.time - 0.008333)
+
+
+def tcmp_to_quick_chat(tmcp: ActionType):
+    return {
+        ActionType.BALL: QuickChats.Information_IGotIt,
+        ActionType.WAIT: QuickChats.Information_AllYours,
+        ActionType.BOOST: QuickChats.Information_NeedBoost,
+        ActionType.DEMO: QuickChats.Information_TakeTheShot,
+        ActionType.DEFEND: QuickChats.Information_Defending
+    }[tmcp]
+
+
+def quick_chat_to_tcmp(qc_msg) -> Optional[ActionType]:
+    mapping = {
+        QuickChats.Information_IGotIt: ActionType.BALL,
+        QuickChats.Information_AllYours: ActionType.WAIT,
+        QuickChats.Information_NeedBoost: ActionType.BOOST,
+        QuickChats.Information_TakeTheShot: ActionType.DEMO,
+        QuickChats.Information_Defending: ActionType.DEFEND
+    }
+    return mapping[qc_msg] if qc_msg in mapping else None
+
 
 
 def is_near_wall(point: Vec3, offset: float=110) -> bool:

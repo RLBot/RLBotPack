@@ -1,5 +1,6 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
+from maneuvers.collect_boost import CollectClosestBoostManeuver
 from strategy.objective import Objective
 from strategy.utility_system import UtilityState
 from utility.info import Field
@@ -21,7 +22,7 @@ class DefendGoal(UtilityState):
             for mate in mates[1:]:
                 sum_pos += mate.pos + mate.vel * 0.5
             avg_pos = sum_pos / len(mates)
-            team_committed01 = clip01(norm(avg_pos - bot.info.own_goal.pos) / Field.LENGTH2)
+            team_committed01 = clip01(norm(avg_pos - bot.info.own_goal.pos) / Field.LENGTH)
             no_defence01 = clip01(argmin(mates, lambda mate: norm(mate.pos - bot.info.own_goal.pos))[1] / 1000)
 
         dist_to_ball01 = clip01(norm(car.pos - bot.info.ball.pos) / Field.LENGTH2)
@@ -37,4 +38,7 @@ class DefendGoal(UtilityState):
         return 0.85 * team_committed01 * dist_to_ball01 * no_defence01 * obj_bonus
 
     def run(self, bot) -> SimpleControllerState:
+        ball = bot.info.ball
+        if norm(ball.pos - bot.info.own_goal.pos) / Field.LENGTH > bot.info.my_car.boost / 100:
+            bot.maneuver = CollectClosestBoostManeuver(bot)
         return bot.drive.home(bot)

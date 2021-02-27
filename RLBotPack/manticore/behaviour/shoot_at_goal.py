@@ -33,7 +33,7 @@ class ShootAtGoal(UtilityState):
         in_position_01 = ease_out(clip01(dot(xy_ball_to_goal, xy_car_to_ball)), 0.5)
 
         # Chase ball right after kickoff. High right after kickoff
-        kickoff_bias01 = max(0, 1 - bot.info.time_since_last_kickoff * 0.3) * float(bot.info.my_car.objective == Objective.UNKNOWN)
+        kickoff_bias01 = max(0, 1 - bot.info.time_since_last_kickoff * 0.3) * float(bot.info.my_car.objective == Objective.SOLO)
 
         obj_bonus = {
             Objective.UNKNOWN: 1,
@@ -43,7 +43,7 @@ class ShootAtGoal(UtilityState):
             Objective.SOLO: 1,
         }[bot.info.my_car.objective]
 
-        return clip01(close_to_ball_01 * in_position_01 + kickoff_bias01) * obj_bonus
+        return clip01(close_to_ball_01 * in_position_01) * obj_bonus + kickoff_bias01
 
     def run(self, bot) -> SimpleControllerState:
 

@@ -64,7 +64,7 @@ class GameAnalyzer:
             car.objective = Objective.UNKNOWN
 
         attacker, attacker_score = argmax(bot.info.team_cars,
-                                          lambda ally: ((1.0 if ally.last_objective == Objective.GO_FOR_IT else 0.8)
+                                          lambda ally: ((1.0 if ally.last_objective == Objective.GO_FOR_IT else 0.73)
                                                         * ease_out(0.2 + 0.8 * ally.boost / 100, 2)  # 50 boost is 0.85, 0 boost is 0.2
                                                         * ally.possession
                                                         * ally.got_it_according_to_quick_chat_01(bot.info.time)
@@ -74,7 +74,7 @@ class GameAnalyzer:
         attacker.objective = Objective.GO_FOR_IT
         self.ideal_follow_up_pos = xy(ball.pos + bot.info.own_goal.pos) * 0.5
         follower, follower_score = argmax([ally for ally in bot.info.team_cars if ally.objective == Objective.UNKNOWN],
-                                          lambda ally: (1.0 if ally.last_objective == Objective.FOLLOW_UP else 0.8)
+                                          lambda ally: (1.0 if ally.last_objective == Objective.FOLLOW_UP else 0.73)
                                                         * ease_out(0.2 * 0.8 * ally.boost / 100, 2)
                                                         * (1 + ally.onsite / 2)
                                                         * lin_fall(norm(ally.effective_pos - self.ideal_follow_up_pos), 3000)
