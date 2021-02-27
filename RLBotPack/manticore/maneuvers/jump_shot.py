@@ -2,6 +2,7 @@ import math
 
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.quick_chats import QuickChats
+from tmcp import TMCPMessage
 
 from maneuvers.maneuver import Maneuver
 from utility import predict, rendering
@@ -24,13 +25,13 @@ class JumpShotManeuver(Maneuver):
         self.jump_begin_time = -1
         self.jump_pause_counter = 0
         self.dodge_begin_time = -1
-        self.announced_in_quick_chat = False
+        self.announced_in_tmcp = False
 
     def exec(self, bot):
 
-        if not self.announced_in_quick_chat:
-            self.announced_in_quick_chat = True
-            bot.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Information_IGotIt)
+        if not self.announced_in_tmcp:
+            self.announced_in_tmcp = True
+            bot.send_tmcp(TMCPMessage.ball_action(bot.team, bot.index, self.intercept_time))
 
         ct = bot.info.time
         car = bot.info.my_car
@@ -201,6 +202,6 @@ class JumpShotManeuver(Maneuver):
         tau2 = T - (T - tau1) * math.sqrt(1 - clip01(ratio))
         velocity_estimate = vf + BOOST_ACCEL * (tau2 - tau1) * dir
         boost_estimate = (tau2 - tau1) * BOOST_PR_SEC
-        enough_boost = boost_estimate < 0.95 * car.boost
-        enough_time = abs(ratio) < 0.9
-        return norm(velocity_estimate) < 0.9 * MAX_SPEED and enough_boost and enough_time
+        enough_boost = boost_estimate < car.boost
+        enough_time = abs(ratio) < 1.0
+        return norm(velocity_estimate) < 1.0 * MAX_SPEED and enough_boost and enough_time

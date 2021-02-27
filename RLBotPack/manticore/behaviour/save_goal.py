@@ -21,20 +21,20 @@ class SaveGoal(UtilityState):
         ball = bot.info.ball
 
         ball_to_goal = bot.info.own_goal.pos - ball.pos
-        too_close = norm(ball_to_goal) < Goal.WIDTH2 + Ball.RADIUS
+        too_close = norm(ball_to_goal) * 0.8 < Goal.WIDTH2 + Ball.RADIUS
 
         hits_goal_prediction = predict.will_ball_hit_goal(bot)
-        hits_goal = hits_goal_prediction.happens and sign(ball.vel.y) == team_sign and hits_goal_prediction.time < 3
+        hits_goal = hits_goal_prediction.happens and sign(ball.vel.y) == team_sign and hits_goal_prediction.time < 4
 
         obj_bonus = {
             Objective.UNKNOWN: 1,
             Objective.GO_FOR_IT: 1,
             Objective.FOLLOW_UP: 0,
-            Objective.ROTATING: 0,
+            Objective.ROTATING: 0.8,
             Objective.SOLO: 1,
         }[bot.info.my_car.objective]
 
-        return float(hits_goal or too_close) * obj_bonus
+        return float(hits_goal) + float(too_close) * obj_bonus
 
     def run(self, bot) -> SimpleControllerState:
 
