@@ -139,6 +139,7 @@ class VirxERLU(StandaloneBot):
         self.shooting = False
         self.odd_tick = -1
         self.delta_time = 1 / 120
+        self.last_sent_tmcp_packet = None
 
         self.future_ball_location_slice = 180
         self.balL_prediction_struct = None
@@ -270,7 +271,11 @@ class VirxERLU(StandaloneBot):
                     break
                 
                 try:
-                    self.handle_match_comm(msg)
+                    if msg.get('tmcp_version') is not None:
+                        if msg.get("team") == self.team and msg.get("index") != self.index:
+                            self.handle_tmcp_packet(msg)
+                    else:
+                        self.handle_match_comm(msg)
                 except Exception:
                     print_exc()
 
@@ -300,6 +305,19 @@ class VirxERLU(StandaloneBot):
                 except Exception:
                     t_file = os.path.join(self.traceback_file[0], self.name+self.traceback_file[1])
                     print(f"ERROR in {self.name}; see '{t_file}'")
+                    print_exc()
+
+                try:
+                    tmcp_packet = self.create_tmcp_packet()
+
+                    # if we haven't sent a packet, OR
+                    # the last packet we sent isn't out current packet AND either the action types are different OR either the time difference is greater than 0.1 or target is different
+                    if self.last_sent_tmcp_packet is None or self.tmcp_packet_is_different(tmcp_packet):
+                        self.matchcomms.outgoing_broadcast.put_nowait(tmcp_packet)
+                        self.last_sent_tmcp_packet = tmcp_packet
+                except Exception:
+                    t_file = os.path.join(self.traceback_file[0], self.name+"-TMCP"+self.traceback_file[1])
+                    print(f"ERROR in {self.name} with sending TMCP packet; see '{t_file}'")
                     print_exc()
 
                 # run the routine on the end of the stack
@@ -369,6 +387,79 @@ class VirxERLU(StandaloneBot):
             print_exc()
             return SimpleControllerState()
 
+    def get_minimum_game_time_to_ball(self):
+        # It is recommended that you override this
+        return -1
+
+    def tmcp_packet_is_different(self, tmcp_packet):
+        # If the packets are the same
+        if self.last_sent_tmcp_packet == tmcp_packet:
+            return False
+        
+        action_type = tmcp_packet["action"]["type"]
+
+        # if the action types aren't the same
+        if self.last_sent_tmcp_packet["action"]["type"] != action_type:
+            return True
+
+        if action_type == "BALL":
+            return abs(self.last_sent_tmcp_packet["action"]["time"] - tmcp_packet["action"]["time"]) >= 0.1
+
+        if action_type == "BOOST":
+            return self.last_sent_tmcp_packet["action"]["target"] != tmcp_packet["action"]["target"]
+
+        if action_type == "DEMO":
+            return abs(self.last_sent_tmcp_packet["action"]["time"] - tmcp_packet["action"]["time"]) >= 0.1 or self.last_sent_tmcp_packet["action"]["target"] != tmcp_packet["action"]["target"]
+
+        if action_type == "WAIT":
+            return abs(self.last_sent_tmcp_packet["action"]["ready"] - tmcp_packet["action"]["ready"]) >= 0.1
+
+        # Right now, this is only for DEFEND
+        return False
+
+    def create_tmcp_packet(self):
+        # https://github.com/RLBot/RLBot/wiki/Team-Match-Communication-Protocol
+        # don't worry about duplicate packets - this is handled automatically
+        return {
+            "tmcp_version": [0,7],
+            "index": self.index,
+            "team": self.team,
+            "action": self.get_tmcp_action()
+        }
+
+    def get_tmcp_action(self):
+        if self.is_clear():
+            return {
+                "type": "WAIT",
+                "ready": -1
+            }
+        
+        stack_routine_name = self.stack[0].__class__.__name__
+
+        if stack_routine_name in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump', 'short_shot'}:
+            return {
+                "type": "BALL",
+                "time": -1 if stack_routine_name == 'short_shot' else self.stack[0].intercept_time
+            }
+        if stack_routine_name == "goto_boost":
+            return {
+                "type": "BOOST",
+                "target": self.stack[0].boost.index
+            }
+
+        # by default, VirxERLU can't demo bots
+        return {
+            "type": "WAIT",
+            "ready": self.get_minimum_game_time_to_ball()
+        }
+
+    def handle_tmcp_packet(self, packet):
+        # https://github.com/RLBot/RLBot/wiki/Team-Match-Communication-Protocol
+
+        for friend in self.friends:
+            if friend.index == packet['index']:
+                friend.tmcp_action = packet['action']
+
     def handle_match_comm(self, msg):
         pass
 
@@ -398,6 +489,7 @@ class car_object:
         self.doublejumped = False
         self.boost = 0
         self.index = index
+        self.tmcp_action = None
 
         if packet is not None:
             car = packet.game_cars[self.index]

@@ -1,9 +1,13 @@
+from custom_classes import getPosOnField
+from enums import *
+
 from util.tools import  *
 from util.utils import *
 from util.routines import *
 from util.agent import *
 from custom_routines import *
 
+# TODO: Improve goalie action with challenges, work on shot hit speed, implement rotations
 
 #This file is for strategy
 
@@ -12,9 +16,7 @@ class ExampleBot(VirxERLU):
         super().initialize_agent()
         self.state = None
         self.do_debug = True
-        self.RTG_flip_time = 0
     def run(self):
-        num_foes = len(self.foes)
         my_goal_to_ball, my_ball_distance = (self.ball.location-self.friend_goal.location).normalize(True)
         goal_to_me = self.me.location-self.friend_goal.location
         my_distance = my_goal_to_ball.dot(goal_to_me)
@@ -24,7 +26,7 @@ class ExampleBot(VirxERLU):
         foe_onside = False
 
         for foe in self.foes:
-            foe_goal_to_foe = self.foes[0].location-self.friend_goal.location
+            foe_goal_to_foe = foe.location-self.friend_goal.location
             foe_distance = foe_goal_to_ball.dot(foe_goal_to_foe)
             if foe_distance - 200 < foe_ball_distance:
                 foe_onside = True
@@ -45,8 +47,6 @@ class ExampleBot(VirxERLU):
 
         need_to_save = False
 
-        bump_opponent = False
-
         struct = self.get_ball_prediction_struct()
         for pred_slice in struct.slices:
             if side(self.team) * pred_slice.physics.location.y > 5200:
@@ -58,10 +58,11 @@ class ExampleBot(VirxERLU):
                 bump_opponent = True
                 break
             
-
+        if len(self.stack) == 1 and hasattr(self.stack[0].__class__, "__name__") and self.stack[0].__class__.__name__ == 'retreat' and need_to_save and self.state != 'need to save (RTG)':
+            self.pop()
         
 
-        if len(self.stack) < 1 or (self.state == 'getting boost' and len(self.stack) == 1):
+        if len(self.stack) < 1 or (self.state == 'getting boost' and len(self.stack) == 1) and ((posOnField.GOALIE in [getPosOnField(car) for car in self.friends]) or len(self.friends) == 0):
             if self.state == 'getting boost' and len(self.stack) == 1:
                 self.pop()
             self.state = None
@@ -131,7 +132,7 @@ class ExampleBot(VirxERLU):
                         self.push(goto_boost(closest))
                         self.state = 'getting boost'
                     else:
-                        state = 'no close boost'
+                        self.state = 'no close boost'
                         return_to_goal = True
                 else:
                     return_to_goal = True
@@ -144,24 +145,15 @@ class ExampleBot(VirxERLU):
                 return_to_goal = True
                 self.state = 'RTG'
             
-            if return_to_goal and ((self.me.location.y - self.ball.location.y) * side(self.team) > 1000) and (self.me.location-self.ball.location).magnitude() > 500:
+            if return_to_goal and ((self.me.location.y - self.ball.location.y) * side(self.team) > 1000) and (self.me.location-self.ball.location).magnitude() > 500 and ((posOnField.GOALIE in [getPosOnField(car) for car in self.friends]) or len(self.friends) == 0):
                 self.state = 'HIT DA BALL'
                 relative_target = self.ball.location - self.me.location
                 angles, vel = defaultDrive(self, 1400, self.me.local(relative_target))
                 self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
                 self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
             else:
-                if not (side(self.team) * self.me.location.y > 5120):
-                    relative_target = self.friend_goal.location - self.me.location
-                    angles, vel = defaultDrive(self, 2300, self.me.local(relative_target))
-                    if angles[1] < 0.75 and relative_target.magnitude() > 750 and 500 < self.me.velocity.magnitude() < 1000 and self.time - self.RTG_flip_time > 2:
-                        self.push(flip(self.me.local(relative_target)))
-                        self.RTG_flip_time = self.time
-                    else:
-                        self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
-                        self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
-                else:
-                    self.state += ' (In goal)'
+                if self.is_clear():
+                    self.push(retreat())
 
         if self.do_debug:
             #this overdoes the rendering, needs fixing
@@ -174,6 +166,10 @@ class ExampleBot(VirxERLU):
             self.line(my_point - Vector(0,0,100),  my_point + Vector(0,0,100), (0,255,0))
             car_to_ball = 'working!'
             self.renderer.draw_string_2d(10, 30*(self.index + 10)-30, 2, 2, (str(ball_third) + ' ' + str(return_to_goal) + ' ' + str(need_to_save) + ' ' + str(self.state) + ' ' + str(car_to_ball)), self.renderer.white())
+            for index, car in enumerate(self.foes + self.friends + tuple([self.me])):
+                fieldPos = getPosOnField(car)
+                string = f'{car.name}: {fieldPos.name}'
+                self.renderer.draw_string_2d(10, 30*(index + 10)+50, 2, 2, string, self.renderer.cyan())
 
     def draw_cube_wireframe(self, center, color, size=75):
         points = []
@@ -205,11 +201,9 @@ class ExampleBot(VirxERLU):
                 avg_car_speed = (ball_vec_at_intercept - self.me.location).magnitude()/(shot.intercept_time-self.time)
                 if shot_name == 'ground_shot' and avg_car_speed < 500:
                     have_failed_ground = True
-                    self.print('failed ' + shot_name)
                     continue
                 if shot_name == 'jump_shot' and avg_car_speed < 500:
                     have_failed_jump = True
-                    self.print('failed ' + shot_name)
                     continue
                 # if shot_name == 'Aerial' and ball_vec_at_intercept.z < 100:
                 #     have_failed_aerial = True
@@ -217,7 +211,44 @@ class ExampleBot(VirxERLU):
                 #     continue
                 break
             output[name] = shot
-            self.print(f'Final shot for target {name}: {shot.__class__.__name__}')
         return output
+
+    def get_tmcp_action(self):
+        if self.is_clear():
+            if 'RTG' in self.state:
+                return {
+                    "type": "DEFEND"
+                }
+            return {
+                "type": "WAIT",
+                "ready": -1
+            }
         
-            
+        stack_routine_name = self.stack[0].__class__.__name__
+
+        if stack_routine_name in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump', 'short_shot'}:
+            return {
+                "type": "BALL",
+                "time": -1 if stack_routine_name == 'short_shot' else self.stack[0].intercept_time
+            }
+        if stack_routine_name == "goto_boost":
+            return {
+                "type": "BOOST",
+                "target": self.stack[0].boost.index
+            }
+
+        if stack_routine_name == 'retreat':
+            return {
+                "type": "WAIT",
+                "ready": -1
+            }
+
+        # by default, VirxERLU can't demo bots
+        return {
+            "type": "WAIT",
+            "ready": self.get_minimum_game_time_to_ball()
+        }
+
+    def get_minimum_game_time_to_ball(self):
+        shot = find_any_shot(self)
+        return -1 if shot is None else shot.intercept_time
