@@ -1,7 +1,7 @@
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.quick_chats import QuickChats
-from tmcp import TMCPHandler, TMCPMessage
+from tmcp import TMCPHandler, TMCPMessage, TMCP_VERSION
 
 from behaviour.carry import Carry
 from behaviour.clear_ball import ClearBall
@@ -49,6 +49,8 @@ class Manticore(BaseAgent):
             PrepareFollowUp()
         ])
         self.tmcp_handler = TMCPHandler(self)
+        if TMCP_VERSION != [0, 8]:
+            self.tmcp_handler.disable()
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Read packet
