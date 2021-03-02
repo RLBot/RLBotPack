@@ -147,4 +147,3 @@ class Manticore(BaseAgent):
         # Transform message into quick chat message if we can
         qc_msg = tcmp_to_quick_chat(message.action_type)
         self.send_quick_chat(QuickChats.CHAT_EVERYONE, qc_msg)
-        self.print(f"Sent {message.action_type}")
