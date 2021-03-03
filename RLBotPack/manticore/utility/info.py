@@ -320,20 +320,9 @@ class GameInfo:
         if 0 <= message.index < len(self.cars):
             # We transform the message into a quick chat message
 
-            # if message.action_type == ActionType.BALL:
-            #     quickchat_version = QuickChats.Information_IGotIt
-            # elif message.action_type == ActionType.WAIT:
-            #     quickchat_version = QuickChats.Information_AllYours
-            # elif message.action_type == ActionType.BOOST:
-            #     quickchat_version = QuickChats.Information_NeedBoost
-            # elif message.action_type == ActionType.DEMO:
-            #     quickchat_version = QuickChats.Information_TakeTheShot
-            # elif message.action_type == ActionType.DEFEND:
-            #     quickchat_version = QuickChats.Information_Defending
-
             mapping = {
                 ActionType.BALL: QuickChats.Information_IGotIt,
-                ActionType.WAIT: QuickChats.Information_AllYours,
+                ActionType.READY: QuickChats.Information_AllYours,
                 ActionType.BOOST: QuickChats.Information_NeedBoost,
                 ActionType.DEMO: QuickChats.Information_TakeTheShot,
                 ActionType.DEFEND: QuickChats.Information_Defending
@@ -347,7 +336,7 @@ class GameInfo:
 def tcmp_to_quick_chat(tmcp: ActionType):
     return {
         ActionType.BALL: QuickChats.Information_IGotIt,
-        ActionType.WAIT: QuickChats.Information_AllYours,
+        ActionType.READY: QuickChats.Information_AllYours,
         ActionType.BOOST: QuickChats.Information_NeedBoost,
         ActionType.DEMO: QuickChats.Information_TakeTheShot,
         ActionType.DEFEND: QuickChats.Information_Defending
