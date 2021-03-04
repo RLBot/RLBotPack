@@ -185,7 +185,7 @@ def execute_strike(packet,car,strike,foes,defence=False):
                 return begin_right_flip(packet)[0], begin_right_flip(packet)[1], strike.slice_location, strike.rem_time(packet) 
 
         #try out the new targeting
-        if not defence and strike.rem_time > 0.5 + single_jump_time(strike.slice_location.z-17):
+        if not defence and strike.rem_time(packet) > 0.5 + single_jump_time(strike.slice_location.z-17):
             side_of_shot = math.copysign(1,strike.ideal_shot.cross(Vec3(0,0,1)).dot(vec_to_slice))
             car_to_offset_perp = vec_to_slice.cross(Vec3(0,0,side_of_shot))
 
