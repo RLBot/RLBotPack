@@ -10,7 +10,6 @@ from util.sequence import Sequence, ControlStep
 from util.orientation import Orientation, relative_location
 from util.vec import Vec3
 from util.car_model import Car, Ball
-from util.tmcp import TMCPHandler, TMCPMessage, ActionType
 from util.strike import find_strikes, execute_strike, check_strike, Strike, strike_types
 from util.mechanics import *
 
