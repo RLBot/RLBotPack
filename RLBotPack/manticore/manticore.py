@@ -49,7 +49,7 @@ class Manticore(BaseAgent):
             PrepareFollowUp()
         ])
         self.tmcp_handler = TMCPHandler(self)
-        if TMCP_VERSION != [0, 8]:
+        if TMCP_VERSION != [0, 9]:
             self.tmcp_handler.disable()
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
