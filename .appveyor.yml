@@ -58,7 +58,7 @@ build_script:
 
          $env:RELEASE_DESC = ${env:PREV_HASH} + " -> " + ${env:HASH}
 
-         $env:COMMIT_LOG = (git log ($latestRelease.commitId)..HEAD --pretty="%h %s") -join "\n";
+         $env:COMMIT_LOG = (git log ($latestRelease.commitId + "..HEAD") --pretty="%h %s") -join "\n";
       }
 
       $env:RELEASE_TAG = "incr-" +  ${env:RELEASE_NUMBER}
