@@ -7,18 +7,16 @@
    ],
    "drones": [
       [
-         "position 0 -1000 20",
+         "position 0 -2000 100",
          "rotation 0 0 90",
          "velocity 0 0 0",
          "angular-velocity 0 0 0",
-         "boost 70",
-         "wait 50",
+         "boost 90",
+         "wait 85",
          "jump 1",
-         "wait 10",
-         "throttle forwards 1 1",
-         "jump 1",
-         "wait 30",
-         "boost 100"
+         "wait 15",
+         "tilt forwards 1 10",
+         "jump 1"
       ]
    ]
 }
