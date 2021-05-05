@@ -1,0 +1,24 @@
+{
+   "ball": [
+      "position 0 0 100",
+      "rotation 0 0 0",
+      "velocity 0 0 -1",
+      "angular-velocity 0 0 0"
+   ],
+   "drones": [
+      [
+         "position 0 -1000 20",
+         "rotation 0 0 90",
+         "velocity 0 0 0",
+         "angular-velocity 0 0 0",
+         "boost 70",
+         "wait 50",
+         "jump 1",
+         "wait 10",
+         "throttle forwards 1 1",
+         "jump 1",
+         "wait 30",
+         "boost 100"
+      ]
+   ]
+}
