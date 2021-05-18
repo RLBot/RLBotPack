@@ -46,26 +46,32 @@ class speed_flip_kickoff:
     def __init__(self):
         self.old_boost = 34
         self.stage = 0
+        print("Speedflipping!")
 
     def run(self, agent: VirxERLU):
+        print("running speedflip routine")
         if self.stage == 0:
             agent.controller.boost = True
             if agent.me.boost > self.old_boost:
                 self.stage = 1
+                agent.print(f"Next stage: {self.stage}")
             else:
                 self.old_boost = agent.me.boost
         elif self.stage == 1:
             angles = defaultPD(agent, agent.me.local_location(Vector(110*sign(agent.me.location.x))))
             if abs(angles[1]) < 0.1:
                 self.stage = 2
+                agent.print(f"Next stage: {self.stage}")
         elif self.stage == 2:
             agent.push(speed_flip())
             self.stage = 3
+            agent.print(f"Next stage: {self.stage}")
         elif self.stage == 3:
             # TODO do a second flip is the opponent is speedflipping as well
             if False:
                 agent.push(flip(agent.me.local_location(Vector(120*sign(agent.me.location.x)))))
             self.stage = 4
+            agent.print(f"Next stage: {self.stage}")
         elif self.stage == 4:
             agent.pop()
             
