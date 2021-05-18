@@ -16,6 +16,8 @@ class ExampleBot(VirxERLU):
         super().initialize_agent()
         self.state = None
         self.do_debug = True
+        self.RTG_flip_time = 0
+        
     def run(self):
         my_goal_to_ball, my_ball_distance = (self.ball.location-self.friend_goal.location).normalize(True)
         goal_to_me = self.me.location-self.friend_goal.location
@@ -152,8 +154,17 @@ class ExampleBot(VirxERLU):
                 self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
                 self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
             else:
-                if self.is_clear():
-                    self.push(retreat())
+                if not (side(self.team) * self.me.location.y > 5120) and not (self.me.location-Vector(-893*sign(self.ball.location.x), 5000*side(self.team))).magnitude() < 200:
+                    relative_target = Vector(-893*sign(self.ball.location.x), 5000*side(self.team)) - self.me.location
+                    angles, vel = defaultDrive(self, 2300, self.me.local(relative_target))
+                    if angles[1] < 0.75 and relative_target.magnitude() > 750 and 500 < self.me.velocity.magnitude() < 1000 and self.time - self.RTG_flip_time > 2:
+                        self.push(flip(self.me.local(relative_target)))
+                        self.RTG_flip_time = self.time
+                    else:
+                        self.controller.boost = False if abs(angles[1]) > 0.5 or self.me.airborne else self.controller.boost
+                        self.controller.handbrake = True if abs(angles[1]) > 2.8 else False
+                else:
+                    self.state += ' (In goal)'
 
         if self.do_debug:
             #this overdoes the rendering, needs fixing
@@ -212,42 +223,6 @@ class ExampleBot(VirxERLU):
                 break
             output[name] = shot
         return output
-
-    def get_tmcp_action(self):
-        if self.is_clear():
-            if 'RTG' in self.state:
-                return {
-                    "type": "DEFEND"
-                }
-            return {
-                "type": "WAIT",
-                "ready": -1
-            }
-        
-        stack_routine_name = self.stack[0].__class__.__name__
-
-        if stack_routine_name in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump', 'short_shot'}:
-            return {
-                "type": "BALL",
-                "time": -1 if stack_routine_name == 'short_shot' else self.stack[0].intercept_time
-            }
-        if stack_routine_name == "goto_boost":
-            return {
-                "type": "BOOST",
-                "target": self.stack[0].boost.index
-            }
-
-        if stack_routine_name == 'retreat':
-            return {
-                "type": "WAIT",
-                "ready": -1
-            }
-
-        # by default, VirxERLU can't demo bots
-        return {
-            "type": "WAIT",
-            "ready": self.get_minimum_game_time_to_ball()
-        }
 
     def get_minimum_game_time_to_ball(self):
         shot = find_any_shot(self)

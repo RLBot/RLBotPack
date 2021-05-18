@@ -1,18 +1,23 @@
 from queue import Full
 
-from util.agent import Vector, math
+from util.agent import Vector, VirxERLU, math
 
 COAST_ACC = 525.0
-BREAK_ACC = 3500
+BRAKE_ACC = 3500
 MIN_BOOST_TIME = 0.1
+REACTION_TIME = 0.04
+
+BRAKE_COAST_TRANSITION = -(0.45 * BRAKE_ACC + 0.55 * COAST_ACC)
+COASTING_THROTTLE_TRANSITION = -0.5 * COAST_ACC
+MIN_WALL_SPEED = -0.5 * BRAKE_ACC
 
 
 def cap(x, low, high):
     # caps/clamps a number between a low and high value
-    return max(min(x, high), low)
+    return low if x < low else (high if x > high else x)
 
 
-def cap_in_field(agent, target):
+def cap_in_field(agent: VirxERLU, target):
     if abs(target.x) > 893 - agent.me.hitbox.length:
         target.y = cap(target.y, -5120 + agent.me.hitbox.length, 5120 - agent.me.hitbox.length)
     target.x = cap(target.x, -893 + agent.me.hitbox.length, 893 - agent.me.hitbox.length) if abs(agent.me.location.y) > 5120 - (agent.me.hitbox.length / 2) else cap(target.x, -4093 + agent.me.hitbox.length, 4093 - agent.me.hitbox.length)
@@ -20,7 +25,7 @@ def cap_in_field(agent, target):
     return target
 
 
-def defaultPD(agent, local_target, upside_down=False, up=None):
+def defaultPD(agent: VirxERLU, local_target, upside_down=False, up=None):
     # points the car towards a given local target.
     # Direction can be changed to allow the car to steer towards a target while driving backwards
 
@@ -40,41 +45,69 @@ def defaultPD(agent, local_target, upside_down=False, up=None):
     return target_angles
 
 
-def defaultThrottle(agent, target_speed, target_angles=None, local_target=None):
+def defaultThrottle(agent: VirxERLU, target_speed, target_angles=None, local_target=None):
     # accelerates the car to a desired speed using throttle and boost
-    car_speed = agent.me.local_velocity().x
+    car_speed = agent.me.forward.dot(agent.me.velocity)
 
-    if not agent.me.airborne:
-        if target_angles is not None and local_target is not None:
-            turn_rad = turn_radius(abs(car_speed))
-            agent.controller.handbrake = not agent.me.airborne and agent.me.velocity.magnitude() > 250 and (is_inside_turn_radius(turn_rad, local_target, sign(agent.controller.steer)) if abs(local_target.y) < turn_rad else abs(local_target.x) < turn_rad)
+    if agent.me.airborne:
+        return car_speed
 
-        angle_to_target = abs(target_angles[1])
-        if target_speed < 0:
-            angle_to_target = math.pi - angle_to_target
-        if agent.controller.handbrake:
-            if angle_to_target > 2.6:
-                agent.controller.steer = sign(agent.controller.steer)
-                agent.controller.handbrake = False
-            else:
-                agent.controller.steer = agent.controller.yaw
+    if target_angles is not None and local_target is not None:
+        turn_rad = turn_radius(abs(car_speed))
+        agent.controller.handbrake = not agent.me.airborne and agent.me.velocity.magnitude() > 600 and (is_inside_turn_radius(turn_rad, local_target, sign(agent.controller.steer)) if abs(local_target.y) < turn_rad or car_speed > 1410 else abs(local_target.x) < turn_rad)
 
-        t = target_speed - car_speed
-        ta = throttle_acceleration(abs(car_speed)) * agent.delta_time
-        if ta != 0:
-            agent.controller.throttle = cap(t / ta, -1, 1)
-        elif sign(target_speed) * t > -COAST_ACC * agent.delta_time:
-            agent.controller.throttle = sign(target_speed)
-        elif sign(target_speed) * t <= -COAST_ACC * agent.delta_time:
-            agent.controller.throttle = sign(t)
+    angle_to_target = abs(target_angles[1])
 
-        if not agent.controller.handbrake:
-            agent.controller.boost = t - ta >= agent.boost_accel * MIN_BOOST_TIME
+    if target_speed < 0:
+        angle_to_target = math.pi - angle_to_target
+
+    if agent.controller.handbrake:
+        if angle_to_target > 2.6:
+            agent.controller.steer = sign(agent.controller.steer)
+            agent.controller.handbrake = False
+        else:
+            agent.controller.steer = agent.controller.yaw
+
+    # Thanks to Chip's RLU speed controller for this
+    # https://github.com/samuelpmish/RLUtilities/blob/develop/src/mechanics/drive.cc#L182
+    # I had to make a few changes because it didn't play very nice with driving backwards
+
+    t = target_speed - car_speed
+    acceleration = t / REACTION_TIME
+    if car_speed < 0: acceleration *= -1  # if we're going backwards, flip it so it thinks we're driving forwards
+
+    brake_coast_transition = BRAKE_COAST_TRANSITION
+    coasting_throttle_transition = COASTING_THROTTLE_TRANSITION
+    throttle_accel = throttle_acceleration(car_speed)
+    throttle_boost_transition = 1 * throttle_accel + 0.5 * agent.boost_accel
+
+    if agent.me.up.z < 0.7:
+        brake_coast_transition = coasting_throttle_transition = MIN_WALL_SPEED
+
+    # apply brakes when the desired acceleration is negative and large enough
+    if acceleration <= brake_coast_transition:
+        agent.controller.throttle = -1
+
+    # let the car coast when the acceleration is negative and small
+    elif brake_coast_transition < acceleration and acceleration < coasting_throttle_transition:
+        pass
+
+    # for small positive accelerations, use throttle only
+    elif coasting_throttle_transition <= acceleration and acceleration <= throttle_boost_transition:
+        agent.controller.throttle = 1 if throttle_accel == 0 else cap(acceleration / throttle_accel, 0.02, 1)
+
+    # if the desired acceleration is big enough, use boost
+    elif throttle_boost_transition < acceleration:
+        agent.controller.throttle = 1
+        if t > 0 and not agent.controller.handbrake and angle_to_target < 1: agent.controller.boost = True  # don't boost when we need to lose speed, we we're using handbrake, or when we aren't facing the target
+
+    if car_speed < 0:
+        agent.controller.throttle *= -1  # earlier we flipped the sign of the acceleration, so we have to flip the sign of the throttle for it to be correct
 
     return car_speed
 
 
-def defaultDrive(agent, target_speed, local_target):
+def defaultDrive(agent: VirxERLU, target_speed, local_target):
     target_angles = defaultPD(agent, local_target)
     velocity = defaultThrottle(agent, target_speed, target_angles, local_target)
 
@@ -205,7 +238,7 @@ def invlerp(a, b, v):
     return (v - a) / (b - a)
 
 
-def send_comm(agent, msg):
+def send_comm(agent: VirxERLU, msg):
     message = {
         "index": agent.index,
         "team": agent.team
@@ -256,3 +289,39 @@ def dodge_impulse(agent):
     if dif > 0:
         impulse -= dif
     return impulse
+
+
+def ray_intersects_with_line(origin, direction, point1, point2):
+    v1 = origin - point1
+    v2 = point2 - point1
+    v3 = Vector(-direction.y, direction.x)
+    v_dot = v2.dot(v3)
+
+    t1 = v2.cross(v1).magnitude() / v_dot
+
+    if t1 < 0:
+        return
+
+    t2 = v1.dot(v3) / v_dot
+
+    if 0 <= t1 and t2 <= 1:
+        return t1
+
+
+def ray_intersects_with_sphere(origin, direction, center, radius):
+    L = center - origin
+    tca = L.dot(direction)
+
+    if tca < 0:
+        return False
+
+    d2 = L.dot(L) - tca * tca
+
+    if d2 > radius:
+        return False
+    
+    thc = math.sqrt(radius * radius - d2)
+    t0 = tca - thc
+    t1 = tca + thc
+
+    return t0 > 0 or t1 > 0

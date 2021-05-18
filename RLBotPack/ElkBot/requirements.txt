@@ -1,3 +1,3 @@
 numpy
-rlbot
-VirxERLU-CLib>=1.15.2,<2.0.0
+rlbot==1.*
+VirxERLU-CLib==2.*
