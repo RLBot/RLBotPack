@@ -1,5 +1,3 @@
-import time
-
 from rlbot.agents.base_script import BaseScript
 from rlbot.utils.game_state_util import GameState, BallState, Physics, Vector3
 from rlbot.utils.structures.game_data_struct import GameTickPacket
@@ -38,5 +36,5 @@ class KickoffOnly(BaseScript):
 
 
 if __name__ == "__main__":
-    zero_g_mutator = KickoffOnly()
-    zero_g_mutator.main()
+    kickoff_only = KickoffOnly()
+    kickoff_only.main()
