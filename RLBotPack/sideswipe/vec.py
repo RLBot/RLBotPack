@@ -53,6 +53,9 @@ class Vec3:
     def longer_than(self, magnitude: float) -> bool:
         return magnitude * magnitude < self.mag2()
 
+    def shorter_than(self, magnitude: float) -> bool:
+        return magnitude * magnitude > self.mag2()
+
     def unit(self) -> 'Vec3':
         return self / self.mag()
 
