@@ -59,31 +59,29 @@ class Tron(BaseScript):
                 self.last_score = new_score
 
     def setup_kickoff(self, packet):
-        indexes = list(range(5))
-        index_shuffle_table = {}
-        for i in range(5):
-            s = random.choice(indexes)
-            indexes.remove(s)
-            index_shuffle_table[i] = s
 
-        next_blue = 0
-        next_orange = 0
+        kickoff_pos_mapping = [
+            # Normal, new as dist
+            (Vec3(2048, -2560), 3000),  # Left corner
+            (Vec3(-2048, -2560), 3500),  # Right corner
+            (Vec3(256.0, -3840), 4000),  # Back left
+            (Vec3(-256.0, -3840), 4500),  # Back right
+            (Vec3(0, -4608), 5000),  # Far back
+        ]
+
         car_states = {}
         for index in range(packet.num_cars):
             car = packet.game_cars[index]
-            pos_index = index_shuffle_table[next_blue] if car.team == 0 else index_shuffle_table[next_orange]
-            y = 5000 - pos_index * 500
+            tsign = 1 if car.team == 0 else -1
+            for (kickoff_pos, dist) in kickoff_pos_mapping:
+                car_pos = tsign * Vec3(car.physics.location.x, car.physics.location.y)
+                if (car_pos - kickoff_pos).shorter_than(20):
+                    new_pos = Vec3(0, -tsign * dist, 25)
+                    break
 
-            if car.team == 0:
-                kickoff_pos = Vec3(0, -y, 25)
-                yaw = math.pi / 2.0
-                next_blue += 1
-            else:
-                kickoff_pos = Vec3(0, y, 25)
-                yaw = -math.pi / 2.0
-                next_orange += 1
+            yaw = tsign * math.pi / 2.0
 
-            car_state = CarState(Physics(location=kickoff_pos.desired(), rotation=Rotator(yaw=yaw)))
+            car_state = CarState(Physics(location=new_pos.desired(), rotation=Rotator(yaw=yaw)))
             car_states[index] = car_state
         return car_states
 
