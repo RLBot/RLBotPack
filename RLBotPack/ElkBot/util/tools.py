@@ -76,8 +76,10 @@ def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_
     can_ground = is_on_ground and can_ground
     can_jump = is_on_ground and can_jump
     can_double_jump = is_on_ground and can_double_jump
+    can_aerial = (not is_on_ground or agent.time - agent.me.land_time > 0.5) and can_aerial
+    any_ground = can_ground or can_jump or can_double_jump
 
-    if not can_ground and not can_jump and not can_double_jump and not can_aerial:
+    if not any_ground and not can_aerial:
         return
 
     # Here we get the slices that need to be searched - by defining a cap, we can reduce the number of slices and improve search times
@@ -135,8 +137,10 @@ def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump
     can_ground = is_on_ground and can_ground
     can_jump = is_on_ground and can_jump
     can_double_jump = is_on_ground and can_double_jump
+    can_aerial = (not is_on_ground or agent.time - agent.me.land_time > 0.5) and can_aerial
+    any_ground = can_ground or can_jump or can_double_jump
 
-    if not can_ground and not can_jump and not can_double_jump and not can_aerial:
+    if not any_ground and not can_aerial:
         return
 
     # Here we get the slices that need to be searched - by defining a cap, we can reduce the number of slices and improve search times
@@ -188,13 +192,13 @@ def get_slices(agent, cap_):
     if agent.shooting and agent.stack[0].__class__.__name__ != "short_shot":
         # Get the time remaining
         time_remaining = agent.stack[0].intercept_time - agent.time
-        if time_remaining < 0.5 and time_remaining >= 0:
+        if 0 < time_remaining < 0.5:
             return
             
         # if the shot is done but it's working on it's 'follow through', then ignore this stuff
         if time_remaining > 0:
             # Convert the time remaining into number of slices, and take off the minimum gain accepted from the time
-            min_gain = 0.05
+            min_gain = 0.2
             end_slice = round(min(time_remaining - min_gain, cap_) * 60)
 
     if end_slices is None:
