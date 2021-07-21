@@ -4,7 +4,7 @@ from controllers.aim_cone import AimCone
 from maneuvers.collect_boost import CollectClosestBoostManeuver, filter_pads
 from strategy.objective import Objective
 from strategy.utility_system import UtilityState
-from utility import predict, rendering
+from utility import predict, draw
 from utility.easing import ease_out
 from utility.info import Field, Ball
 from utility.rlmath import clip01, remap, is_closer_to_goal_than, lerp
@@ -69,12 +69,10 @@ class ShootAtGoal(UtilityState):
             enemy_hit_time = predict.time_till_reach_ball(closest_enemy, ball)
             enemy_hit_pos = predict.ball_predict(bot, enemy_hit_time).pos
             if enemy_hit_time < 1.5 * my_hit_time:
-                if bot.do_rendering:
-                    bot.renderer.draw_line_3d(closest_enemy.pos, enemy_hit_pos, bot.renderer.red())
+                draw.line(closest_enemy.pos, enemy_hit_pos, draw.red())
                 return bot.drive.home(bot)
 
-            if bot.do_rendering:
-                bot.renderer.draw_line_3d(car.pos, offset_ball, bot.renderer.yellow())
+            draw.line(car.pos, offset_ball, draw.yellow())
 
             return bot.drive.towards_point(bot, offset_ball, target_vel=2200, slide=False, boost_min=0)
 
@@ -85,18 +83,16 @@ class ShootAtGoal(UtilityState):
             wait_point = hit_pos + enemy_to_ball * enemy_dist  # a point 50% closer to the center of the field
             wait_point = lerp(wait_point, ball.pos + Vec3(0, bot.info.team_sign * 3000, 0), 0.5)
 
-            if bot.do_rendering:
-                bot.renderer.draw_line_3d(car.pos, wait_point, bot.renderer.yellow())
+            draw.line(car.pos, wait_point, draw.yellow())
 
             return bot.drive.towards_point(bot, wait_point, norm(car.pos - wait_point), slide=False, can_keep_speed=True, can_dodge=False)
 
         elif bot.shoot.can_shoot:
 
             # Shoot !
-            if bot.do_rendering:
-                aim_cone.draw(bot, bot.shoot.ball_when_hit.pos, r=0, b=0)
-                if bot.shoot.using_curve:
-                    rendering.draw_bezier(bot, [car.pos, bot.shoot.curve_point, hit_pos])
+            aim_cone.draw(bot.shoot.ball_when_hit.pos, r=0, b=0)
+            if bot.shoot.using_curve:
+                draw.bezier([car.pos, bot.shoot.curve_point, hit_pos], draw.color(100, 255, 100))
             return shoot_controls
 
         else:
@@ -109,9 +105,9 @@ class ShootAtGoal(UtilityState):
             for corner in corners:
                 ctrls = bot.shoot.towards(bot, corner, bot.info.my_car.reach_ball_time)
                 if bot.shoot.can_shoot:
-                    aim_cone.draw(bot, bot.shoot.ball_when_hit.pos, b=0)
+                    aim_cone.draw(bot.shoot.ball_when_hit.pos, b=0)
                     if bot.shoot.using_curve:
-                        rendering.draw_bezier(bot, [car.pos, bot.shoot.curve_point, hit_pos])
+                        draw.bezier([car.pos, bot.shoot.curve_point, hit_pos], draw.color(100, 255, 100))
                     return ctrls
 
             enemy_to_ball = normalize(xy(ball.pos - closest_enemy.pos))

@@ -6,6 +6,7 @@ from rlbot.agents.base_agent import SimpleControllerState
 from tmcp import TMCPMessage
 
 from maneuvers.maneuver import Maneuver
+from utility import draw
 from utility.info import BoostPad
 from utility.vec import norm, proj_onto_size
 
@@ -56,7 +57,7 @@ class CollectClosestBoostManeuver(Maneuver):
         if dist < 50 + vel * 0.2 or car.boost > 50 or not self.target_pad.is_active:
             self.done = True
 
-        bot.renderer.draw_line_3d(car.pos, self.target_pad.pos, bot.renderer.yellow())
+        draw.line(car.pos, self.target_pad.pos, bot.renderer.yellow())
         return bot.drive.towards_point(bot, self.target_pad.pos, target_vel=self.target_vel, slide=True, boost_min=0, can_dodge=self.target_pad.is_big)
 
 

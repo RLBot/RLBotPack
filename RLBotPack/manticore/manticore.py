@@ -17,6 +17,7 @@ from maneuvers.kickoff import choose_kickoff_maneuver
 from strategy.analyzer import GameAnalyzer
 from strategy.objective import Objective
 from strategy.utility_system import UtilitySystem
+from utility import draw
 from utility.info import GameInfo, tcmp_to_quick_chat
 from utility.vec import Vec3
 
@@ -51,6 +52,8 @@ class Manticore(BaseAgent):
         self.tmcp_handler = TMCPHandler(self)
         if TMCP_VERSION != [0, 9]:
             self.tmcp_handler.disable()
+        if RENDER:
+            draw.setup(self.renderer)
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Read packet
@@ -72,19 +75,19 @@ class Manticore(BaseAgent):
         controller = self.use_brain()
 
         # Additional rendering
-        if self.do_rendering:
-            doing = self.maneuver or self.choice
-            state_color = {
-                Objective.GO_FOR_IT: self.renderer.lime(),
-                Objective.FOLLOW_UP: self.renderer.yellow(),
-                Objective.ROTATING: self.renderer.red(),
-                Objective.SOLO: self.renderer.team_color(alt_color=True),
-                Objective.UNKNOWN: self.renderer.team_color(alt_color=True)
-            }[self.info.my_car.objective]
-            if doing is not None:
-                self.renderer.draw_string_2d(330, 700 + self.index * 20, 1, 1, f"{self.name}:", self.renderer.team_color(alt_color=True))
-                self.renderer.draw_string_2d(500, 700 + self.index * 20, 1, 1, doing.__class__.__name__, state_color)
-                self.renderer.draw_rect_3d(self.info.my_car.pos + Vec3(z=60), 16, 16, True, state_color)
+        doing = self.maneuver or self.choice
+        state_color = {
+            Objective.GO_FOR_IT: draw.lime(),
+            Objective.FOLLOW_UP: draw.yellow(),
+            Objective.ROTATING: draw.red(),
+            Objective.SOLO: draw.team_color_sec(),
+            Objective.UNKNOWN: draw.team_color_sec()
+        }[self.info.my_car.objective]
+        if doing is not None:
+            draw.string_2d(330, 700 + self.index * 20, 1, f"{self.name}:", draw.team_color())
+            draw.string_2d(500, 700 + self.index * 20, 1, doing.__class__.__name__, state_color)
+            draw.rect_3d(self.info.my_car.pos + Vec3(z=60), 16, 16, state_color)
+            draw.string_3d(self.info.my_car.pos + Vec3(z=110), 1, f"{self.info.my_car.last_ball_touch:.1f}", state_color)
 
         self.renderer.end_rendering()
 

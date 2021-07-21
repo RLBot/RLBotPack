@@ -1,5 +1,3 @@
-from rlbot.agents.base_agent import SimpleControllerState
-
 from maneuvers.collect_boost import CollectClosestBoostManeuver, filter_pads
 
 

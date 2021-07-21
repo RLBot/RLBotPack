@@ -1,6 +1,7 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
 from maneuvers.maneuver import Maneuver
+from utility import draw
 from utility.curves import curve_from_arrival_dir
 from utility.rlmath import sign
 from utility.vec import Vec3, norm, proj_onto_size
@@ -138,7 +139,7 @@ class KickoffManeuver(Maneuver):
             point.y = bot.info.team_sign * 2790
 
         self.done = not bot.info.is_kickoff
-        bot.renderer.draw_line_3d(car.pos, point, bot.renderer.white())
+        draw.line(car.pos, point, bot.renderer.white())
 
         return bot.drive.towards_point(bot, point, target_vel=speed, slide=False, boost_min=0,
                                        can_dodge=False, can_keep_speed=False)

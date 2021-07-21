@@ -7,9 +7,10 @@ from tmcp import TMCPMessage, ActionType
 
 from strategy.objective import Objective
 from utility.easing import lin_fall
+from utility.plane import Plane
 from utility.rlmath import clip
-from utility.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm
-
+from utility.vec import Vec3, Mat33, euler_to_rotation, angle_between, norm, normalize
+from utility.zone import Zone3d
 
 MAX_SPEED = 2300
 BOOST_ACCEL = 1060
@@ -30,6 +31,57 @@ class Field:
     LENGTH2 = LENGTH / 2
     HEIGHT = 2044
 
+    ZONE = Zone3d(Vec3(WIDTH2, LENGTH2, 0.0), Vec3(-WIDTH2, -LENGTH2, HEIGHT))
+
+    CORNER_WALL_AX_INTERSECT = 8064
+
+    GROUND = Plane(Vec3(), Vec3(z=1))
+    CEILING = Plane(Vec3(z=HEIGHT), Vec3(z=-1))
+    BLUE_BACKBOARD = Plane(Vec3(y=-LENGTH2), Vec3(y=1))
+    ORANGE_BACKBOARD = Plane(Vec3(y=LENGTH2), Vec3(y=-1))
+    LEFT_WALL = Plane(Vec3(x=WIDTH2), Vec3(x=-1))   # Blue POV
+    RIGHT_WALL = Plane(Vec3(x=-WIDTH2), Vec3(x=1))   # Blue POV
+    BLUE_RIGHT_CORNER_WALL = Plane(Vec3(y=-CORNER_WALL_AX_INTERSECT), normalize(Vec3(x=1, y=1)))
+    BLUE_LEFT_CORNER_WALL = Plane(Vec3(y=-CORNER_WALL_AX_INTERSECT), normalize(Vec3(x=-1, y=1)))
+    ORANGE_RIGHT_CORNER_WALL = Plane(Vec3(y=CORNER_WALL_AX_INTERSECT), normalize(Vec3(x=-1, y=-1)))
+    ORANGE_LEFT_CORNER_WALL = Plane(Vec3(y=CORNER_WALL_AX_INTERSECT), normalize(Vec3(x=1, y=-1)))
+
+    ALL_WALLS = [
+        GROUND,
+        CEILING,
+        BLUE_BACKBOARD,
+        ORANGE_BACKBOARD,
+        LEFT_WALL,
+        RIGHT_WALL,
+        BLUE_RIGHT_CORNER_WALL,
+        BLUE_LEFT_CORNER_WALL,
+        ORANGE_RIGHT_CORNER_WALL,
+        ORANGE_LEFT_CORNER_WALL,
+    ]
+
+    SIDE_WALLS = [
+        BLUE_BACKBOARD,
+        ORANGE_BACKBOARD,
+        LEFT_WALL,
+        RIGHT_WALL,
+        BLUE_RIGHT_CORNER_WALL,
+        BLUE_LEFT_CORNER_WALL,
+        ORANGE_RIGHT_CORNER_WALL,
+        ORANGE_LEFT_CORNER_WALL,
+    ]
+
+    SIDE_WALLS_AND_GROUND = [
+        GROUND,
+        BLUE_BACKBOARD,
+        ORANGE_BACKBOARD,
+        LEFT_WALL,
+        RIGHT_WALL,
+        BLUE_RIGHT_CORNER_WALL,
+        BLUE_LEFT_CORNER_WALL,
+        ORANGE_RIGHT_CORNER_WALL,
+        ORANGE_LEFT_CORNER_WALL,
+    ]
+
 
 class Ball:
     RADIUS = 92
@@ -41,6 +93,16 @@ class Ball:
         self.time = time
         # self.last_touch # TODO
         # self.last_bounce # TODO
+
+
+class BallTouch:
+    def __init__(self, index: int = -1, time: float = 0.0, pos=Vec3(), normal=Vec3(z=1), team: int = -1):
+        self.index = index
+        self.time = time
+        self.pos = pos
+        self.normal = normal
+        self.team = team
+        self.new = False
 
 
 class Car:
@@ -73,6 +135,8 @@ class Car:
         self.possession = 0
         self.onsite = False
         self.reach_ball_time = 0
+
+        self.last_ball_touch = 0.0
 
     @property
     def forward(self) -> Vec3:
@@ -165,6 +229,7 @@ class GameInfo:
         self.time_since_last_kickoff = 0
 
         self.ball = Ball()
+        self.ball_touch = BallTouch()
 
         self.boost_pads = []
         self.small_boost_pads = []
@@ -254,6 +319,7 @@ class GameInfo:
                 car.index = i
                 car.team = game_car.team
                 car.name = game_car.name
+                car.last_ball_touch = self.time
                 self.cars.append(car)
 
                 if game_car.team == self.team:
@@ -264,6 +330,19 @@ class GameInfo:
                     self.team_cars.append(car)
                 else:
                     self.opponents.append(car)
+
+        # Ball touch
+        self.ball_touch.new = False
+        touch = packet.game_ball.latest_touch
+        if touch.time_seconds != self.ball_touch.time:
+            self.ball_touch.index = touch.player_index
+            self.ball_touch.team = touch.team
+            self.ball_touch.time = touch.time_seconds
+            self.ball_touch.pos = Vec3(touch.hit_location)
+            self.ball_touch.normal = Vec3(touch.hit_normal)
+            self.ball_touch.new = True
+
+            self.cars[self.ball_touch.index].last_ball_touch = touch.time_seconds
 
         # Read boost pads
         for i in range(0, len(self.boost_pads)):

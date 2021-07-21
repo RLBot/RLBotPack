@@ -4,7 +4,6 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from controllers.aim_cone import AimCone
 from maneuvers.jump_shot import JumpShotManeuver
-from maneuvers.small_jump import SmallJumpManeuver
 from utility.curves import curve_from_arrival_dir
 from utility.info import Field, Ball
 from utility.predict import ball_predict, next_ball_landing
@@ -177,7 +176,7 @@ class ShotController:
         left = dot(axis_to_rotation(Vec3(z=-allowed_uncertainty)), ball_soon_to_target_dir)
         aim_cone = AimCone(right, left)
 
-        aim_cone.draw(bot, ball_soon.pos, r=0, g=0)
+        aim_cone.draw(ball_soon.pos, r=0, g=0)
 
         return self.with_aiming(bot, aim_cone, time, dodge_hit)
 

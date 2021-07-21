@@ -1,6 +1,6 @@
 import math
 
-from utility import rendering
+from utility import draw
 from utility.curves import curve_from_arrival_dir
 from utility.info import Field
 from utility.rlmath import fix_ang, clip
@@ -66,24 +66,13 @@ class AimCone:
             goto.x = clip(goto.x, -Field.WIDTH / 2, Field.WIDTH / 2)
             goto.y = clip(goto.y, -Field.LENGTH / 2, Field.LENGTH / 2)
 
-            if bot.do_rendering:
-                bot.renderer.draw_line_3d(car_pos, goto, bot.renderer.create_color(255, 150, 150, 150))
-                bot.renderer.draw_line_3d(point, goto, bot.renderer.create_color(255, 150, 150, 150))
-
-                # Bezier
-                rendering.draw_bezier(bot, [car_pos, goto, point])
+            draw.line(car_pos, goto, draw.color(150, 150, 150))
+            draw.line(point, goto, draw.color(150, 150, 150))
+            draw.bezier([car_pos, goto, point], draw.grey())
 
             return goto, 0.5
         else:
             return None, 1
 
-    def draw(self, bot, center, arm_len=500, arm_count=5, r=255, g=255, b=255):
-        renderer = bot.renderer
-        ang_step = self.span_size() / (arm_count - 1)
-
-        for i in range(arm_count):
-            ang = self.right_ang - ang_step * i
-            arm_dir = Vec3(math.cos(ang), math.sin(ang), 0)
-            end = center + arm_dir * arm_len
-            alpha = 255 if i == 0 or i == arm_count - 1 else 110
-            renderer.draw_line_3d(center, end, renderer.create_color(alpha, r, g, b))
+    def draw(self, center, arm_len=500, r=255, g=255, b=255):
+        draw.fan(center, self.right_ang, self.span_size(), arm_len, draw.color(r, g, b))

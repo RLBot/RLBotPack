@@ -5,7 +5,7 @@ from rlbot.agents.base_agent import SimpleControllerState
 from controllers.aim_cone import AimCone
 from strategy.objective import Objective
 from strategy.utility_system import UtilityState
-from utility import predict, rendering
+from utility import predict, draw
 from utility.info import Field
 from utility.rlmath import clip01, remap, lerp
 from utility.vec import Vec3
@@ -55,12 +55,11 @@ class ClearBall(UtilityState):
         shoot_controls = bot.shoot.with_aiming(bot, self.aim_cone, predict.time_till_reach_ball(bot.info.my_car, bot.info.ball))
         hit_pos = bot.shoot.ball_when_hit.pos
 
-        if bot.do_rendering:
-            self.aim_cone.draw(bot, hit_pos, r=0, g=170, b=255)
+        self.aim_cone.draw(hit_pos, r=0, g=170, b=255)
 
         if bot.shoot.can_shoot:
-            if bot.shoot.using_curve and bot.do_rendering:
-                rendering.draw_bezier(bot, [car.pos, bot.shoot.curve_point, hit_pos])
+            if bot.shoot.using_curve:
+                draw.bezier([car.pos, bot.shoot.curve_point, hit_pos], draw.color(100, 100, 255))
             return shoot_controls
 
         else:
