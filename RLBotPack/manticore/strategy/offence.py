@@ -1,10 +1,8 @@
-from rlbot.agents.base_agent import SimpleControllerState
-
 from controllers.aim_cone import AimCone
-from utility import predict, rendering
+from utility import predict, draw
 from utility.info import Field
 from utility.rlmath import clip01, lerp
-from utility.vec import norm, Vec3, normalize
+from utility.vec import norm, Vec3
 
 
 class OffenceState:
@@ -32,9 +30,8 @@ class OffenceState:
             bot.info.my_car.reach_ball_time
         )
 
-        if bot.do_rendering:
-            if bot.shoot.can_shoot:
-                aim_cone.draw(bot, bot.shoot.ball_when_hit.pos, b=0, r=0)
+        if bot.shoot.can_shoot:
+            aim_cone.draw(bot.shoot.ball_when_hit.pos, b=0, r=0)
 
         if not bot.shoot.can_shoot:
             # We can't shoot on target
@@ -44,13 +41,11 @@ class OffenceState:
                     point_in_front_of_mate = lerp(mate.pos, bot.info.opp_goal.pos, 0.5)
                     shot_ctrls = bot.shoot.towards(bot, point_in_front_of_mate, bot.info.my_car.reach_ball_time)
                     if bot.shoot.can_shoot:
-                        if bot.do_rendering:
-                            rendering.draw_cross(bot, point_in_front_of_mate, bot.renderer.green())
+                        draw.cross(point_in_front_of_mate, draw.green())
                         return shot_ctrls
 
             # Atba with bias I guess
-            if bot.do_rendering:
-                bot.renderer.draw_line_3d(bot.info.my_car.pos, pred_ball.pos, bot.renderer.red())
+            draw.line(bot.info.my_car.pos, pred_ball.pos, bot.renderer.red())
             return bot.shoot.any_touch(bot, bot.info.my_car.reach_ball_time)
 
             # # We are out of position, start rotating back
@@ -65,6 +60,6 @@ class OffenceState:
             # )
         else:
             # Shoot!
-            if bot.shoot.using_curve and bot.do_rendering:
-                rendering.draw_bezier(bot, [bot.info.my_car.pos, bot.shoot.curve_point, bot.shoot.ball_when_hit.pos])
+            if bot.shoot.using_curve:
+                draw.bezier([bot.info.my_car.pos, bot.shoot.curve_point, bot.shoot.ball_when_hit.pos])
             return shot_ctrls

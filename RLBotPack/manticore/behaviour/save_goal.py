@@ -6,7 +6,7 @@ from strategy.utility_system import UtilityState
 from utility import predict
 from utility.info import Ball, Goal
 from utility.rlmath import sign, clip
-from utility.vec import Vec3, norm
+from utility.vec import norm
 
 
 class SaveGoal(UtilityState):
@@ -48,8 +48,7 @@ class SaveGoal(UtilityState):
         self.ball_to_goal_left = bot.info.own_goal.left_post - reachable_ball.pos
         self.aim_cone = AimCone(self.ball_to_goal_left, self.ball_to_goal_right)
 
-        if bot.do_rendering:
-            self.aim_cone.draw(bot, reachable_ball.pos, r=200, g=0, b=160)
+        self.aim_cone.draw(reachable_ball.pos, r=200, g=0, b=160)
 
         shoot_controls = bot.shoot.with_aiming(bot, self.aim_cone, reach_time)
 

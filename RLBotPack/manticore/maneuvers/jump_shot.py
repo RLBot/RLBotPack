@@ -5,7 +5,7 @@ from rlbot.utils.structures.quick_chats import QuickChats
 from tmcp import TMCPMessage
 
 from maneuvers.maneuver import Maneuver
-from utility import predict, rendering
+from utility import predict, draw
 from utility.info import GRAVITY, JUMP_MAX_DUR, THROTTLE_AIR_ACCEL, JUMP_ACCEL, JUMP_SPEED, BOOST_ACCEL, \
     BOOST_PR_SEC, MAX_SPEED, Ball
 from utility.rlmath import clip01, clip, lerp, sign
@@ -151,14 +151,14 @@ class JumpShotManeuver(Maneuver):
             self.done = True
             bot.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Apologies_Cursing)
 
-        if bot.do_rendering:
-            car_to_hit_dir = normalize(self.hit_pos - car.pos)
-            color = bot.renderer.pink()
-            rendering.draw_cross(bot, self.hit_pos, color, arm_length=100)
-            rendering.draw_circle(bot, lerp(car.pos, self.hit_pos, 0.25), car_to_hit_dir, 40, 12, color)
-            rendering.draw_circle(bot, lerp(car.pos, self.hit_pos, 0.5), car_to_hit_dir, 40, 12, color)
-            rendering.draw_circle(bot, lerp(car.pos, self.hit_pos, 0.75), car_to_hit_dir, 40, 12, color)
-            bot.renderer.draw_line_3d(car.pos, self.hit_pos, color)
+        # Draw
+        car_to_hit_dir = normalize(self.hit_pos - car.pos)
+        color = bot.renderer.pink()
+        draw.cross(self.hit_pos, color, arm_length=100)
+        draw.circle(lerp(car.pos, self.hit_pos, 0.25), car_to_hit_dir, 40, color)
+        draw.circle(lerp(car.pos, self.hit_pos, 0.5), car_to_hit_dir, 40, color)
+        draw.circle(lerp(car.pos, self.hit_pos, 0.75), car_to_hit_dir, 40, color)
+        draw.line(car.pos, self.hit_pos, color)
 
         return controls
 

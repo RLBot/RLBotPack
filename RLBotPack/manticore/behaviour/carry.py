@@ -5,10 +5,10 @@ from rlbot.agents.base_agent import SimpleControllerState
 from maneuvers.dodge import DodgeManeuver
 from strategy.objective import Objective
 from strategy.utility_system import UtilityState
-from utility import predict
+from utility import predict, draw
 from utility.easing import lin_fall
 from utility.rlmath import clip01, lerp
-from utility.vec import norm, Vec3, angle_between, normalize, dot, xy
+from utility.vec import norm, Vec3, angle_between, normalize, xy
 
 
 class Carry(UtilityState):
@@ -77,8 +77,7 @@ class Carry(UtilityState):
         else:
             self.flick_timer = 0
 
-        if bot.do_rendering:
-            bot.renderer.draw_line_3d(car.pos, target, bot.renderer.pink())
+        draw.line(car.pos, target, draw.pink())
 
         return bot.drive.towards_point(bot, target, target_vel=speed, slide=False, can_keep_speed=False, can_dodge=True, wall_offset_allowed=0)
 

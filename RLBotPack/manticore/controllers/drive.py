@@ -6,7 +6,7 @@ from controllers.other import turn_radius, is_heading_towards
 from maneuvers.dodge import DodgeManeuver
 from maneuvers.halfflip import HalfFlipManeuver
 from maneuvers.recovery import RecoveryManeuver
-from utility import rendering
+from utility import draw
 from utility.info import Field, is_near_wall, Goal
 from utility.rlmath import lerp, sign, clip
 from utility.vec import Vec3, angle_between, xy, dot, norm, proj_onto_size, normalize
@@ -89,12 +89,12 @@ class DriveController:
         tr_center_local = Vec3(0, tr * tr_side, 10)
         point_is_in_turn_radius_deadzone = norm(point_local - tr_center_local) < tr
         # Draw turn radius deadzone
-        if car.on_ground and bot.do_rendering and False:
+        if car.on_ground and False:
             tr_center_world = car.pos + dot(car.rot, tr_center_local)
             tr_center_world_2 = car.pos + dot(car.rot, -1 * tr_center_local)
-            color = bot.renderer.orange()
-            rendering.draw_circle(bot, tr_center_world, car.up, tr, 22, color)
-            rendering.draw_circle(bot, tr_center_world_2, car.up, tr, 22, color)
+            color = draw.orange()
+            draw.circle(tr_center_world, car.up, tr, color)
+            draw.circle(tr_center_world_2, car.up, tr, color)
 
         if point_is_in_turn_radius_deadzone:
             # Hard turn
@@ -170,8 +170,7 @@ class DriveController:
             # Adjustment is needed
             point.x = clip(point.x, -goalx, goalx)
             point.y = clip(point.y, -goaly, goaly)
-            if bot.do_rendering:
-                bot.renderer.draw_line_3d(car.pos, point, bot.renderer.green())
+            draw.line(car.pos, point, draw.green())
 
     def stay_at(self, bot, point: Vec3, looking_at: Vec3):
 
