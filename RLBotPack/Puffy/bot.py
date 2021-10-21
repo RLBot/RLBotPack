@@ -19,6 +19,9 @@ from stateMachine import StateMachine
 
 class Puffy(BaseAgent):
 
+	def is_hot_reload_enabled(self):
+		return False
+
 	def initialize_agent(self):
 		# This runs once before the bot starts up
 		self.controllerState = SimpleControllerState()
@@ -52,10 +55,17 @@ class Puffy(BaseAgent):
 	def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
 		# self.renderer.begin_rendering()
 		self.packet = packet
+		
+		match_settings = self.get_match_settings()
+		mutators = match_settings.MutatorSettings()
+		if mutators.RumbleOption() != 7:
+			print("Puffy only works with the Spike rush mutator enabled!!")
+			return SimpleControllerState()
+
 
 		self.handleTime()
 
-		self.game.read_game_information(packet, self.get_field_info())
+		self.game.read_game_information(packet, self.get_rigid_body_tick(), self.get_field_info())
 		self.spikeWatcher.read_packet(packet)
 
 

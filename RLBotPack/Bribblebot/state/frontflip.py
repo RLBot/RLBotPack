@@ -19,8 +19,7 @@ class Frontflip(State):
 
     def tick(self, packet: GameTickPacket) -> bool:
 
-
-        if self.state == 3:
+        if self.state > 60:
             return False
 
 
@@ -28,9 +27,9 @@ class Frontflip(State):
 
 
         if self.startTick == 0:
-            self.startTick = self.agent.tick
+            self.startTick = self.agent.currentTick
 
-        ticksElapsed = self.agent.tick - self.startTick
+        ticksElapsed = self.agent.currentTick - self.startTick
             
 
         jumpTick = 7
@@ -41,13 +40,15 @@ class Frontflip(State):
                 self.controller.jump = True
         
         if self.state == 1:
-                if self.controller.jump: # set it to false for one input frame
-                    self.controller.jump = False
-                else:
-                    self.state = 2
+            if self.controller.jump: # set it to false for one input frame
+                self.controller.jump = False
+            else:
+                self.state = 2
         if self.state == 2:
-                self.state = 3
-                self.controller.jump = True
+            self.state = 3
+            self.controller.jump = True
+        if self.state > 2:
+            self.state += 1
 
         self.controller.pitch = -1
         self.controller.throttle = 1

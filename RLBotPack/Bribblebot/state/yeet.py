@@ -60,8 +60,8 @@ class Yeet(State):
 
 
         if self.startTick == 0:
-            self.startTick = self.agent.tick
-        ticksElapsed = self.agent.tick - self.startTick
+            self.startTick = self.agent.currentTick
+        ticksElapsed = self.agent.currentTick - self.startTick
             
 
         minJumpTick = 7
