@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import asyncio
 import configparser
 import math
 import os
 from threading import Thread
 from traceback import print_exc
+from typing import List
 
 import numpy as np
 from rlbot.agents.base_script import BaseScript
 from rlbot.messages.flat.PlayerInputChange import PlayerInputChange
 from rlbot.socket.socket_manager import SocketRelay
 from rlbot.utils.game_state_util import (BallState, CarState, GameState,
-                                         Physics, Rotator, Vector3)
+                                         Physics, Vector3)
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 BOOST_ACCEL = 991 + 2/3
@@ -36,6 +36,7 @@ class SuperchargedBots(BaseScript):
         self.time = 0
         self.delta_time = -1
         self.tracker = {}
+        self.last_ball_touch_time = -1
 
     def set_config(self, path):
         self.config = configparser.ConfigParser()
@@ -75,6 +76,12 @@ class SuperchargedBots(BaseScript):
         self.minimum_boost = self.get_int_from_config("Options", "minimum_boost")
         print(f"SuperchargedBots: minimum_boost = {self.minimum_boost}")
 
+        self.bonus_hit_percent = self.get_int_from_config("Options", "bonus_hit_percent")
+        print(f"SuperchargedBots: bonus_hit_percent = {self.bonus_hit_percent}")
+
+        self.demo_helper = self.get_bool_from_config("Options", "demo_helper")
+        print(f"SuperchargedBots: demo_helper = {self.demo_helper}")
+
         self.socket_relay = SocketRelay()
         self.socket_relay.player_input_change_handlers.append(self.input_change)
 
@@ -112,6 +119,20 @@ class SuperchargedBots(BaseScript):
                         continue
 
                     velocity = None
+
+                    if self.demo_helper:
+                        for other_car_index in range(self.packet.num_cars):
+                            other_car = self.packet.game_cars[other_car_index]
+
+                            if car.team == other_car.team:
+                                continue
+
+                            car_location = Vector.from_vector(car.physics.location)
+                            other_car_location = Vector.from_vector(other_car.physics.location)
+
+                            if car_location.flat_dist(other_car_location) < 200 and abs(Vector.from_vector(car.physics.velocity).angle(other_car_location - car_location)) < 0.5:
+                                velocity = Vector.from_vector(car.physics.velocity).flatten().scale(2300)
+
                     if self.tracker[car.name]['boosting']:
                         if not self.tracker[car.name]['steering'] and (car.boost > self.minimum_boost):
                             CP = math.cos(car.physics.rotation.pitch)
@@ -119,7 +140,8 @@ class SuperchargedBots(BaseScript):
                             CY = math.cos(car.physics.rotation.yaw)
                             SY = math.sin(car.physics.rotation.yaw)
                             forward = Vector(CP*CY, CP*SY, SP)
-                            velocity = Vector.from_vector(car.physics.velocity) + forward * (BOOST_ACCEL * self.delta_time * self.bonus_boost_accel_percent)
+                            if velocity is None:
+                                velocity = Vector.from_vector(car.physics.velocity) + forward * (BOOST_ACCEL * self.delta_time * self.bonus_boost_accel_percent)
 
                         self.tracker[car.name]['total_boost'] -= BOOST_CONSUMPTION * self.delta_time * (100 / self.bonus_boost_tank)
 
@@ -146,8 +168,30 @@ class SuperchargedBots(BaseScript):
                         boost_amount=boost_amount
                     )
 
+                last_ball_touch = self.packet.game_ball.latest_touch
+                ball = None
+
+                if last_ball_touch.time_seconds > self.last_ball_touch_time:
+                    if (last_ball_touch.time_seconds - self.last_ball_touch_time) > 0.5:
+                        if not self.bots_only or self.packet.game_cars[last_ball_touch.player_index].is_bot:
+                            if last_ball_touch.team in self.teams:
+                                bonus_hit_multiplier = self.bonus_hit_percent / 100 + 1
+                                ball_velocity = Vector.from_vector(self.packet.game_ball.physics.velocity) * Vector(bonus_hit_multiplier, bonus_hit_multiplier, 1 / bonus_hit_multiplier)
+                                ball = BallState(physics=Physics(
+                                    velocity=Vector3(*ball_velocity)
+                                ))
+
+                    self.last_ball_touch_time = last_ball_touch.time_seconds
+
+                game_state = GameState()
+
                 if cars:
-                    self.set_game_state(GameState(cars=cars))
+                    game_state.cars = cars
+
+                if ball is not None:
+                    game_state.ball = ball    
+
+                self.set_game_state(game_state)
 
                 if self.last_packet_time == -1 or self.time - self.last_packet_time >= 0.1:
                     self.matchcomms.outgoing_broadcast.put_nowait({
@@ -155,7 +199,9 @@ class SuperchargedBots(BaseScript):
                         "supercharged_config": {
                             "bonus_boost_accel_percent": self.bonus_boost_accel_percent,
                             "bonus_boost_tank": self.bonus_boost_tank,
-                            "minimum_boost": self.minimum_boost
+                            "minimum_boost": self.minimum_boost,
+                            "bonus_hit_percent": self.bonus_hit_percent,
+                            "demo_helper": self.demo_helper,
                         }
                     })
             except Exception:
