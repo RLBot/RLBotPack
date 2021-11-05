@@ -34,6 +34,14 @@ NOTE 2: The boost meter that you see on screen is in percents, so it goes from 0
 
 The minimum % of boost for cars to have. Set to any integer between (and including) `0` to `100`.
 
+### bonus_hit_percent
+
+The % bonus velocity that will be added when a car touches the ball.
+
+### demo_helper
+
+Set to `true` to enable demo-on-enemy-contact, and `false` to disable.
+
 ## Bots with no support
 
 By default, no bots actually supports Supercharged bots. With this in mind, I've tuned this to not interfere with bots and actually help them.
@@ -41,6 +49,8 @@ By default, no bots actually supports Supercharged bots. With this in mind, I've
 When on the ground, the extra boost acceleration is only applied when the bot's boosting and `steer` is less than or equal to `0.2`.
 
 When in the air, the extra boost acceleration is only applied when the bot's boosting and `yaw` as well as `pitch` are less than or equal to `0.2`.
+
+When the ball is touched, the x/y velocity gets the % bonus, but the z velocity gets the inverse of that bonus. (so 100% (aka 2x) will halve the z velocity.) This is done so make the ball approach the same destination faster, and alter the final destination as little as possible.
 
 ## Supporting Supercharged bots
 
@@ -57,7 +67,9 @@ Example packet (2 Kamael + Human vs 3 Kamael, bots only, blue team only):
     "supercharged_config": {
         "bonus_boost_accel_percent": 150,
         "bonus_boost_tank": 900,
-        "minimum_boost": 1
+        "minimum_boost": 1,
+        "bonus_hit_percent": 15,
+        "demo_helper": true,
     }
 }
 ```
