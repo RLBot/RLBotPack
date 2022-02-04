@@ -83,7 +83,7 @@ class BribbleBot(BaseAgent):
 			latestTouchIsBribble = False
 			for carIndex in range(packet.num_cars):
 				car = packet.game_cars[carIndex]
-				if car.team == self.team and "Bribblebot" in car.name:
+				if car.team == self.team and "Bribblebot" or "Puffy" or "Definitely Not Necto" in car.name:
 					bribbleBots.append(carIndex)
 					if packet.game_ball.latest_touch.player_index == carIndex:
 						latestTouchIsBribble = True
