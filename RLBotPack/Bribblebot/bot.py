@@ -57,7 +57,7 @@ class BribbleBot(BaseAgent):
 
 		self.handleTime()
 
-		self.game.read_game_information(packet, self.get_rigid_body_tick(), self.get_field_info())
+		self.game.read_game_information(packet, self.get_field_info())
 
 
 		ballY = packet.game_ball.physics.location.y
