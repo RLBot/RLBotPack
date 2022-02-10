@@ -11,8 +11,11 @@ if TYPE_CHECKING:
     from objects import CarObject, BoostObject
     from routines import AerialShot, JumpShot, Aerial
 
-
 # This file is for small utilities for math and movement
+
+COAST_ACC = 525.0
+BREAK_ACC = 3500
+MIN_BOOST_TIME = 0.1
 
 
 def backsolve(target: Vector3, car: CarObject, time: float, gravity: int = 650) -> Vector3:
@@ -26,38 +29,128 @@ def backsolve(target: Vector3, car: CarObject, time: float, gravity: int = 650) 
 
 def cap(x: float, low: float, high: float) -> float:
     # caps/clamps a number between a low and high value
-    if x < low:
-        return low
-    elif x > high:
-        return high
-    return x
+    return max(min(x, high), low)
 
 
-def defaultPD(drone: CarObject, local_target: Vector3, direction: float = 1.0) -> []:
+def cap_in_field(drone: CarObject, target: Vector3):
+    if abs(target[0]) > 893 - drone.hitbox.length:
+        target[1] = cap(target[1], -5120 + drone.hitbox.length, 5120 - drone.hitbox.length)
+    target[0] = cap(target[0], -893 + drone.hitbox.length, 893 - drone.hitbox.length) if abs(
+        drone.location[1]) > 5120 - (drone.hitbox.length / 2) else cap(target[0], -4093 + drone.hitbox.length,
+                                                                      4093 - drone.hitbox.length)
+
+    return target
+
+
+def defaultPD(drone: CarObject, local_target: Vector3, upside_down=False, up=None) -> []:
     # points the car towards a given local target.
     # Direction can be changed to allow the car to steer towards a target while driving backwards
-    local_target *= direction
-    up = drone.local(Vector3(0, 0, 1))  # where "up" is in local coordinates
-    target_angles = [
+
+    if up is None:
+        up = drone.local(Vector3(0, 0, -1) if upside_down else Vector3(0, 0, 1))  # where "up" is in local coordinates
+    target_angles = (
         math.atan2(local_target[2], local_target[0]),  # angle required to pitch towards target
         math.atan2(local_target[1], local_target[0]),  # angle required to yaw towards target
-        math.atan2(up[1], up[2])]  # angle required to roll upright
-    # Once we have the angles we need to rotate, we feed them into PD loops to determing the controller inputs
-    drone.controller.steer = steerPD(target_angles[1], 0) * direction
+        math.atan2(up[1], up[2])  # angle required to roll upright
+    )
+    # Once we have the angles we need to rotate, we feed them into PD loops to determining the controller inputs
+    drone.controller.steer = steerPD(target_angles[1], 0)
     drone.controller.pitch = steerPD(target_angles[0], drone.angular_velocity[1] / 4)
     drone.controller.yaw = steerPD(target_angles[1], -drone.angular_velocity[2] / 4)
-    drone.controller.roll = steerPD(target_angles[2], drone.angular_velocity[0] / 2)
+    drone.controller.roll = steerPD(target_angles[2], drone.angular_velocity[0] / 4)
     # Returns the angles, which can be useful for other purposes
     return target_angles
 
 
-def defaultThrottle(drone: CarObject, target_speed: float, direction: float = 1.0) -> float:
+def defaultThrottle(drone: CarObject, target_speed: float, target_angles=None, local_target=None) -> float:
     # accelerates the car to a desired speed using throttle and boost
-    car_speed = drone.local(drone.velocity)[0]
-    t = (target_speed * direction) - car_speed
-    drone.controller.throttle = cap((t ** 2) * sign(t) / 1000, -1.0, 1.0)
-    drone.controller.boost = True if t > 150 and car_speed < 2275 and drone.controller.throttle == 1.0 else False
+    car_speed = drone.local_velocity()[0]
+
+    if not drone.airborne:
+        if target_angles is not None and local_target is not None:
+            turn_rad = turn_radius(abs(car_speed))
+            drone.controller.handbrake = not drone.airborne and drone.velocity.magnitude() > 250 and (
+                is_inside_turn_radius(turn_rad, local_target, sign(drone.controller.steer)) if abs(
+                    local_target[1]) < turn_rad else abs(local_target[0]) < turn_rad)
+
+        angle_to_target = abs(target_angles[1])
+        if target_speed < 0:
+            angle_to_target = math.pi - angle_to_target
+        if drone.controller.handbrake:
+            if angle_to_target > 2.6:
+                drone.controller.steer = sign(drone.controller.steer)
+                drone.controller.handbrake = False
+            else:
+                drone.controller.steer = drone.controller.yaw
+
+        t = target_speed - car_speed
+        ta = throttle_acceleration(abs(car_speed)) * drone.delta_time
+        if ta != 0:
+            drone.controller.throttle = cap(t / ta, -1, 1)
+        elif sign(target_speed) * t > -COAST_ACC * drone.delta_time:
+            drone.controller.throttle = sign(target_speed)
+        elif sign(target_speed) * t <= -COAST_ACC * drone.delta_time:
+            drone.controller.throttle = sign(t)
+
+        if not drone.controller.handbrake:
+            drone.controller.boost = t - ta >= drone.boost_accel * MIN_BOOST_TIME
+
     return car_speed
+
+
+def defaultDrive(drone: CarObject, target_speed, local_target):
+    target_angles = defaultPD(drone, local_target)
+    velocity = defaultThrottle(drone, target_speed, target_angles, local_target)
+
+    return target_angles, velocity
+
+
+def throttle_acceleration(car_velocity_x):
+    x = abs(car_velocity_x)
+    if x >= 1410:
+        return 0
+
+    # use y = mx + b to find the throttle acceleration
+    if x < 1400:
+        return (-36 / 35) * x + 1600
+
+    x -= 1400
+    return -16 * x + 160
+
+
+def is_inside_turn_radius(turn_rad, local_target, steer_direction):
+    # turn_rad is the turn radius
+    local_target = local_target.flatten()
+    circle = Vector3(0, -steer_direction * turn_rad, 0)
+
+    return circle.dist(local_target) < turn_rad
+
+
+def turn_radius(v):
+    # v is the magnitude of the velocity in the car's forward direction
+    if v == 0:
+        return 0
+    return 1.0 / curvature(v)
+
+
+def curvature(v):
+    # v is the magnitude of the velocity in the car's forward direction
+    if 0 <= v < 500:
+        return 0.0069 - 5.84e-6 * v
+
+    if 500 <= v < 1000:
+        return 0.00561 - 3.26e-6 * v
+
+    if 1000 <= v < 1500:
+        return 0.0043 - 1.95e-6 * v
+
+    if 1500 <= v < 1750:
+        return 0.003025 - 1.1e-7 * v
+
+    if 1750 <= v < 2500:
+        return 0.0018 - 0.4e-7 * v
+
+    return 0
 
 
 def in_field(point: Vector3, radius: float) -> bool:
@@ -78,10 +171,14 @@ def find_slope(shot_vector: Vector3, car_to_target: Vector3) -> float:
     # Finds the slope of your car's position relative to the shot vector (shot vector is y axis)
     # 10 = you are on the axis and the ball is between you and the direction to shoot in
     # -10 = you are on the wrong side
-    # 1.0 = you're about 45 degrees offcenter
+    # 1 = you're about 45 degrees offcenter
     d = shot_vector.dot(car_to_target)
-    e = abs(shot_vector.cross((0, 0, 1)).dot(car_to_target))
-    return cap(d / e if e != 0 else 10 * sign(d), -3.0, 3.0)
+    e = abs(shot_vector.cross(Vector3(0, 0, 1)).dot(car_to_target))
+    try:
+        f = d / e
+    except ZeroDivisionError:
+        return 10 * sign(d)
+    return cap(f, -3, 3)
 
 
 def post_correction(ball_location: Vector3, left_target: Vector3, right_target: Vector3) -> (Vector3, Vector3, bool):
@@ -194,3 +291,16 @@ def shot_valid(agent: MyHivemind, shot: Union[AerialShot, JumpShot, Aerial], thr
 
 def distance(a: Vector3, b: Vector3) -> float:
     return (a - b).magnitude()
+
+
+def dodge_impulse(drone: CarObject) -> float:
+    car_speed = drone.velocity.magnitude()
+    impulse = 500 * (1 + 0.9 * (car_speed / 2300))
+    dif = car_speed + impulse - 2300
+    if dif > 0:
+        impulse -= dif
+    return impulse
+
+def side(x):
+    # returns -1 for blue team and 1 for orange team
+    return (-1, 1)[x]
