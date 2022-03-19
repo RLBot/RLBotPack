@@ -20,8 +20,8 @@ class FiftyFiftyMiniGame(BaseScript):
         self.prev_ticks = 0
         self.ticks = 0
         self.disable_goal_reset = False
-        self.pause_ticks = 40
-
+        self.pause_time = 0.5 # Can increase to 1-2s if hard coded kickoffs are causing issues
+        self.cur_time = 0
 
     def run(self):
         while True:
@@ -30,13 +30,15 @@ class FiftyFiftyMiniGame(BaseScript):
 
             # updating packet and tick count
             packet = self.get_game_tick_packet()
+            self.cur_time = packet.game_info.seconds_elapsed
             self.ticks += 1
 
             # check if 'disable goal reset' mutator is active
             if self.ticks == 1:
                 match_settings = self.get_match_settings()
                 mutators = match_settings.MutatorSettings()
-                self.disable_goal_reset = True if mutators.RespawnTimeOption() == 3 else None
+                if mutators.RespawnTimeOption() == 3:
+                    self.disable_goal_reset = True
 
             '''phase 0''' # setup round
             if self.game_phase == 0 and packet.game_info.is_kickoff_pause:
@@ -46,11 +48,10 @@ class FiftyFiftyMiniGame(BaseScript):
             if self.disable_goal_reset == True:
                 self.setup_newround_DGR(packet)
 
-            # pause for 'pause_ticks' then resume
-            if self.game_phase == -1 and self.ticks - self.prev_ticks == 2: # glitch-fix: wait a couple of ticks before pause
-                self.set_game_state(GameState(game_info=GameInfoState(paused=True)))
-            elif self.game_phase == -1 and self.ticks - self.prev_ticks == self.pause_ticks:
-                self.set_game_state(GameState(game_info=GameInfoState(paused=False)))
+            # pause for 'pause_time' then resume
+            if self.game_phase == -1 and self.cur_time - self.prev_time <= self.pause_time:
+                self.set_game_state(self.game_state)
+            elif self.game_phase == -1:
                 self.game_phase = 1
 
             '''phase 1''' # ball remains in circle
@@ -98,9 +99,9 @@ class FiftyFiftyMiniGame(BaseScript):
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
         ball_state = BallState(Physics(location=Vector3(0, 0, 93)))
-        game_state = GameState(ball=ball_state, cars=car_states)
-        self.set_game_state(game_state)
-        self.prev_ticks = self.ticks
+        self.game_state = GameState(ball=ball_state, cars=car_states)
+        self.set_game_state(self.game_state)
+        self.prev_time = self.cur_time
         self.game_phase = -1
 
 
