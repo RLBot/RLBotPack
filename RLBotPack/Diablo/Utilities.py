@@ -354,11 +354,13 @@ def rotator_to_matrix(our_object):
     return matrix
 
 def getLocation(_object):
-    if type(_object) == Vector:
+    if hasattr(_object, "data"):
         return _object
-    if type(_object) == physicsObject:
+    if hasattr(_object, "location"):
         return _object.location
-    raise ValueError(f"{type(_object)} is not a valid input for 'getLocation' function ")
+    raise ValueError(
+        f"{str(type(_object))} is not a valid input for 'getLocation' function "
+    )
 
 
 
@@ -1528,10 +1530,8 @@ def localizeVector(target_object,our_object):
     return Vector([x, y, z])
 
 def toLocal(target,our_object):
-    if isinstance(target,physicsObject):
-        return target.local_location
-    else:
-        return localizeVector(target,our_object)
+    #
+    return localizeVector(target,our_object)
 
 # def testMover(agent, target_object,targetSpd):
 #     if targetSpd > 2200:

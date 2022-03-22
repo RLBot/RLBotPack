@@ -14,9 +14,9 @@ def find_hits(agent,targets):
     #>{"goal":[a ton of jump and aerial routines,in order from soonest to latest], "anywhere_but_my_net":[more routines and stuff]}
     hits = {name:[] for name in targets}
     struct = agent.get_ball_prediction_struct()
-    
+
     #Begin looking at slices 0.25s into the future
-    #The number of slices 
+    #The number of slices
     i = 15
     while i < struct.num_slices:
         #Gather some data about the slice
@@ -28,10 +28,10 @@ def find_hits(agent,targets):
 
             if abs(ball_location[1]) > 5250:
                 break #abandon search if ball is scored at/after this point
-        
+
             #determine the next slice we will look at, based on ball velocity (slower ball needs fewer slices)
             i += 15 - cap(int(ball_velocity//150),0,13)
-            
+
             car_to_ball = ball_location - agent.me.location
             #Adding a True to a vector's normalize will have it also return the magnitude of the vector
             direction, distance = car_to_ball.normalize(True)
@@ -48,7 +48,7 @@ def find_hits(agent,targets):
             #If the car only had to drive in a straight line, we ensure it has enough time to reach the ball (a few assumptions are made)
             forward_flag = forward_time > 0.0 and (distance*1.05 / forward_time) < (2290 if agent.me.boost > distance/100 else 1400)
             backward_flag = distance < 1500 and backward_time > 0.0 and (distance*1.05 / backward_time) < 1200
-            
+
             #Provided everything checks out, we begin to look at the target pairs
             if forward_flag or backward_flag:
                 for pair in targets:
@@ -60,7 +60,7 @@ def find_hits(agent,targets):
                         left_vector = (left - ball_location).normalize()
                         right_vector = (right - ball_location).normalize()
                         best_shot_vector = direction.clamp(left_vector,right_vector)
-                        
+
                         #Check to make sure our approach is inside the field
                         if in_field(ball_location - (200*best_shot_vector),1):
                             #The slope represents how close the car is to the chosen vector, higher = better
@@ -77,4 +77,6 @@ def find_hits(agent,targets):
                                         hits[pair].append(aerial)
                             elif backward_flag and ball_location[2] <= 280 and slope > 0.25:
                                 hits[pair].append(jump_shot(ball_location,intercept_time,best_shot_vector,slope,-1))
+        else:
+            i += 1
     return hits

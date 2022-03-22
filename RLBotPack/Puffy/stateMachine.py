@@ -6,6 +6,8 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 from state.spiked import Spiked
 from state.chase import Chase
 from state.state import State
+from state.test import Test
+from state.kickoff import Kickoff
 from state.celebrationPostGame import CelebrationPostGame
 from state.celebrationMidGame import CelebrationMidGame
 
@@ -38,7 +40,7 @@ class StateMachine:
 		action = None
 		
 		ACTION_GAME = 1
-		ACTION_KICKOFF = 1 #Kickoff
+		ACTION_KICKOFF = Kickoff
 		ACTION_MIDGAMECELEBRATION = CelebrationMidGame
 		ACTION_POSTGAMECELEBRATION = CelebrationPostGame
 
@@ -61,15 +63,15 @@ class StateMachine:
 
 		assert action != None
 
-		if self.lastAction != action:
-			print(f"switched global state to {action}")
+		# if self.lastAction != action:
+		# 	print(f"switched global state to {action}")
 
 		if action == ACTION_GAME:
 
 			if self.lastAction != action:
 				self.lastTick = self.agent.currentTick
 
-			if self.currentState == None or self.lastAction != ACTION_GAME:
+			if self.currentState == None:
 				self.selectState(packet)
 
 		elif self.lastAction != action:
@@ -95,14 +97,14 @@ class StateMachine:
 	def changeStateAndContinueTick(self, newState, packet, *args) -> bool:
 		
 		if self.currentState == None or self.currentState.__class__.__name__ != newState.__name__:
-			print(f"[{self.agent.index}] switched state to {newState.__name__}")
+			# print(f"[{self.agent.index}] switched state to {newState.__name__}")
 			self.currentState = newState(self.agent, *args)
 		return self.currentState.tick(packet)
 
 
 	def changeStateIfDifferent(self, newState):
 		if self.currentState == None or self.currentState.__class__.__name__ != newState.__name__:
-			print(f"[agent{self.agent.index}] switched state to {newState.__name__}")
+			# print(f"[agent{self.agent.index}] switched state to {newState.__name__}")
 			self.currentState = newState(self.agent)
 
 

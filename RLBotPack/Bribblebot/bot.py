@@ -7,17 +7,27 @@ from util.orientation import Orientation
 from util.vec import Vec3
 import util.const
 
+from rlutilities.linear_algebra import euler_to_rotation, dot, transpose, look_at, vec2, vec3, norm, normalize, angle_between, orthogonalize
+from rlutilities.simulation import Ball, Field, Game, Car
+from rlutilities.mechanics import ReorientML
+
+
 import sys
 from stateMachine import StateMachine
 
+IGNORE_LIST = ["Kamael"]
+
 
 class BribbleBot(BaseAgent):
+
+	def is_hot_reload_enabled(self):
+		return False
 
 	def initialize_agent(self):
 		# This runs once before the bot starts up
 		self.controllerState = SimpleControllerState()
 		self.stateMachine = StateMachine(self)
-
+		
 		self.lastTime = 0
 		self.realLastTime = 0
 		self.doneTicks = 0
@@ -26,13 +36,29 @@ class BribbleBot(BaseAgent):
 		self.FPS = 120
 		self.lastQuickChatTime = 0
 		self.secondMessage = None
-		self.tick = 0
+		self.currentTick = 0
 		self.firstTpsReport = True
 
+		self.game = Game()
+		self.game.set_mode("soccar")
+		self.car = self.game.cars[self.index]
+		self.reorientML = ReorientML(self.car)
+
+		self.lastJumpTick = -math.inf
+		self.maxDodgeTick = 0
+		self.jumpReleased = True
+		self.lastDodgeTick = -math.inf
+		self.lastController = SimpleControllerState()
+
+
 	def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
+		# self.renderer.begin_rendering()
 		self.packet = packet
 
 		self.handleTime()
+
+		self.game.read_game_information(packet, self.get_field_info())
+
 
 		ballY = packet.game_ball.physics.location.y
 
@@ -47,13 +73,17 @@ class BribbleBot(BaseAgent):
 					firstMessage, secondMessage = QuickChats.Apologies_Whoops, QuickChats.Apologies_NoProblem
 			
 			else:
-				firstMessage, secondMessage = QuickChats.Compliments_WhatASave, QuickChats.Reactions_Savage
+				if packet.game_ball.latest_touch.team == packet.game_cars[self.index].team:
+					firstMessage, secondMessage = QuickChats.Compliments_WhatASave, QuickChats.Apologies_NoProblem
+					firstByToucher = False
+				else:
+					firstMessage, secondMessage = QuickChats.Compliments_WhatASave, QuickChats.Reactions_Savage
 
 			bribbleBots = []
 			latestTouchIsBribble = False
 			for carIndex in range(packet.num_cars):
 				car = packet.game_cars[carIndex]
-				if car.team == self.team and "Bribblebot" in car.name:
+				if car.team == self.team and "Bribblebot" or "Puffy" or "Definitely Not Necto" in car.name:
 					bribbleBots.append(carIndex)
 					if packet.game_ball.latest_touch.player_index == carIndex:
 						latestTouchIsBribble = True
@@ -76,8 +106,43 @@ class BribbleBot(BaseAgent):
 			self.send_quick_chat(QuickChats.CHAT_EVERYONE, self.secondMessage)
 			self.secondMessage = None
 
+		self.stateMachine.tick(packet)
+		self.trackJump(self.stateMachine.currentState.controller)
 
-		return self.stateMachine.tick(packet)
+		# self.renderer.end_rendering()
+		return self.stateMachine.currentState.controller
+
+
+
+
+
+
+	def trackJump(self, controller: SimpleControllerState):
+		
+		if controller.jump and not self.lastController.jump and self.car.on_ground and self.currentTick - self.lastJumpTick > 28:
+			self.lastJumpTick = self.currentTick
+			self.jumpReleased = False
+
+		if self.car.on_ground:
+			self.maxDodgeTick = math.inf
+			self.lastJumpTick = -math.inf
+			self.lastDodgeTick = -math.inf
+		elif self.lastController.jump and self.currentTick - self.lastJumpTick > 28:
+			if not controller.jump:
+				self.maxDodgeTick = self.currentTick + 1.25 * 120
+			elif self.lastJumpTick == -math.inf:
+				self.maxDodgeTick = math.inf
+			else:
+				self.maxDodgeTick = self.lastJumpTick + 1.45 * 120
+
+		if not self.car.on_ground and controller.jump and not self.car.double_jumped and self.currentTick <= self.maxDodgeTick:
+			self.lastDodgeTick = self.currentTick
+			
+
+		if not self.jumpReleased and not controller.jump:
+			self.jumpReleased = True
+
+		self.lastController = controller
 
 
 
@@ -96,7 +161,7 @@ class BribbleBot(BaseAgent):
 			if int(self.lastTime) != int(self.packet.game_info.seconds_elapsed):
 				# if self.skippedTicks > 0:
 				print(f"did {self.doneTicks}, skipped {self.skippedTicks}")
-				if self.firstTpsReport:
+				if self.firstTpsReport or self.packet.game_ball.physics.location.x == 0 and self.packet.game_ball.physics.location.y == 0:
 					self.firstTpsReport = False
 				elif self.doneTicks < 110:
 					self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Custom_Excuses_Lag)
@@ -105,7 +170,7 @@ class BribbleBot(BaseAgent):
 			ticksPassed = round(max(1, (self.packet.game_info.seconds_elapsed - self.lastTime) * self.FPS))
 			self.lastTime = min(self.packet.game_info.seconds_elapsed, self.lastTime + ticksPassed)
 			self.realLastTime = self.packet.game_info.seconds_elapsed
-			self.tick += ticksPassed
+			self.currentTick += ticksPassed
 			if ticksPassed > 1:
 				# print(f"Skipped {ticksPassed - 1} ticks!")
 				self.skippedTicks += ticksPassed - 1
