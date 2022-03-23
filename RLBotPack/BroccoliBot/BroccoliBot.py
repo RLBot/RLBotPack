@@ -39,7 +39,7 @@ class BroccoliBot(GoslingAgent):
         me_back = my_goal_to_me.magnitude() < my_ball_distance
         foe_back = foe_goal_to_foe.magnitude() < foe_ball_distance
         close = (agent.ball.location - agent.me.location).magnitude() < 1500
-        have_boost = (agent.me.boost > 20)
+        have_boost = (agent.me.boost > 30)
 
         left_field = Vector3(4200 * -side(agent.team), agent.ball.location.y + (1000 * -side(agent.team)),
                              0)
@@ -77,6 +77,8 @@ class BroccoliBot(GoslingAgent):
             if friend_to_ball_distance < 1500 and friend_back:
                 friends_close += 1
 
+        ball_in_enemy_corner = not ball_close and abs(agent.ball.location.x) > 3000 and abs(agent.ball.location.y) > 4000
+
 
         attacking = False
         clearing = False
@@ -97,7 +99,7 @@ class BroccoliBot(GoslingAgent):
                     saving = True
                 elif ball_close and me_back:
                     clearing = True
-                elif (me_back and not foe_back) or my_ball_distance < foe_ball_distance:
+                elif not ball_in_enemy_corner and ((me_back and not foe_back) or my_ball_distance < foe_ball_distance):
                     attacking = True
                 elif not have_boost and my_ball_distance * 2 < foe_ball_distance:
                     getting_boost = True
