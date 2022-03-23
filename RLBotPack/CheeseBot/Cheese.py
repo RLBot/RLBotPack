@@ -225,35 +225,35 @@ class ExampleBot(GoslingAgent):
                             agent.clear()
                             agent.push(agent.shot)
 
-
-        if agent.kickoff_flag:
-            controls.throttle = 0
-            controls.boost = False
-            if len(agent.friends) == 0:
-                if agent.team == 0:
-                    if agent.me.location.y < -3200:
-                        agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
+        if agent.is_clear():
+            if agent.kickoff_flag:
+                controls.throttle = 0
+                controls.boost = False
+                if len(agent.friends) == 0:
+                    if agent.team == 0:
+                        if agent.me.location.y < -3200:
+                            agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
+                        else:
+                            agent.push(cheese_kickoff())
+                            return
                     else:
-                        agent.push(cheese_kickoff())
-                        return
+                        if agent.me.location.y > 3200:
+                            agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
+                        else:
+                            agent.push(cheese_kickoff())
+                            return
+
+
+
                 else:
-                    if agent.me.location.y > 3200:
-                        agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
-                    else:
-                        agent.push(cheese_kickoff())
+                    friends = len(agent.friends)
+                    for i in range(friends):
+                        friends_distance_to_ball = []
+                        friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
+                        my_distance_to_ball = agent.ball.location.dist(agent.me.location)
+                        if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
+                            agent.push(cheese_kickoff())
                         return
-
-
-
-            else:
-                friends = len(agent.friends)
-                for i in range(friends):
-                    friends_distance_to_ball = []
-                    friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
-                    my_distance_to_ball = agent.ball.location.dist(agent.me.location)
-                    if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
-                        agent.push(cheese_kickoff())
-                    return
 
 
         if agent.is_clear():
