@@ -1,0 +1,12 @@
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\bin\Release\net5.0\RedUtils.deps.json
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\bin\Release\net5.0\RedUtils.dll
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\bin\Release\net5.0\RedUtils.pdb
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.csproj.AssemblyReference.cache
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.AssemblyInfoInputs.cache
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.AssemblyInfo.cs
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.csproj.CoreCompileInputs.cache
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.dll
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\refint\RedUtils.dll
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\RedUtils.pdb
+C:\Users\joshu\AppData\Local\RLBotGUIX\MyBots\Cheesus-master\RedUtils\obj\Release\net5.0\ref\RedUtils.dll
