@@ -196,7 +196,7 @@ class aerial_shot():
             defaultThrottle(agent, speed_required)
             agent.controller.boost = False if abs(angles[1]) > 0.3 or agent.me.airborne else agent.controller.boost
             agent.controller.handbrake = True if abs(angles[1]) > 2.3 else agent.controller.handbrake
-            if acceleration_required[2] > self.jump_threshold:
+            if local_acceleration_required[2] > self.jump_threshold and local_acceleration_required[2] > local_acceleration_required.flatten().magnitude():
                 #Switch into the jump when the upward acceleration required reaches our threshold, hopefully we have aligned already...
                 self.jump_time = agent.time
         else:
