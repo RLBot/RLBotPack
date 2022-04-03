@@ -1,4 +1,3 @@
-import math
 import numpy as np
 
 from rlbot.agents.base_script import BaseScript
@@ -22,6 +21,7 @@ class FiftyFiftyMiniGame(BaseScript):
         self.disable_goal_reset = False
         self.pause_time = 0.5 # Can increase to 1-2s if hard coded kickoffs are causing issues
         self.cur_time = 0
+        self.first_kickoff = True
 
     def run(self):
         while True:
@@ -49,7 +49,7 @@ class FiftyFiftyMiniGame(BaseScript):
                 self.setup_newround_DGR(packet)
 
             # pause for 'pause_time' then resume
-            if self.game_phase == -1 and self.cur_time - self.prev_time <= self.pause_time:
+            if self.game_phase == -1 and self.cur_time - self.prev_time < self.pause_time:
                 self.set_game_state(self.game_state)
             elif self.game_phase == -1:
                 self.game_phase = 1
@@ -95,7 +95,7 @@ class FiftyFiftyMiniGame(BaseScript):
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
             elif car.team == 1:
-                car_state = CarState(boost_amount=100, physics=Physics(location=Vector3(0, 1000, 17), rotation=Rotator(yaw=-yaw_mir, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
+                car_state = CarState(boost_amount=100, physics=Physics(location=Vector3(0, 1000, 17), rotation=Rotator(yaw=yaw_mir, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
         ball_state = BallState(Physics(location=Vector3(0, 0, 93)))
@@ -106,20 +106,29 @@ class FiftyFiftyMiniGame(BaseScript):
 
 
     def yaw_randomizor(self):
-        if self.ticks > 1000:
-            # yaw will have 5 possible values from pi*.25 to pi.75, using ticks as random value. Straght kickoffs weighted higher at 50% chance
-            if self.ticks % 8 - 1 <= 1:
-                yaw = math.pi * 0.5
-            else:
-                yaw = math.pi * (self.ticks % 8 - 1) * 0.125
+        if not self.first_kickoff: # First kickoff will always be straight
+            # yaw will have 5 possible values from pi*.25 to pi.75. Straght kickoffs weighted higher
+            rand1 = np.random.random()
+            if rand1 < 1/7:
+                yaw = np.pi * 0.25
+            elif rand1 < 2/7:
+                yaw = np.pi * 0.375
+            elif rand1 < 5/7:
+                yaw = np.pi * 0.5
+            elif rand1 < 6/7:
+                yaw = np.pi * 0.625
+            elif rand1 < 7/7:
+                yaw = np.pi * 0.75
             # 50% parallel/mirrored yaw compared to other team
-            if self.ticks % 16 >= 8:
-                yaw_mir = math.pi-yaw
+            if np.random.random() < 0.5:
+                yaw_mir = yaw-np.pi
             else:
-                yaw_mir = yaw
+                yaw_mir = -yaw
             return yaw, yaw_mir
         else:
-            yaw_mir = yaw = math.pi * 0.5
+            self.first_kickoff = False
+            yaw = np.pi * 0.5
+            yaw_mir = -yaw
             return yaw, yaw_mir
 
 
