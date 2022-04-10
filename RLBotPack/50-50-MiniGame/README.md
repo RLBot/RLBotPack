@@ -4,12 +4,11 @@
 
 Simply be the first to touch the ball outside the middle circle.
 
-- Requires state setting enabled in the 'Extras'
+- Requires state setting enabled in 'Extras'
 
 **Recommended, but non-essential settings**
 - Respawn Time: Disable goal reset
 - Tickrate: 120
 - Map: Mannfield for clear center circle
 
-Omus is now playable (pictured at 0.5B steps). It has come a long way, check it out at 4B steps or about 8years of training time https://imgur.com/a/g49BqKz
-You can play it in the botpack!
+Omus is now playable in the botpack! It has come a long way since the above video which was 0.5B steps. See it now out at 4B steps or about 8years of training time https://imgur.com/a/g49BqKz
