@@ -4,9 +4,11 @@
 
 Simply be the first to touch the ball outside the middle circle.
 
+- Requires state setting enabled in the 'Extras'
 **Recommended, but non-essential settings**
 - Respawn Time: Disable goal reset
 - Tickrate: 120
 - Map: Mannfield for clear center circle
 
-I'm currently training Omus (pictured), a RLGym bot specific to this gamemode. The end goal is to have a 50/50 sparing partner for humans and bots of all levels
+Omus is now playable (pictured at 0.5B steps). It has come a long way, check it out at 4B steps or about 8years of training time https://imgur.com/a/g49BqKz
+You can play it in the botpack!
