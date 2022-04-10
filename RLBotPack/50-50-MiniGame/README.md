@@ -5,6 +5,7 @@
 Simply be the first to touch the ball outside the middle circle.
 
 - Requires state setting enabled in the 'Extras'
+
 **Recommended, but non-essential settings**
 - Respawn Time: Disable goal reset
 - Tickrate: 120
