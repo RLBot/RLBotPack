@@ -48,6 +48,8 @@ class FiftyFiftyMiniGame(BaseScript):
                     was_pressed = True
                     if packet.game_cars[0].name == 'Omus':
                         self.record_omus = not self.record_omus
+                        if not self.record_omus:
+                            self.state_buffer = np.empty((0,37))
                     else:
                         self.text2 = f"Error: Please restart RL & RLBot then set Omus to Blue"
             else:
