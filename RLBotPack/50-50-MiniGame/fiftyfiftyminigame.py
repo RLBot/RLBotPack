@@ -26,6 +26,7 @@ class FiftyFiftyMiniGame(BaseScript):
         self.state_buffer = np.empty((0,37))
         self.record_omus = False
         self.text2 = ""
+        self.circle = [(round(np.cos(2*np.pi/120*x)*1200),round(np.sin(2*np.pi/120*x)*1200),15) for x in range(0,120+1)]
         try:
             self.defeats_buffer = np.load('Omus_replay_states.npy')
         except:
@@ -56,8 +57,9 @@ class FiftyFiftyMiniGame(BaseScript):
             color = self.renderer.yellow()
             text = f"Set FPS to 120\nPress '1' to record, currently: {self.record_omus}"
             self.game_interface.renderer.begin_rendering()
-            self.game_interface.renderer.draw_string_2d(20, 50, 2, 2, text, color)
-            self.game_interface.renderer.draw_string_2d(20, 140, 2, 2, self.text2, color)
+            self.game_interface.renderer.draw_polyline_3d(self.circle, color)
+            self.game_interface.renderer.draw_string_2d(20, 50, 1, 1, text, color)
+            self.game_interface.renderer.draw_string_2d(20, 140, 1, 1, self.text2, color)
             self.game_interface.renderer.end_rendering()
 
             # check if 'disable goal reset' mutator is active
