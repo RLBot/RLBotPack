@@ -11,4 +11,4 @@ Simply be the first to touch the ball outside the middle circle.
 - Tickrate: 120
 - Any standard map
 
-Omus is now playable in the botpack! It has come a long way since the above video which was 0.5B steps. See it now out at 4B steps or about 8years of training time https://imgur.com/a/g49BqKz
+Omus is now playable in the botpack! It has come a long way since the above video which was 0.5B steps. See it now out at 4B steps or about 9 years of training time https://imgur.com/a/g49BqKz
