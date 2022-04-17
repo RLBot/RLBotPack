@@ -15,7 +15,6 @@ class MyBot(BaseAgent):
         super().__init__(name, team, index)
         self.active_sequence: Sequence = None
         self.boost_pad_tracker = BoostPadTracker()
-        self.jumping = 0
 
     def initialize_agent(self):
         self.boost_pad_tracker.initialize_boosts(self.get_field_info())
@@ -75,7 +74,7 @@ class MyBot(BaseAgent):
                     time_taken = (Vec3(packet.game_cars[i].physics.location) - ball_location).length() / (Vec3(packet.game_cars[i].physics.velocity).length() + 2300) + math.asin((Vec3(packet.game_cars[i].physics.velocity) * safe_div(Vec3(packet.game_cars[i].physics.velocity).length()) - ball_location * safe_div(ball_location.length())).length() / 2) * 3 / math.pi * 0
                     # When the car is further front than the POV
                     if ref > time_taken:
-                        if (Vec3(packet.game_cars[i].physics.location) + send_location).length() <= (ball_location + send_location).length() or (car_location + send_location).length() > (ball_location + send_location).length():
+                        if ((Vec3(packet.game_cars[i].physics.location) + send_location).length() <= (ball_location + send_location).length() or (car_location + send_location).length() > (ball_location + send_location).length()):
                             nearest += 1
                         overall_nearest += 1
                     last += 1
@@ -83,10 +82,7 @@ class MyBot(BaseAgent):
             if overall_nearest == last:
                 nearest = overall_nearest
             # Prevent the division by 0 error
-            if last > 1:
-                return (nearest - 1) / (last - 1), nearest
-            else:
-                return 0, nearest
+            return last, nearest
         # Find the best boost pads to use to refuel as fast as possible
         def find_best_boost_pads():
             best_pad = None
@@ -231,7 +227,9 @@ class MyBot(BaseAgent):
                     dir_x = 1
                 if (car_location + car_velocity / 5 - ball_location - ball_velocity / 5).length() <= (car_location - ball_location).length() - 50:
                     dir_y = -1
-                return self.flip(packet, dir_x, dir_y, not my_car.jumped)
+                dir_x *= sign(math.pi / 2 - get_angle(car_direction, car_velocity))
+                dir_y *= sign(math.pi / 2 - get_angle(car_direction, car_velocity))
+                override = self.flip(packet, dir_x, dir_y, not my_car.jumped)
         # Jump over cars to prevent collision
         def avoid_bump():
             for i in range(len(packet.game_cars)):
@@ -249,31 +247,8 @@ class MyBot(BaseAgent):
                         on_course = True
                     if on_course == True and dist <= 40 + (vel - vel2).length() / 2 and (vel.length() <= vel2.length() or packet.game_cars[i].team != self.team):
                         self.jump_once(packet)
-                        
-        def deja_vu():
-            if car_velocity.length() > 100:
-                point_direction = Vec3(math.cos(car_rotation.yaw) * math.cos(car_rotation.pitch), math.sin(car_rotation.yaw) * math.cos(car_rotation.pitch), math.sin(car_rotation.pitch))
-                controls.handbrake = ((target_location - car_location) * safe_div((target_location - car_location).length()) - point_direction).length() > 0.2
         
         # Modes
-        def demo():
-            nearest = None
-            best_time = math.inf
-            last = True
-            for i in range(len(packet.game_cars)):
-                if packet.game_cars[i].team != self.team and Vec3(packet.game_cars[i].physics.location).z > 0:
-                    time_taken = (Vec3(packet.game_cars[i].physics.location) - car_location).length()
-                    if time_taken < best_time:
-                        best_time = time_taken
-                        nearest = packet.game_cars[i]
-            # Get location
-            target_location = Vec3(nearest.physics.location) + Vec3(nearest.physics.velocity) * ((Vec3(nearest.physics.location) - car_location).length() - 30) * safe_div(car_velocity.length())
-            controls.throttle = 1
-            controls.boost = abs(steer_toward_target(my_car, target_location)) <= 0.1 and car_velocity.length() < 2200
-            self.renderer.draw_line_3d(car_location, target_location, self.renderer.black())
-            self.renderer.draw_rect_3d(target_location, 8, 8, True, self.renderer.black(), centered=True)
-            return target_location
-        
         def attack():
             # Target
             target_ball = predict_ball(earliest_intersection)
@@ -281,13 +256,14 @@ class MyBot(BaseAgent):
             target_location = target_location + (target_location - send_location) / (target_location - send_location).length() * 92.75
             # Smoother wall transitions
             target_location = move_target_for_walls(car_location, target_location)
+            jumping = jump_ready((target_location - distance_from_surface(target_location)).length())
             # Manage speed
             if velocity_from_surface(Vec3(target_ball.physics.location), Vec3(target_ball.physics.velocity)) >= 0 or (Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length() <= 300 or target_ball.physics.location.y * sign(send_location.y) <= -self.map_size[0]:
                 controls.throttle = 1
             else:
                 controls.throttle = 0
             # Boost
-            controls.boost = abs(steer_toward_target(my_car, target_location)) <= 0.1 and car_velocity.length() < 2300 and ((Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length() <= 300 or velocity_from_surface(Vec3(target_ball.physics.location), Vec3(target_ball.physics.velocity)) >= 0) and nearest_car == 0
+            controls.boost = abs(steer_toward_target(my_car, target_location)) <= 0.1 and car_velocity.length() < 2300 and ((Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length() <= 300 or velocity_from_surface(Vec3(target_ball.physics.location), Vec3(target_ball.physics.velocity)) >= 0) and car_index == 1
             # Jump
             h = (Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length()
             if jump_ready((Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length()) >= earliest_intersection and steer_toward_target(my_car, target_location) < 1:
@@ -296,11 +272,10 @@ class MyBot(BaseAgent):
                 controls.roll = 0
                 controls.jump = True
                 controls.boost = False
-                self.jumping = 0
             else:
                 jump_attack()
             # Catch the ball when in the air
-            if abs(target_location.z - car_location.z) <= 92.75 * 0.75 and get_angle(target_location - car_location, car_velocity) >= math.atan(200 / car_velocity.length()) and my_car.jumped == True and my_car.double_jumped == False and False:
+            if abs(target_location.z - car_location.z) <= 92.75 * 0.75 and get_angle(target_location - car_location, car_velocity) >= math.atan(200 * safe_div(car_velocity.length())) and my_car.jumped == True and my_car.double_jumped == False and False:
                 controls.yaw = sign((target_location - car_location - Vec3(car_velocity.y, -car_velocity.x, car_velocity.z)).length() - (target_location - car_location - Vec3(-car_velocity.y, car_velocity.x, car_velocity.z)).length())
                 controls.jump = True
             # Draw
@@ -317,7 +292,7 @@ class MyBot(BaseAgent):
                 nearest_ref = nearest_enemy
                 md = "enemy"
             # Target
-            if md == "enemy" and False:
+            if md == "enemy" or True:
                 target_location = ball_location - (Vec3(nearest_ref.physics.location) - ball_location) / (Vec3(nearest_ref.physics.location) - ball_location).length() * (2500 + Vec3(nearest_ref.physics.velocity).length() * 5 / 2.3)
                 target_location = Vec3(target_location.x, ball_location.y + (target_location.y - ball_location.y) * sign(target_location.y - ball_location.y) * -sign(send_location.y), target_location.z)
             else:
@@ -334,7 +309,7 @@ class MyBot(BaseAgent):
             self.renderer.draw_rect_3d(target_location, 8, 8, True, self.renderer.green(), centered=True)
             # Manage speed
             controls.boost = False
-            controls.throttle = (target_location - car_location).length() / 1000
+            controls.throttle = clamp((target_location - car_location).length() / 1000, -1, 1)
             return target_location
             
         def refuel():
@@ -352,7 +327,7 @@ class MyBot(BaseAgent):
             target_location = car_location
             # Roll back onto the wheels
             if abs(car_rotation.roll) >= math.pi * 3 / 4:
-                return self.jump_once(packet)
+                override = self.jump_once(packet)
             # Prepare for a save
             if sign(car_location.y) == -sign(send_location.y) and abs(car_location.y) >= abs(send_location.y):
                 target_location = car_location - Vec3(0, send_location.y, 0)
@@ -360,13 +335,13 @@ class MyBot(BaseAgent):
                     controls.throttle = -1
                 else:
                     if Vec3(car_velocity.x, car_velocity.y, 0).length() >= 250:
-                        return self.reverse_flip(packet)
+                        override = self.reverse_flip(packet)
                     else:
                         controls.pitch = 0
                         controls.roll = 0
                         if (not math.pi * 0.4 <= abs(car_rotation.yaw) <= math.pi * 0.6 or sign(car_rotation.yaw) == -sign(send_location.y)) and abs(car_velocity.z) <= 1:
-                            return self.jump_once(packet)
-                        controls.yaw = steer_toward_target(my_car, send_location) - my_car.physics.angular_velocity.z
+                            override = self.jump_once(packet)
+                        controls.yaw = clamp(steer_toward_target(my_car, send_location) - my_car.physics.angular_velocity.z, -1, 1)
                     controls.throttle = 0
             # Drive into the goal unless it's already done so
             else:
@@ -398,7 +373,6 @@ class MyBot(BaseAgent):
                     controls.roll = 0
                     controls.jump = True
                     controls.boost = False
-                    self.jumping = 0
                 else:
                     jump_attack()
                 # Draw
@@ -419,13 +393,13 @@ class MyBot(BaseAgent):
             else:
                 tz = car_velocity.z / 650 - math.sqrt(car_location.z / 325 + (car_velocity.z / 650)**2)
             if tx >= tz <= ty:
-                controls.roll = -car_rotation.roll
-                controls.pitch = -car_rotation.pitch
+                controls.roll = clamp(-car_rotation.roll, -1, 1)
+                controls.pitch = clamp(-car_rotation.pitch, -1, 1)
                 tt = tz
             elif tx >= ty <= tz:
                 point = (math.pi / 2 + sign(abs(car_rotation.yaw) - math.pi / 2) * math.pi / 2) * sign(car_rotation.yaw)
-                controls.roll = math.pi / 2 * sign(car_velocity.y) * sign(abs(car_rotation.yaw) - math.pi / 2) - car_rotation.roll
-                controls.pitch = point - car_rotation.yaw
+                controls.roll = clamp(math.pi / 2 * sign(car_velocity.y) * sign(abs(car_rotation.yaw) - math.pi / 2) - car_rotation.roll, -1, 1)
+                controls.pitch = clamp(point - car_rotation.yaw, -1, 1)
                 tt = ty
             draw_point = Vec3(car_location.x + car_velocity.x * tt, car_location.y + car_velocity.y * tt, car_location.z + car_velocity.z * tt - 325 * tt**2)
             self.renderer.draw_line_3d(car_location, draw_point, self.renderer.pink())
@@ -438,24 +412,26 @@ class MyBot(BaseAgent):
         car_location = Vec3(my_car.physics.location)
         car_velocity = Vec3(my_car.physics.velocity)
         car_rotation = my_car.physics.rotation
+        car_direction = Vec3(math.cos(car_rotation.yaw) * math.cos(car_rotation.pitch), math.sin(car_rotation.yaw) * math.cos(car_rotation.pitch), math.sin(car_rotation.pitch))
         ball_prediction = self.get_ball_prediction_struct()
         ball_location = Vec3(packet.game_ball.physics.location)
         ball_velocity = Vec3(packet.game_ball.physics.velocity)
         send_location = Vec3(0, sign(0.5 - self.team) * self.map_size[0], 0)
         earliest_intersection, easiest_intersection = intersect_time(True)
-        nearest_car, car_index = distance_order(1)
+        team_size, car_index = distance_order(1)
         nearest_enemy, enemy_time = nearest_player(0, 460)
         nearest_friendly, friendly_time = nearest_player(0, 460)
         in_goal = (ball_location + send_location).length() > (car_location + send_location).length()
         target_location = car_location
         mode = ""
+        override = None
 
         # Controls
         controls = SimpleControllerState()
         
         # Half-flip to quickly turn
         if car_velocity.length() <= 500 and get_angle(car_velocity, target_location - car_location) >= math.pi / 3 * 2:
-            return self.reverse_flip(packet)
+            override = self.reverse_flip(packet)
         
         # Assign role in the team
         if abs(send_location.y + Vec3(predict_ball(2).physics.location).y) <= 1000 or abs(send_location.y + ball_location.y) <= 1000:
@@ -464,26 +440,20 @@ class MyBot(BaseAgent):
             else:
                 mode = "Defense"
         else:
-            if nearest_car == 0:
+            if car_index == 1:
                 if in_goal:
                     mode = "Attack"
                 else:
                     mode = "Defense"
-            elif nearest_car < 1:
+            elif car_index < team_size:
                 if my_car.boost == 100 and car_index == 2:
                     mode = "Standby"
                 else:
                     mode = "Refuel"
-            elif nearest_car < 1:
-                if my_car.boost >= 50 or car_velocity.length() >= 2200:
-                    mode = "Demo"
-                else:
-                    mode = "Refuel"
             else:
                 mode = "Goalie"
-        
         # Recovery
-        if self.jumping >= 1:
+        if my_car.double_jumped:
             recovery()
         # Demolition
         if mode == "Demo":
@@ -520,9 +490,10 @@ class MyBot(BaseAgent):
         self.renderer.draw_string_2d(50, 680 + car_index * 20 * (0.5 - self.team) * 2, 1, 1, "Noob Bot " + str(car_index) + ": " + str(mode), self.renderer.white())
         self.renderer.draw_line_3d(target_location, distance_from_surface(target_location), self.renderer.yellow())
         
-        self.jumping += 1 / 60
-        
-        return controls
+        if override:
+            return override
+        else:
+            return controls
 
     def flip(self, packet, dir_x, dir_y, first_jump):
         self.active_sequence = Sequence([
@@ -550,6 +521,18 @@ class MyBot(BaseAgent):
             ControlStep(duration=0.25, controls=SimpleControllerState(jump=False, pitch=-1)),
             ControlStep(duration=0.3, controls=SimpleControllerState(roll=1, pitch=-1)),
             ControlStep(duration=0.05, controls=SimpleControllerState()),
+        ])
+
+        return self.active_sequence.tick(packet)
+
+    def correct_direction(self, packet, dir):
+        self.active_sequence = Sequence([
+            ControlStep(duration=0.05, controls=SimpleControllerState(jump=True, throttle = dir)),
+            ControlStep(duration=0.05, controls=SimpleControllerState(jump=False, throttle = dir)),
+            ControlStep(duration=0.2, controls=SimpleControllerState(jump=True, throttle = dir, pitch=1)),
+            ControlStep(duration=0.25, controls=SimpleControllerState(jump=False, throttle = dir, pitch=-1)),
+            ControlStep(duration=0.3, controls=SimpleControllerState(roll=1, throttle = -dir, pitch=-1)),
+            ControlStep(duration=0.05, controls=SimpleControllerState(throttle = -dir)),
         ])
 
         return self.active_sequence.tick(packet)

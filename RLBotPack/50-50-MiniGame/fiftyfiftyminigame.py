@@ -1,9 +1,9 @@
-import math
 import numpy as np
+import keyboard
 
 from rlbot.agents.base_script import BaseScript
 from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator, GameInfoState
-
+from rlbot.utils.structures.quick_chats import QuickChats
 
 class FiftyFiftyMiniGame(BaseScript):
     '''
@@ -15,13 +15,22 @@ class FiftyFiftyMiniGame(BaseScript):
     def __init__(self):
         super().__init__("FiftyFiftyMiniGame")
         self.game_phase = 0
-        self.goal_scored = 0
         self.scoreDiff_prev = 0
+        self.omusDefeat_prev = 0
         self.prev_ticks = 0
         self.ticks = 0
         self.disable_goal_reset = False
         self.pause_time = 0.5 # Can increase to 1-2s if hard coded kickoffs are causing issues
         self.cur_time = 0
+        self.first_kickoff = True
+        self.state_buffer = np.empty((0,37))
+        self.record_omus = False
+        self.text2 = ""
+        self.circle = [(round(np.cos(2*np.pi/120*x)*1200),round(np.sin(2*np.pi/120*x)*1200),15) for x in range(0,120+1)]
+        try:
+            self.defeats_buffer = np.load('Omus_replay_states.npy')
+        except:
+            self.defeats_buffer = np.empty((0,37))
 
     def run(self):
         while True:
@@ -33,6 +42,28 @@ class FiftyFiftyMiniGame(BaseScript):
             self.cur_time = packet.game_info.seconds_elapsed
             self.ticks += 1
 
+            # toggle recording
+            if keyboard.is_pressed('1'):
+                if not was_pressed:
+                    was_pressed = True
+                    if packet.game_cars[0].name == 'Omus':
+                        self.record_omus = not self.record_omus
+                        if not self.record_omus:
+                            self.state_buffer = np.empty((0,37))
+                    else:
+                        self.text2 = f"Error: Please restart RL & RLBot then set Omus to Blue"
+            else:
+                was_pressed = False
+
+            # rendering
+            color = self.renderer.yellow()
+            text = f"Set FPS to 120\nPress '1' to record, currently: {self.record_omus}"
+            self.game_interface.renderer.begin_rendering()
+            self.game_interface.renderer.draw_polyline_3d(self.circle, color)
+            self.game_interface.renderer.draw_string_2d(20, 50, 1, 1, text, color)
+            self.game_interface.renderer.draw_string_2d(20, 140, 1, 1, self.text2, color)
+            self.game_interface.renderer.end_rendering()
+
             # check if 'disable goal reset' mutator is active
             if self.ticks == 1:
                 match_settings = self.get_match_settings()
@@ -43,13 +74,17 @@ class FiftyFiftyMiniGame(BaseScript):
             '''phase 0''' # setup round
             if self.game_phase == 0 and packet.game_info.is_kickoff_pause:
                 self.setup_newround(packet)
-
-            # same as above, but custom built for 'disable goal reset' mutator active
+            # when 'disable goal reset' mutator active
             if self.disable_goal_reset == True:
-                self.setup_newround_DGR(packet)
+                if self.goal_scored(packet):
+                    self.setup_newround(packet)
+                    if self.omus_defeated(packet) and self.record_omus:
+                        self.defeats_buffer = np.append(self.defeats_buffer, self.state_buffer, axis=0)
+                        np.save('Omus_replay_states.npy', self.defeats_buffer)
+                    self.state_buffer = np.empty((0,37))
 
             # pause for 'pause_time' then resume
-            if self.game_phase == -1 and self.cur_time - self.prev_time <= self.pause_time:
+            if self.game_phase == -1 and self.cur_time - self.prev_time < self.pause_time:
                 self.set_game_state(self.game_state)
             elif self.game_phase == -1:
                 self.game_phase = 1
@@ -73,16 +108,38 @@ class FiftyFiftyMiniGame(BaseScript):
             if self.game_phase == 2 and packet.game_info.is_kickoff_pause and packet.game_ball.latest_touch.time_seconds <= phase2_time:
                 self.game_phase = 0
             
+            # recording gamestate to use as statesetting in training
+            if self.record_omus:
+                if packet.game_cars[0].has_wheel_contact:
+                    self.b_wheel_contact_timer = self.cur_time
+                if packet.game_cars[1].has_wheel_contact:
+                    self.o_wheel_contact_timer = self.cur_time
+                b_has_flip = True if packet.game_cars[0].double_jumped == False and self.cur_time - self.b_wheel_contact_timer < 1.4 else False
+                o_has_flip = True if packet.game_cars[1].double_jumped == False and self.cur_time - self.o_wheel_contact_timer < 1.4 else False
+                if self.ticks % 30 == 0 and self.game_phase > 0 and packet.game_info.is_round_active:
+                    cur_state = self.save_gamestate(packet, b_has_flip, o_has_flip)
+                    self.state_buffer = np.append(self.state_buffer, cur_state, axis=0)
 
-    def setup_newround_DGR(self, packet):
+
+    def goal_scored(self, packet):
         # check if goal in last tick
         teamScores = tuple(map(lambda x: x.score, packet.teams))
         scoreDiff = max(teamScores) - min(teamScores)
 
-        # setup round
         if scoreDiff != self.scoreDiff_prev:
-            self.setup_newround(packet)
             self.scoreDiff_prev = scoreDiff
+            return True
+        return False
+
+
+    def omus_defeated(self, packet):
+            # check if omus got scored on (omus must be on blue team)
+            omusDefeat = packet.teams[1].score
+
+            if omusDefeat != self.omusDefeat_prev:
+                self.omusDefeat_prev = omusDefeat
+                return True
+            return False
 
 
     def setup_newround(self, packet):
@@ -95,10 +152,13 @@ class FiftyFiftyMiniGame(BaseScript):
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
             elif car.team == 1:
-                car_state = CarState(boost_amount=100, physics=Physics(location=Vector3(0, 1000, 17), rotation=Rotator(yaw=-yaw_mir, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
+                car_state = CarState(boost_amount=100, physics=Physics(location=Vector3(0, 1000, 17), rotation=Rotator(yaw=yaw_mir, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
-        ball_state = BallState(Physics(location=Vector3(0, 0, 93)))
+        if np.random.random() < 14/15: # Small chance ball spawns in air
+            ball_state = BallState(Physics(location=Vector3(0, 0, 93)))
+        else:
+            ball_state = BallState(Physics(location=Vector3(0, 0, 500), velocity=Vector3(0, 0, -120)))
         self.game_state = GameState(ball=ball_state, cars=car_states)
         self.set_game_state(self.game_state)
         self.prev_time = self.cur_time
@@ -106,21 +166,74 @@ class FiftyFiftyMiniGame(BaseScript):
 
 
     def yaw_randomizor(self):
-        if self.ticks > 1000:
-            # yaw will have 5 possible values from pi*.25 to pi.75, using ticks as random value. Straght kickoffs weighted higher at 50% chance
-            if self.ticks % 8 - 1 <= 1:
-                yaw = math.pi * 0.5
-            else:
-                yaw = math.pi * (self.ticks % 8 - 1) * 0.125
+        if not self.first_kickoff: # First kickoff will always be straight
+            # yaw will have 5 possible values from pi*.25 to pi.75. Straght kickoffs weighted higher
+            rand1 = np.random.random()
+            if rand1 < 1/7:
+                yaw = np.pi * 0.25
+            elif rand1 < 2/7:
+                yaw = np.pi * 0.375
+            elif rand1 < 5/7:
+                yaw = np.pi * 0.5
+            elif rand1 < 6/7:
+                yaw = np.pi * 0.625
+            elif rand1 < 7/7:
+                yaw = np.pi * 0.75
             # 50% parallel/mirrored yaw compared to other team
-            if self.ticks % 16 >= 8:
-                yaw_mir = math.pi-yaw
+            if np.random.random() < 0.5:
+                yaw_mir = yaw-np.pi
             else:
-                yaw_mir = yaw
+                yaw_mir = -yaw
             return yaw, yaw_mir
         else:
-            yaw_mir = yaw = math.pi * 0.5
+            self.first_kickoff = False
+            yaw = np.pi * 0.5
+            yaw_mir = -yaw
             return yaw, yaw_mir
+
+    def save_gamestate(self, packet, b_has_flip, o_has_flip):
+        blue_car = packet.game_cars[0]
+        orange_car = packet.game_cars[1]
+        ball = packet.game_ball
+        cur_state = np.zeros(37)
+        cur_state[0] = blue_car.physics.location.x
+        cur_state[1] = blue_car.physics.location.y
+        cur_state[2] = blue_car.physics.location.z
+        cur_state[3] = blue_car.physics.rotation.pitch
+        cur_state[4] = blue_car.physics.rotation.yaw
+        cur_state[5] = blue_car.physics.rotation.roll
+        cur_state[6] = blue_car.physics.velocity.x
+        cur_state[7] = blue_car.physics.velocity.y
+        cur_state[8] = blue_car.physics.velocity.z
+        cur_state[9] = blue_car.physics.angular_velocity.x
+        cur_state[10] = blue_car.physics.angular_velocity.y
+        cur_state[11] = blue_car.physics.angular_velocity.z
+        cur_state[12] = blue_car.boost
+        cur_state[13] = b_has_flip
+        cur_state[14] = orange_car.physics.location.x
+        cur_state[15] = orange_car.physics.location.y
+        cur_state[16] = orange_car.physics.location.z
+        cur_state[17] = orange_car.physics.rotation.pitch
+        cur_state[18] = orange_car.physics.rotation.yaw
+        cur_state[19] = orange_car.physics.rotation.roll
+        cur_state[20] = orange_car.physics.velocity.x
+        cur_state[21] = orange_car.physics.velocity.y
+        cur_state[22] = orange_car.physics.velocity.z
+        cur_state[23] = orange_car.physics.angular_velocity.x
+        cur_state[24] = orange_car.physics.angular_velocity.y
+        cur_state[25] = orange_car.physics.angular_velocity.z
+        cur_state[26] = orange_car.boost
+        cur_state[27] = o_has_flip
+        cur_state[28] = ball.physics.location.x
+        cur_state[29] = ball.physics.location.y
+        cur_state[30] = ball.physics.location.z
+        cur_state[31] = ball.physics.velocity.x
+        cur_state[32] = ball.physics.velocity.y
+        cur_state[33] = ball.physics.velocity.z
+        cur_state[34] = ball.physics.angular_velocity.x
+        cur_state[35] = ball.physics.angular_velocity.y
+        cur_state[36] = ball.physics.angular_velocity.z
+        return np.expand_dims(cur_state, axis=0)
 
 
 # You can use this __name__ == '__main__' thing to ensure that the script doesn't start accidentally if you
