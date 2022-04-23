@@ -68,12 +68,12 @@ class FiftyFiftyMiniGame(BaseScript):
             
             # rendering
             color = self.renderer.yellow()
-            text = f"Please set FPS to 120\
-            \nPress '1' to record, currently:  {'On' if self.record_omus else 'Off'}\
-            \n'2' for horizontal ball variance:{self.horz_ball_var}\
-            \n'3' for vertical ball variance:  {self.vert_ball_var}\
-            \n'4' for ball velocity preview:   {self.ball_preview}\
-            \n'5' for standard match kickoffs: {self.standard_kickoffs}"
+            text = f"Please set FPS to 120. Standard match, Omus is ~GrandChamp\
+            \nPress '1' to record, to learn more search 'omus details' in RLBot discord: {'On' if self.record_omus else 'Off'}\
+            \n'2' for horizontal ball variance (~Champ):{self.horz_ball_var}\
+            \n'3' for vertical ball variance (~Gold):   {self.vert_ball_var}\
+            \n'4' for ball velocity preview:            {self.ball_preview}\
+            \n'5' for standard match kickoffs (~Gold):  {self.standard_kickoffs}"
             self.game_interface.renderer.begin_rendering()
             self.game_interface.renderer.draw_polyline_3d(self.circle, color)
             self.game_interface.renderer.draw_string_2d(20, 50, 1, 1, text, color)
