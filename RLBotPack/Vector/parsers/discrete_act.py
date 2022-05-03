@@ -1,10 +1,9 @@
 import numpy as np
 import gym.spaces
 from rlgym_compat import GameState
-from parsers.action_parser import ActionParser
 
 
-class DiscreteAction(ActionParser):
+class DiscreteAction():
     """
     Simple discrete action space. All the analog actions have 3 bins by default: -1, 0 and 1.
     """
