@@ -1,16 +1,19 @@
 {
 	"recommendations": [
 		{
+			"bots": ["Nexto"]
+		},
+		{
 			"bots": ["Necto"]
 		},
 		{
 			"bots": ["Element"]
 		},
 		{
-			"bots": ["Necto", "Necto"]
+			"bots": ["Nexto", "Nexto"]
 		},
 		{
-			"bots": ["Necto", "Necto", "Necto"]
+			"bots": ["Nexto", "Nexto", "Nexto"]
 		}
 	]
 }
