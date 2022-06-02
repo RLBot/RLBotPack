@@ -75,8 +75,8 @@ class FiftyFiftyMiniGame(BaseScript):
             color2 = self.renderer.lime()
             text = f"Omus is about GrandChamp for the base 50-MiniGame\
             \nSearch 'omus setup' in RLBot discord if you are having issues\
-            \n'2' add horizontal ball variance (~Champ):{self.horz_ball_var}\
-            \n'3' add vertical ball variance (~Gold):   {self.vert_ball_var}\
+            \n'2' add horizontal ball variance (~C-GC): {self.horz_ball_var}\
+            \n'3' add vertical ball variance (~Plat):   {self.vert_ball_var}\
             \n'4' add ball velocity preview:            {self.ball_preview}\
             \n'5' for standard kickoffs (~Champ-GC):    {self.standard_kickoffs}"
             self.game_interface.renderer.begin_rendering()
