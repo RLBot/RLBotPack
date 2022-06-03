@@ -1,3 +1,4 @@
+from stat import FILE_ATTRIBUTE_NO_SCRUB_DATA
 from turtle import Vec2D
 from tools import  *
 from objects import *
@@ -189,38 +190,22 @@ class ExampleBot(GoslingAgent):
         if not agent.is_clear() and agent.shot is not None:
             if agent.stack[0].__class__.__name__ is "reposition" and agent.shot is not None and not (agent.me.airborne or agent.me.location.z > 300):
                 if agent.should_go_for_shot():
-                    if len(agent.friends) != 0:
-                        friends = len(agent.friends)
-                        for i in range(friends):
-                            friends_distance_to_ball = []
-                            friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
-                            my_distance_to_ball = agent.ball.location.dist(agent.me.location)
-                            if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
-                                agent.clear()
-                                agent.push(agent.shot)
-                            else:
-                                agent.pop()
-                                agent.push(goto(agent.friend_goal.location))
-                    else:
-                        agent.clear()
-                        agent.push(agent.shot)
+                    agent.clear()
+                    agent.push(agent.shot)
 
             if "shot" in agent.stack[0].__class__.__name__:
                 if agent.current_shot_condition != agent.offense_defense_switch:
                     if agent.should_go_for_shot():
                         if len(agent.friends) != 0:
-                            friends = len(agent.friends)
-                            for i in range(friends):
-                                friends_distance_to_ball = []
-                                friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
-                                my_distance_to_ball = agent.ball.location.dist(agent.me.location)
-                                if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
-                                    agent.clear()
-                                    agent.push(agent.shot)
-                                    agent.current_shot_condition = agent.offense_defense_switch
-                                else:
-                                    agent.pop()
-                                    agent.push(goto(agent.friend_goal.location))
+                            GoForShot = False
+                            for i in range(agent.friends):
+                                if agent.me.location.dist(agent.ball.location) <= agent.friends[i].location.dist(agent.ball.location):
+                                    GoForShot = True
+                            
+                            if GoForShot == True:
+                                agent.clear()
+                                agent.push(agent.shot)
+
                         else:
                             agent.clear()
                             agent.push(agent.shot)
@@ -230,33 +215,23 @@ class ExampleBot(GoslingAgent):
                 controls.throttle = 0
                 controls.boost = False
                 if len(agent.friends) == 0:
-                    if agent.team == 0:
-                        if agent.me.location.y < -3200:
-                            agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
-                        else:
-                            agent.push(cheese_kickoff())
-                            return
-                    else:
-                        if agent.me.location.y > 3200:
-                            agent.push(goto(agent.friend_goal.location,direction=-1,slow_down=True))
-                        else:
-                            agent.push(cheese_kickoff())
-                            return
-
-
+                    agent.push(cheese_kickoff())
 
                 else:
                     friends = len(agent.friends)
                     for i in range(friends):
                         friends_distance_to_ball = []
-                        friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
+                        friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i].location))
                         my_distance_to_ball = agent.ball.location.dist(agent.me.location)
-                        if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
-                            agent.push(cheese_kickoff())
+                        if min(friends_distance_to_ball) >= my_distance_to_ball:
+                            if min(friends_distance_to_ball) == my_distance_to_ball:
+                                if agent.team == 0 and agent.me.location.x < 0:
+                                    agent.push(cheese_kickoff())
+                                if agent.team == 1 and agent.me.location.x > 0:
+                                    agent.push(cheese_kickoff())
+                            else:
+                                agent.push(cheese_kickoff())
                         return
-
-
-        if agent.is_clear():
 
             if agent.me.airborne:
                 agent.push(recovery())

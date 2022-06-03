@@ -1,3 +1,4 @@
+from string import capwords
 from utils import *
 from cutil.control_panel import *
 from objects import *
@@ -96,9 +97,15 @@ class aerial_shot():
 
             if self.counter == 0 and (time_since_jump <= 0.2 and local_acceleration_required[2] > 0):
                 #hold the jump button up to 0.2 seconds to get the most acceleration from the first jump
+                agent.controller.pitch = 0
+                agent.controller.yaw = 0
+                agent.controller.roll = 0
                 agent.controller.jump = True
             elif time_since_jump > 0.2 and self.counter < 3:
                 #Release the jump button for 3 ticks
+                agent.controller.pitch = 0
+                agent.controller.yaw = 0
+                agent.controller.roll = 0
                 agent.controller.jump = False
                 agent.controller.pitch = 0
                 agent.controller.yaw = 0
@@ -106,6 +113,9 @@ class aerial_shot():
                 self.counter += 1
             elif local_acceleration_required[2] > 300 and self.counter == 3:
                 #the acceleration from the second jump is instant, so we only do it for 1 frame
+                agent.controller.pitch = 0
+                agent.controller.yaw = 0
+                agent.controller.roll = 0
                 agent.controller.jump = True
                 agent.controller.pitch = 0
                 agent.controller.yaw = 0
@@ -120,7 +130,14 @@ class aerial_shot():
         if agent.me.location.dist(agent.ball.location) < 400:
             agent.controller.roll = 1
 
-        
+class goto_goal():
+    def run(self,agent):
+        relative_target = agent.friend_goal.location - agent.me.location
+        local_target = agent.me.local(relative_target)
+        defaultPD(agent, local_target)
+        throttlegoal = (cap(agent.me.location.dist(agent.friend_goal.location),0,2300) / 2300 - 100)
+        defaultThrottle(agent, throttlegoal)
+            
 
 class flip():
     #Flip takes a vector in local coordinates and flips/dodges in that direction
