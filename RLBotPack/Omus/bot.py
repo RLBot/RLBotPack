@@ -25,7 +25,7 @@ class Omus(BaseAgent):
         # Your neural network logic goes inside the Agent class, go take a look inside src/agent.py
         self.agent = Agent()
         # Adjust the tickskip if your agent was trained with a different value
-        self.tick_skip = 8
+        self.tick_skip = 6
 
         self.game_state: GameState = None
         self.controls = None
@@ -115,10 +115,8 @@ class Omus(BaseAgent):
     def bot_toggle(self):
         if self.gamemode == 'fiftyfifty':
             self.gamemode = 'kickoff'
-            self.tick_skip = 6
         else:
             self.gamemode = 'fiftyfifty'
-            self.tick_skip = 8
 
 
     def initialize_trainer(self):
@@ -309,19 +307,20 @@ class Omus(BaseAgent):
                     elif step_20hz > 7:
                         step_20hz = 6
             try:
-                self.controller_state = self.convert_output_to_v4(self.speedflip_array[step_20hz])
-                self.controller_state.steer = 0 if self.train_controls[1] == 'On' else self.controller_state.steer
-                self.controller_state.yaw = 0 if self.train_controls[1] == 'On' else self.controller_state.yaw
-                self.controller_state.boost = 0 if self.train_controls[6] == 'On' else self.controller_state.boost
-                self.controller_state.jump = 0 if self.train_controls[5] == 'On' else self.controller_state.jump
-                self.controller_state.pitch = 0 if self.train_controls[2] == 'On' else self.controller_state.pitch
-                self.controller_state.roll = 0 if self.train_controls[4] == 'On' else self.controller_state.roll
+                hardcoded_controls = self.speedflip_array[step_20hz]
+                self.controller_state.throttle = hardcoded_controls[0] if self.train_controls[0] == 'Off' else self.controller_state.throttle
+                self.controller_state.steer = hardcoded_controls[1] if self.train_controls[1] == 'Off' else self.controller_state.steer
+                self.controller_state.yaw = hardcoded_controls[3] if self.train_controls[1] == 'Off' else self.controller_state.yaw
+                self.controller_state.boost = hardcoded_controls[6] if self.train_controls[6] == 'Off' else self.controller_state.boost
+                self.controller_state.jump = hardcoded_controls[5] if self.train_controls[5] == 'Off' else self.controller_state.jump
+                self.controller_state.pitch = hardcoded_controls[2] if self.train_controls[2] == 'Off' else self.controller_state.pitch
+                self.controller_state.roll = hardcoded_controls[4] if self.train_controls[4] == 'Off' else self.controller_state.roll
             except:
                 self.game_phase = 'Menu/Freeplay'
                 self.auto_control = False
                 self.first_jump = True
                 self.ticks = 0
-        
+
         # remote controlling the trainer bot (controller)
         for event in pygame.event.get():
             if event.type == JOYBUTTONDOWN:
@@ -540,7 +539,6 @@ class Omus(BaseAgent):
     def rebind_key(self, setkey, gpad):
         keyboard.unhook_all_hotkeys()
         self.bind_is_set = False
-        # eleven_controls = ['Off']*11
         setkey_remapped = {0:0,1:2,2:4,3:2,4:6,5:8,6:9,7:10}
         setkey_remapped = setkey_remapped[setkey]
         if self.altkey:

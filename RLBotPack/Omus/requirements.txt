@@ -3,8 +3,11 @@
 rlbot==1.*
 --find-links https://download.pytorch.org/whl/torch_stable.html
 torch==1.9.1+cpu
+stable-baselines3
 rlgym-compat>=1.0.2
 numpy
+pickle5
+cloudpickle
 keyboard
 pygame
 pathlib
