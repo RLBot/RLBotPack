@@ -1,3 +1,5 @@
+import traceback
+import random
 from typing import Dict
 from rlbot.agents.hivemind.drone_agent import DroneAgent
 from rlbot.agents.hivemind.python_hivemind import PythonHivemind
@@ -5,8 +7,8 @@ from rlbot.utils.structures.bot_input_struct import PlayerInput
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 # Dummy agent to call request MyHivemind.
-from gamemodes import run_1v1, run_hivemind, run_test
-from objects import CarObject, BoostObject, BallObject, GoalObject, GameObject, Vector3, TestState
+from gamemodes import run_1v1, run_hivemind
+from objects import CarObject, BoostObject, BallObject, GoalObject, GameObject, Vector3
 from utils import distance
 
 
@@ -37,24 +39,23 @@ class MyHivemind(PythonHivemind):
         self.foe_goal: GoalObject = None
         # Game time
         self.time: float = 0.0
+        self.odd_tick = 0
         # Whether or not GoslingAgent has run its get_ready() function
         self.ready: bool = False
         # a flag that tells us when kickoff is happening
         self.kickoff_flag: bool = False
         self.prev_kickoff_flag: bool = False
         self.conceding: bool = False
-        self.last_time: float = 0
-        self.my_score: float = 0
-        self.foe_score: float = 0
-        self.test_state = TestState.Reset
-        self.test_time = 0
+        # If true we will go for more stuff
+        # Initialized as true since we are always desperate
+        self.desperate = False
 
     def initialize_hive(self, packet: GameTickPacket) -> None:
         # Find out team by looking at packet.
         # drone_indices is a set, so you cannot just pick first element.
         index = next(iter(self.drone_indices))
         self.team = packet.game_cars[index].team
-        self.drones = [CarObject(i) for i in self.drone_indices]
+        self.drones = [CarObject(i, packet) for i in self.drone_indices]
         # goals
         self.friend_goal = GoalObject(self.team)
         self.foe_goal = GoalObject(not self.team)
@@ -78,8 +79,9 @@ class MyHivemind(PythonHivemind):
         self.foes = [CarObject(i, packet) for i in range(packet.num_cars) if packet.game_cars[i].team != self.team]
 
     def line(self, start: Vector3, end: Vector3, color=None):
-        color = color if color is not None else [255, 255, 255]
-        self.renderer.draw_line_3d(start, end, self.renderer.create_color(255, *color))
+        color = color if color is not None else self.renderer.grey()
+        self.renderer.draw_line_3d(start.copy(), end.copy(),
+                                   self.renderer.create_color(255, *color) if type(color) in {list, tuple} else color)
 
     def preprocess(self, packet: GameTickPacket):
         # Calling the update functions for all of the objects
@@ -93,18 +95,22 @@ class MyHivemind(PythonHivemind):
             pad.update(packet)
         for drone in self.drones:
             drone.update(packet)
+        self.desperate = sum([car.goals for car in self.foes]) > sum([car.goals for car in self.friends]) + 1
         self.ball.update(packet)
         self.game.update(packet)
         self.time = packet.game_info.seconds_elapsed
-        # When a new kickoff begins we empty the stack
+        self.odd_tick += 1
+        if self.odd_tick > 3:
+            self.odd_tick = 0
         self.prev_kickoff_flag = self.kickoff_flag
-        self.kickoff_flag = self.game.kickoff or not self.game.round_active
+        self.kickoff_flag = self.game.kickoff and self.game.round_active
         if not self.prev_kickoff_flag and self.kickoff_flag:
             for drone in self.drones:
                 drone.clear()
         for drone in self.drones:
             drone.on_side = (drone.location - self.friend_goal.location).magnitude() < (
                     self.ball.location - self.friend_goal.location).magnitude()
+            drone.ball_prediction_struct = self.get_ball_prediction_struct()
         for friend in self.friends:
             friend.on_side = (friend.location - self.friend_goal.location).magnitude() < (
                     self.ball.location - self.friend_goal.location).magnitude()
@@ -116,6 +122,8 @@ class MyHivemind(PythonHivemind):
         sorted_by_dist_on_side = [bot for bot in sorted_by_dist if bot.on_side]
         if len(sorted_by_dist_on_side) > 0:
             sorted_by_dist_on_side[0].closest = True
+        if len(sorted_by_dist_on_side) > 1:
+            sorted_by_dist_on_side[1].second_closest = True
         self.conceding = False
         ball_prediction = self.get_ball_prediction_struct()
         for i in range(ball_prediction.num_slices):
@@ -131,7 +139,6 @@ class MyHivemind(PythonHivemind):
         if not self.ready:
             self.get_ready(packet)
         self.preprocess(packet)
-
         self.renderer.begin_rendering()
         # Run our strategy code
         self.run()

@@ -201,7 +201,7 @@ class Kamael(BaseAgent):
     def get_ignore_list(self):
         import pathlib
         ignore_list = []
-        with open (str(pathlib.Path(__file__).parent.absolute()) + "\\bot_ignore_list.txt") as specials:
+        with open (str(pathlib.Path(__file__).parent.absolute()) + "/bot_ignore_list.txt") as specials:
             for name in specials.readlines():
                 ignore_list.append(str(name.strip()).lower())
         return ignore_list
