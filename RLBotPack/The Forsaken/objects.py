@@ -34,13 +34,38 @@ class CarObject:
         self.action: Action = Action.Shadowing
         self.on_side: bool = False
         self.closest: bool = False
+        self.second_closest: bool = False
+        self.time = 0
+        self.delta_time = 1 / 120
+        self.boost_accel = 991 + (2 / 3)
+        self.gravity = Vector3(0, 0, -650)
+        self.goals = 0
+        self.ball_prediction_struct = None
         if packet is not None:
-            self.team = packet.game_cars[self.index].team
+            car = packet.game_cars[self.index]
+            self.team = car.team
+            self.hitbox = Hitbox(car.hitbox.length, car.hitbox.width, car.hitbox.height, Vector3(car.hitbox_offset))
             self.update(packet)
 
     def local(self, value: Vector3) -> Vector3:
         # Shorthand for self.orientation.dot(value)
         return self.orientation.dot(value)
+
+    def local_location(self, location):
+        # Returns the location of an item relative to the car
+        # x is how far the location is forwards (+) or backwards (-)
+        # y is the velocity to the left (+) or right (-)
+        # z is how far the location is upwards (+) or downwards (-)
+        return self.local(location - self.location)
+
+    def local_velocity(self, velocity=None):
+        # Returns the velocity of an item relative to the car
+        # x is the velocity forwards (+) or backwards (-)
+        # y is the velocity to the left (+) or right (-)
+        # z if the velocity upwards (+) or downwards (-)
+        if velocity is None:
+            velocity = self.velocity
+        return self.local(velocity)
 
     def update(self, packet: GameTickPacket):
         car = packet.game_cars[self.index]
@@ -58,6 +83,27 @@ class CarObject:
         # Reset controller
         self.controller = PlayerInput()
         self.closest = False
+        self.second_closest: bool = False
+        self.delta_time = packet.game_info.seconds_elapsed - self.time
+        self.time = packet.game_info.seconds_elapsed
+        self.goals = car.score_info.goals
+
+    def get_raw(self, force_on_ground=False):
+        return (
+            tuple(self.location),
+            tuple(self.velocity),
+            (tuple(self.forward), tuple(self.right), tuple(self.up)),
+            tuple(self.angular_velocity),
+            1 if self.demolished else 0,
+            1 if self.airborne and not force_on_ground else 0,
+            1 if self.supersonic else 0,
+            1 if self.jumped else 0,
+            1 if self.doublejumped else 0,
+            self.boost,
+            self.index,
+            tuple(self.hitbox),
+            tuple(self.hitbox.offset)
+        )
 
     @property
     def forward(self) -> Vector3:
@@ -65,9 +111,9 @@ class CarObject:
         return self.orientation.forward
 
     @property
-    def left(self) -> Vector3:
+    def right(self) -> Vector3:
         # A vector pointing left relative to the cars orientation. Its magnitude is 1
-        return self.orientation.left
+        return self.orientation.right
 
     @property
     def up(self) -> Vector3:
@@ -85,6 +131,20 @@ class CarObject:
     def clear(self):
         # Shorthand for clearing the stack of all routines
         self.stack = []
+
+
+class Hitbox:
+    def __init__(self, length=0, width=0, height=0, offset=None):
+        self.length = length
+        self.width = width
+        self.height = height
+
+        if offset is None:
+            offset = Vector3()
+        self.offset = offset
+
+    def __getitem__(self, index):
+        return (self.length, self.width, self.height)[index]
 
 
 class BallObject:
@@ -166,15 +226,15 @@ class Matrix3:
             Vector3(cy * sp * sr - cr * sy, sy * sp * sr + cr * cy, -cp * sr),
             Vector3(-cr * cy * sp - sr * sy, -cr * sy * sp + sr * cy, cp * cr)]
         self.forward: Vector3
-        self.left: Vector3
+        self.right: Vector3
         self.up: Vector3
-        self.forward, self.left, self.up = self.data
+        self.forward, self.right, self.up = self.data
 
     def __getitem__(self, key: int) -> Vector3:
         return self.data[key]
 
     def dot(self, vector) -> Vector3:
-        return Vector3(self.forward.dot(vector), self.left.dot(vector), self.up.dot(vector))
+        return Vector3(self.forward.dot(vector), self.right.dot(vector), self.up.dot(vector))
 
 
 class Vector3:
@@ -307,7 +367,7 @@ class Vector3:
     def dot(self, value: Vector3) -> float:
         return self[0] * value[0] + self[1] * value[1] + self[2] * value[2]
 
-    def cross(self, value) -> Vector3:
+    def cross(self, value: Vector3) -> Vector3:
         return Vector3((self[1] * value[2]) - (self[2] * value[1]), (self[2] * value[0]) - (self[0] * value[2]),
                        (self[0] * value[1]) - (self[1] * value[0]))
 
@@ -350,11 +410,16 @@ class Vector3:
             return end
         return start
 
+    def dist(self, other: Vector3) -> float:
+        # Distance between 2 vectors
+        return math.sqrt((self[0] - other[0]) ** 2 + (self[1] - other[1]) ** 2 + (self[2] - other[2]) ** 2)
+
+    def flat_dist(self, other: Vector3) -> float:
+        # Distance between 2 vectors
+        return math.sqrt((self[0] - other[0]) ** 2 + (self[1] - other[1]) ** 2)
+
 
 class Routine:
-    def __init__(self):
-        pass
-
     def run(self, drone: CarObject, agent: MyHivemind):
         pass
 
@@ -363,14 +428,6 @@ class Action(Enum):
     Going = 0
     Shadowing = 1
     Boost = 2
-    Rotating = 3
-    Bumping = 4
-    Defending = 6
-    Nothing = 5
-
-
-class TestState(Enum):
-    Reset = 0
-    Wait = 1
-    Init = 2
-    Running = 3
+    Nothing = 3
+    Cheating = 4
+    Backpost = 5

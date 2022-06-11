@@ -1,25 +1,19 @@
 {
 	"recommendations": [
 		{
-			"bots": ["Kamael"]
+			"bots": ["Nexto (v1710)"]
 		},
 		{
-			"bots": ["Self-driving car"]
+			"bots": ["Necto"]
 		},
 		{
-			"bots": ["Wildfire", "Wildfire"]
+			"bots": ["Element"]
 		},
 		{
-			"bots": ["Bumblebee", "Bumblebee", "Bumblebee"]
+			"bots": ["Nexto (v1710)", "Nexto (v1710)"]
 		},
 		{
-			"bots": ["Kamael", "Kamael", "Kamael"]
-		},
-		{
-			"bots": ["Codename Cryo", "Codename Cryo", "Codename Cryo"]
-		},
-		{
-			"bots": ["ReliefBot", "ReliefBot", "ReliefBot"]
+			"bots": ["Nexto (v1710)", "Nexto (v1710)", "Nexto (v1710)"]
 		}
 	]
 }

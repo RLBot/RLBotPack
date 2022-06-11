@@ -63,10 +63,12 @@ class Kickoff(SpeedFlip):
 
 		myTeam = self.agent.car.team
 
+		self.full_kickoff_strength = True
 		if not TOURNAMENT_MODE:
 			for i, car in enumerate(self.agent.packet.game_cars[:self.agent.game.num_cars]):
 				if car.team != myTeam and car.is_bot:
-					return False
+					self.full_kickoff_strength = False
+					self.riskyStrat = False
 			
 
 		myGoalPosition = None
@@ -206,7 +208,7 @@ class Kickoff(SpeedFlip):
 				self.speedFlipDirection = math.copysign(1, self.agent.car.position[0] * (2*self.agent.car.team-1))
 				self.speedFlipMaxTurnTicks = 15
 
-			self.riskyStrat = True
+			self.riskyStrat = self.full_kickoff_strength
 
 		
 		if self.speedFlipState == 0 and self.isDiagonalKickoff and self.alternateDiagonalKickoff:
@@ -230,7 +232,6 @@ class Kickoff(SpeedFlip):
 
 
 		# LOGIC TO CANCEL THE RISKY STRAT
-
 		if self.riskyStrat:
 			if self.isDiagonalKickoff:
 

@@ -65,7 +65,7 @@ class Puffy(BaseAgent):
 
 		self.handleTime()
 
-		self.game.read_game_information(packet, self.get_rigid_body_tick(), self.get_field_info())
+		self.game.read_game_information(packet, self.get_field_info())
 		self.spikeWatcher.read_packet(packet)
 
 

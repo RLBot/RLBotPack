@@ -189,10 +189,6 @@ def find_best_shot(agent, closest_foe):
         if score > best_score:
             best_score = score
             best_shot = shots["rightfield"][0]
-    if len(shots["anywhere_but_my_net"]) > 0:
-        score = 99.7 - shots["anywhere_but_my_net"][0].intercept_time + agent.time + eta(closest_foe, shots["anywhere_but_my_net"][0].ball_location)[0] / 3 - eta(agent.me, shots["anywhere_but_my_net"][0].ball_location)[0] / 3
-        if score > best_score:
-            best_shot = shots["anywhere_but_my_net"][0]
     return best_shot
 
 def find_best_save(agent, closest_foe):

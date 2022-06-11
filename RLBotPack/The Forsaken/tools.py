@@ -1,241 +1,228 @@
 from __future__ import annotations
 
-import math
-import time
-from copy import copy
+from enum import Enum
 from typing import TYPE_CHECKING
 
-from objects import Vector3, Action
-from routines import OffCenterKickoff, GotoBoost, Shadow, DiagonalKickoff, JumpShot, AerialShot, Aerial
-from utils import cap, in_field, post_correction, find_slope, closest_boost
+import virxrlcu
+
+from objects import Vector3
+from routines import DoubleJump, GroundShot, JumpShot, Aerial
+from utils import cap
 
 if TYPE_CHECKING:
-    from hive import MyHivemind
     from objects import CarObject
 
 
-# This file is for strategic tools
+class ShotType(Enum):
+    GROUND = 0
+    JUMP = 1
+    DOUBLE_JUMP = 2
+    AERIAL = 3
 
-def find_hits(drone: CarObject, agent: MyHivemind, targets):
-    # find_hits takes a dict of (left,right) target pairs and finds routines that could hit the ball
-    # between those target pairs
-    # find_hits is only meant for routines that require a defined intercept time/place in the future
-    # find_hits should not be called more than once in a given tick,
-    # as it has the potential to use an entire tick to calculate
 
-    # Example Useage:
-    # targets = {"goal":(opponent_left_post,opponent_right_post), "anywhere_but_my_net":(my_right_post,my_left_post)}
-    # hits = find_hits(agent,targets)
-    # print(hits)
-    # >{"goal":[a ton of jump and aerial routines,in order from soonest to latest],
-    # "anywhere_but_my_net":[more routines and stuff]}
-    hits = {name: [] for name in targets}
-    struct = agent.get_ball_prediction_struct()
+SHOT_SWITCH = {
+    ShotType.GROUND: GroundShot,
+    ShotType.JUMP: JumpShot,
+    ShotType.DOUBLE_JUMP: DoubleJump
+}
 
-    # Begin looking at slices 0.25s into the future
-    # The number of slices
-    i = 15
-    while i < struct.num_slices:
+
+def find_ground_shot(drone: CarObject, target, cap_=6):
+    return find_shot(drone, target, cap_, can_aerial=False, can_double_jump=False, can_jump=False)
+
+
+def find_any_ground_shot(drone: CarObject, cap_=6):
+    return find_any_shot(drone, cap_, can_aerial=False, can_double_jump=False, can_jump=False)
+
+
+def find_jump_shot(drone: CarObject, target, cap_=6):
+    return find_shot(drone, target, cap_, can_aerial=False, can_double_jump=False, can_ground=False)
+
+
+def find_any_jump_shot(drone: CarObject, cap_=6):
+    return find_any_shot(drone, cap_, can_aerial=False, can_double_jump=False, can_ground=False)
+
+
+def find_double_jump(drone: CarObject, target, cap_=6):
+    return find_shot(drone, target, cap_, can_aerial=False, can_jump=False, can_ground=False)
+
+
+def find_any_double_jump(drone: CarObject, cap_=6):
+    return find_any_shot(drone, cap_, can_aerial=False, can_jump=False, can_ground=False)
+
+
+def find_aerial(drone: CarObject, target, cap_=6):
+    return find_shot(drone, target, cap_, can_double_jump=False, can_jump=False, can_ground=False)
+
+
+def find_any_aerial(drone: CarObject, cap_=6):
+    return find_any_shot(drone, cap_, can_double_jump=False, can_jump=False, can_ground=False)
+
+
+def find_shot(drone: CarObject, target, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True):
+    if not can_aerial and not can_double_jump and not can_jump and not can_ground:
+        return
+
+    # Takes a tuple of (left,right) target pairs and finds routines that could hit the ball between those target pairs
+    # Only meant for routines that require a defined intercept time/place in the future
+
+    # Assemble data in a form that can be passed to C
+    targets = (
+        tuple(target[0]),
+        tuple(target[1])
+    )
+
+    me = drone.get_raw()
+
+    game_info = (
+        drone.boost_accel,
+        92.75
+    )
+
+    gravity = tuple(drone.gravity)
+
+    is_on_ground = not drone.airborne
+    can_ground = is_on_ground and can_ground
+    can_jump = is_on_ground and can_jump
+    can_double_jump = is_on_ground and can_double_jump
+
+    if not can_ground and not can_jump and not can_double_jump and not can_aerial:
+        return
+
+    # Here we get the slices that need to be searched - by defining a cap, we can reduce the number of slices and improve search times
+    slices = get_slices(drone, cap_)
+
+    if slices is None:
+        return
+
+    # Loop through the slices
+    for ball_slice in slices:
         # Gather some data about the slice
-        intercept_time = struct.slices[i].game_seconds
-        time_remaining = intercept_time - agent.time
+        intercept_time = ball_slice.game_seconds
+        T = intercept_time - drone.time - (1 / 120)
+
+        if T <= 0:
+            return
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212.75:
+            return  # abandon search if ball is scored at/after this point
+
+        ball_info = (
+            ball_location,
+            (ball_slice.physics.velocity.x, ball_slice.physics.velocity.y, ball_slice.physics.velocity.z))
+
+        # Check if we can make a shot at this slice
+        # This operation is very expensive, so we use C to improve run time
+        shot = virxrlcu.parse_slice_for_shot_with_target(can_ground, can_jump, can_double_jump, can_aerial, T,
+                                                         *game_info, gravity, ball_info, me, targets)
+
+        if shot['found'] == 1:
+            shot_type = ShotType(shot["shot_type"])
+            if shot_type == ShotType.AERIAL:
+                return Aerial(intercept_time, (Vector3(*shot['targets'][0]), Vector3(*shot['targets'][1])),
+                              shot['fast'])
+
+            return SHOT_SWITCH[shot_type](intercept_time, (Vector3(*shot['targets'][0]), Vector3(*shot['targets'][1])))
+
+
+def find_any_shot(drone: CarObject, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True):
+    if not can_aerial and not can_double_jump and not can_jump and not can_ground:
+        return
+
+    # Only meant for routines that require a defined intercept time/place in the future
+
+    # Assemble data in a form that can be passed to C
+    me = drone.get_raw()
+
+    game_info = (
+        drone.boost_accel,
+        92.75
+    )
+
+    gravity = tuple(drone.gravity)
+
+    is_on_ground = not drone.airborne
+    can_ground = is_on_ground and can_ground
+    can_jump = is_on_ground and can_jump
+    can_double_jump = is_on_ground and can_double_jump
+
+    if not can_ground and not can_jump and not can_double_jump and not can_aerial:
+        return
+
+    # Here we get the slices that need to be searched -
+    # by defining a cap, we can reduce the number of slices and improve search times
+    slices = get_slices(drone, cap_)
+
+    if slices is None:
+        return
+
+    # Loop through the slices
+    for ball_slice in slices:
+        # Gather some data about the slice
+        intercept_time = ball_slice.game_seconds
+        T = intercept_time - drone.time - (1 / 120)
+
+        if T <= 0:
+            return
+
+        ball_location = (ball_slice.physics.location.x, ball_slice.physics.location.y, ball_slice.physics.location.z)
+
+        if abs(ball_location[1]) > 5212.75:
+            return  # abandon search if ball is scored at/after this point
+
+        ball_info = (
+            ball_location,
+            (ball_slice.physics.velocity.x, ball_slice.physics.velocity.y, ball_slice.physics.velocity.z))
+
+        # Check if we can make a shot at this slice
+        # This operation is very expensive, so we use C to improve run time
+        shot = virxrlcu.parse_slice_for_shot(can_ground, can_jump, can_double_jump, can_aerial, T, *game_info, gravity,
+                                             ball_info, me)
+
+        if shot['found'] == 1:
+            shot_type = ShotType(shot["shot_type"])
+            if shot_type == ShotType.AERIAL:
+                return Aerial(intercept_time, fast_aerial=shot['fast'])
+
+            return SHOT_SWITCH[shot_type](intercept_time)
+
+
+def get_slices(drone: CarObject, cap_):
+    # Get the struct
+    struct = drone.ball_prediction_struct
+
+    # Make sure it isn't empty
+    if struct is None:
+        return
+
+    start_slice = 6
+    end_slices = None
+
+    # If we're shooting, crop the struct
+    if len(drone.stack) > 0 and drone.stack[0].__class__.__name__ != "ShortShot" and hasattr(drone.stack[0],
+                                                                                             "intercept_time"):
+        # Get the time remaining
+        time_remaining = drone.stack[0].intercept_time - drone.time
+        if 0.5 > time_remaining >= 0:
+            return
+
+        # if the shot is done but it's working on it's 'follow through', then ignore this stuff
         if time_remaining > 0:
-            ball_location = Vector3(struct.slices[i].physics.location)
-            ball_velocity = Vector3(struct.slices[i].physics.velocity).magnitude()
+            # Convert the time remaining into number of slices, and take off the minimum gain accepted from the time
+            min_gain = 0.05
+            end_slice = round(min(time_remaining - min_gain, cap_) * 60)
 
-            if abs(ball_location[1]) > 5250:
-                break  # abandon search if ball is scored at/after this point
+    if end_slices is None:
+        # Cap the slices
+        end_slice = round(cap_ * 60)
 
-            # determine the next slice we will look at, based on ball velocity (slower ball needs fewer slices)
-            i += 15 - cap(int(ball_velocity // 150), 0, 13)
+    # We can't end a slice index that's lower than the start index
+    if end_slice <= start_slice:
+        return
 
-            car_to_ball = ball_location - drone.location
-            # Adding a True to a vector's normalize will have it also return the magnitude of the vector
-            direction, distance = car_to_ball.normalize(True)
-
-            # How far the car must turn in order to face the ball, for forward and reverse
-            forward_angle = direction.angle2D(drone.forward)
-            backward_angle = math.pi - forward_angle
-
-            # Accounting for the average time it takes to turn and face the ball
-            # Backward is slightly longer as typically the car is moving forward and takes time to slow down
-            forward_time = time_remaining - (forward_angle * 0.318)
-            backward_time = time_remaining - (backward_angle * 0.418)
-
-            # If the car only had to drive in a straight line, we ensure it has enough time to reach the ball
-            # (a few assumptions are made)
-            forward_flag = forward_time > 0.0 and (distance * 1.05 / forward_time) < (
-                2290 if drone.boost > distance / 100 else 1400)
-            backward_flag = distance < 1500 and backward_time > 0.0 and (distance * 1.05 / backward_time) < 1200
-
-            # Provided everything checks out, we begin to look at the target pairs
-            if forward_flag or backward_flag:
-                for pair in targets:
-                    # First we correct the target coordinates to account for the ball's radius
-                    # If swapped == True, the shot isn't possible because the ball wouldn't fit between the targets
-                    left, right, swapped = post_correction(ball_location, targets[pair][0], targets[pair][1])
-                    if not swapped:
-                        # Now we find the best direction to hit the ball in order to land it between the target points
-                        left_vector = (left - ball_location).normalize()
-                        right_vector = (right - ball_location).normalize()
-                        best_shot_vector = direction.clamp(left_vector, right_vector)
-
-                        # Check to make sure our approach is inside the field
-                        if in_field(ball_location - (200 * best_shot_vector), 1):
-                            # The slope represents how close the car is to the chosen vector, higher = better
-                            # A slope of 1.0 would mean the car is 45 degrees off
-                            slope = find_slope(best_shot_vector, car_to_ball)
-                            if forward_flag:
-                                if ball_location[2] <= 300 and slope > 0.0:
-                                    hits[pair].append(JumpShot(ball_location, intercept_time, best_shot_vector, slope))
-                                if 300 < ball_location[2] < 600 and slope > 1.0 and (
-                                        ball_location[2] - 250) * 0.14 > drone.boost:
-                                    hits[pair].append(
-                                        AerialShot(ball_location, intercept_time, best_shot_vector))
-                                if ball_location.z > 600:
-                                    aerial = Aerial(ball_location - 92*best_shot_vector, intercept_time, True, target=best_shot_vector)
-                                    if aerial.is_viable(drone, agent.time):
-                                        hits[pair].append(aerial)
-                            elif backward_flag and ball_location[2] <= 280 and slope > 0.25:
-                                hits[pair].append(JumpShot(ball_location, intercept_time, best_shot_vector, slope, -1))
-        else:
-            i += 1
-    return hits
-
-
-def push_shot(drone: CarObject, agent: MyHivemind):
-    left = Vector3(4200 * -agent.side(), agent.side() * 5120, 0)
-    right = Vector3(4200 * agent.side(), agent.side() * 5120, 0)
-    targets = {"goal": (agent.foe_goal.left_post, agent.foe_goal.right_post)}
-    if not agent.conceding:
-        drones = copy(agent.drones)
-        drones.remove(drone)
-        team = agent.friends + drones
-        for teammate in team:
-            a = teammate.location
-            b = teammate.location + 2000 * teammate.forward
-            local_a = drone.local(a)
-            angle_a = math.atan2(local_a.y, local_a.x)
-            if angle_a > 0:
-                targets["teammate" + str(team.index(teammate))] = (b, a)
-            else:
-                targets["teammate" + str(team.index(teammate))] = (a, b)
-    targets["upfield"] = (left, right)
-    shots = find_hits(drone, agent, targets)
-    if len(shots["goal"]) > 0:
-        drone.clear()
-        drone.push(shots["goal"][0])
-        drone.action = Action.Going
-    elif shots.get("teammate0") is not None and len(shots.get("teammate0")) > 0:
-        drone.clear()
-        drone.push(shots["teammate0"][0])
-        drone.action = Action.Going
-    elif shots.get("teammate1") is not None and len(shots.get("teammate1")) > 0:
-        drone.clear()
-        drone.push(shots["teammate1"][0])
-        drone.action = Action.Going
-    elif len(shots["upfield"]) > 0:
-        drone.clear()
-        drone.push(shots["upfield"][0])
-        drone.action = Action.Going
-
-
-def setup_2s_kickoff(agent: MyHivemind):
-    x_pos = [round(drone.location.x) for drone in agent.drones]
-    x_pos.extend([round(friend.location.x) for friend in agent.friends])
-    if sorted(x_pos) in [[-2048, 2048]]:
-        for drone in agent.drones:
-            if round(drone.location.x) == -2048:
-                drone.push(DiagonalKickoff())
-                drone.action = Action.Going
-            elif round(drone.location.x) == 2048:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-    elif sorted(x_pos) in [[-256, 256]]:
-        for drone in agent.drones:
-            if round(drone.location.x) == -256:
-                drone.push(OffCenterKickoff())
-                drone.action = Action.Going
-            elif round(drone.location.x) == 256:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-    elif -2048 in x_pos or 2048 in x_pos:
-        for drone in agent.drones:
-            if round(abs(drone.location.x)) == 2048:
-                drone.push(DiagonalKickoff())
-                drone.action = Action.Going
-            else:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-    elif -256 in x_pos or 256 in x_pos:
-        for drone in agent.drones:
-            if round(abs(drone.location.x)) == 256:
-                drone.push(OffCenterKickoff())
-                drone.action = Action.Going
-            else:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-
-
-def setup_3s_kickoff(agent: MyHivemind):
-    x_pos = [round(drone.location.x) for drone in agent.drones]
-    x_pos.extend([round(friend.location.x) for friend in agent.friends])
-    if sorted(x_pos) in [[-2048, -256, 2048], [-2048, 0, 2048], [-2048, 256, 2048]]:
-        for drone in agent.drones:
-            if round(drone.location.x) == -2048:
-                drone.push(DiagonalKickoff())
-                drone.action = Action.Going
-            elif round(drone.location.x) == 2048:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-            else:
-                drone.push(GotoBoost(closest_boost(agent, drone.location), agent.ball.location))
-                drone.action = Action.Boost
-    elif sorted(x_pos) == [-256, 0, 256]:
-        for drone in agent.drones:
-            if round(drone.location.x) == -256:
-                drone.push(OffCenterKickoff())
-                drone.action = Action.Going
-            elif round(drone.location.x) == 256:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-            else:
-                drone.push(GotoBoost(closest_boost(agent, drone.location), agent.ball.location))
-                drone.action = Action.Boost
-    elif -2048 in x_pos or 2048 in x_pos:
-        for drone in agent.drones:
-            if round(abs(drone.location.x)) == 2048:
-                drone.push(DiagonalKickoff())
-                drone.action = Action.Going
-            elif round(drone.location.x) == -256:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-            elif round(drone.location.x) == 0:
-                drone.push(GotoBoost(closest_boost(agent, drone.location), agent.ball.location))
-                drone.action = Action.Boost
-            else:
-                if 0 in x_pos:
-                    drone.push(Shadow(agent.ball.location))
-                    drone.action = Action.Shadowing
-                else:
-                    drone.push(GotoBoost(closest_boost(agent, drone.location), agent.ball.location))
-                    drone.action = Action.Boost
-
-
-def setup_other_kickoff(agent: MyHivemind):
-    x_pos = [round(drone.location.x) for drone in agent.drones]
-    x_pos.extend([round(friend.location.x) for friend in agent.friends])
-    for drone in agent.drones:
-        if round(drone.location.x) == -2048:
-            drone.push(DiagonalKickoff())
-            drone.action = Action.Going
-        elif round(drone.location.x) == 2048:
-            if -2048 in x_pos:
-                drone.push(Shadow(agent.ball.location))
-                drone.action = Action.Shadowing
-            else:
-                drone.push(DiagonalKickoff())
-                drone.action = Action.Going
-        else:
-            drone.push(Shadow(agent.ball.location))
-            drone.action = Action.Shadowing
+    # for every second worth of slices that we have to search,
+    # skip 1 more slice (for performance reasons) - min 1 and max 3
+    skip = cap(end_slice - start_slice / 60, 1, 3)
+    return struct.slices[start_slice:end_slice:skip]

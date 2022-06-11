@@ -1,8 +1,5 @@
 import sys
-from .rlutilities import mechanics, simulation, linear_algebra
+from pathlib import Path
 
-sys.modules["rlutilities.mechanics"] = mechanics
-sys.modules["rlutilities.simulation"] = simulation
-sys.modules["rlutilities.linear_algebra"] = linear_algebra
-
-#from .skeleton_agent import SkeletonAgent
+sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
+import L0laapk3_shared.rlutilities
