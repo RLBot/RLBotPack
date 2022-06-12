@@ -19,6 +19,9 @@ from stateMachine import StateMachine
 
 class Puffy(BaseAgent):
 
+	def is_hot_reload_enabled(self):
+		return False
+
 	def initialize_agent(self):
 		# This runs once before the bot starts up
 		self.controllerState = SimpleControllerState()
@@ -52,10 +55,17 @@ class Puffy(BaseAgent):
 	def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
 		# self.renderer.begin_rendering()
 		self.packet = packet
+		
+		match_settings = self.get_match_settings()
+		mutators = match_settings.MutatorSettings()
+		if mutators.RumbleOption() != 7:
+			print("Puffy only works with the Spike rush mutator enabled!!")
+			return SimpleControllerState()
+
 
 		self.handleTime()
 
-		self.game.read_game_information(packet, self.get_rigid_body_tick(), self.get_field_info())
+		self.game.read_game_information(packet, self.get_field_info())
 		self.spikeWatcher.read_packet(packet)
 
 
@@ -160,7 +170,7 @@ class Puffy(BaseAgent):
 			if int(self.lastTime) != int(self.packet.game_info.seconds_elapsed):
 				# if self.skippedTicks > 0:
 				print(f"did {self.doneTicks}, skipped {self.skippedTicks}")
-				if self.firstTpsReport:
+				if self.firstTpsReport or self.packet.game_ball.physics.location.x == 0 and self.packet.game_ball.physics.location.y == 0:
 					self.firstTpsReport = False
 				elif self.doneTicks < 110:
 					self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Custom_Excuses_Lag)

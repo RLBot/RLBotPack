@@ -1,0 +1,81 @@
+image: Visual Studio 2019
+platform:
+   - amd64
+
+environment:
+   APPVEYOR_API_TOKEN:
+      secure: QaFZHMmYjMehNXvfY7mqBcQlmHg1Vz/s1/PcFnw8rqs=
+   GITHUB_API_TOKEN:
+      secure: K+Ve9A1PjCY37IApiUQW3x6HyTcwvnwwo4OUGk90pPwMgtyjTt9/3uy0Nj3DFhc1
+   DEPLOY_BRANCH: 'master'
+
+branches:
+   only:
+      - master
+
+skip_tags: true
+
+build_script:
+   - ps: |
+      $ErrorActionPreference = "Stop"
+
+      mkdir intermediary -Force | Out-Null
+      mkdir output -Force | Out-Null
+
+      $env:RECORDS_NUMBER = 1000 # build history depth to search
+      $headers = @{
+         "Authorization" = "Bearer $env:APPVEYOR_API_TOKEN"
+         "Content-type" = "application/json"
+      }
+
+      $env:HASH = git rev-parse --short HEAD
+
+      $history = Invoke-RestMethod -Uri "https://ci.appveyor.com/api/projects/$env:APPVEYOR_ACCOUNT_NAME/$env:APPVEYOR_PROJECT_SLUG/history?recordsNumber=$env:RECORDS_NUMBER" -Headers $headers -Method Get
+      $latestRelease = $history.builds | Where-Object {$_.status -eq "success" -and $_.version -match "-" -and -not ("pullRequestId" -in $_.PSobject.Properties.Name)} | Sort-Object -Property created -Descending | Select-Object -First 1
+      if (!$latestRelease) {
+         Write-Warning "cannot find successfull build in last $env:RECORDS_NUMBER builds. Consider increasing RECORDS_NUMBER"
+         # Write-Error "Stop"
+         $env:RELEASE_NUMBER = 0
+         $env:RELEASE_DESC = "Initial automated incremental release " + ${env:HASH}
+         $env:COMMIT_LOG = ""
+      } else {
+         $env:PREV_HASH = $latestRelease.version.Split("-")[2]
+         $env:RELEASE_NUMBER = 1 + ($latestRelease.version.Split("-")[1])
+
+         Write-Host ("Generating incremental containing ${env:PREV_HASH} -> ${env:HASH}")
+
+         $list = git diff --name-only ($latestRelease.commitId) HEAD --no-renames --diff-filter=d
+         foreach ($item in $list) {
+            Write-Host ("{0}" -f $item)
+            $dest = "intermediary\" + $item
+            mkdir (Split-Path -parent $dest) -Force | Out-Null
+            Copy-Item $item -Destination $dest
+         }
+
+         git diff --name-only ($latestRelease.commitId) HEAD --no-renames --diff-filter=D | Out-file -FilePath intermediary\.deleted
+
+         Compress-Archive -Path intermediary\* -DestinationPath "output\incremental.zip"
+
+         $env:RELEASE_DESC = ${env:PREV_HASH} + " -> " + ${env:HASH}
+
+         $env:COMMIT_LOG = (git log ($latestRelease.commitId + "..HEAD") --pretty="%h %s") -join "\n";
+      }
+
+      $env:RELEASE_TAG = "incr-" +  ${env:RELEASE_NUMBER}
+
+      Update-AppveyorBuild -Version "1.${env:APPVEYOR_BUILD_NUMBER}-${env:RELEASE_NUMBER}-${env:HASH}"
+
+artifacts:
+   - path: 'output\incremental.zip'
+
+deploy:
+   release: '$(RELEASE_TAG): $(RELEASE_DESC)'
+   tag: '$(RELEASE_TAG)'
+   description: '$(RELEASE_DESC)\nThis is an automated incremental update zip, Not meant for end users.\n\n$(COMMIT_LOG)'
+   provider: GitHub
+   auth_token: $(GITHUB_API_TOKEN)
+   artifact: 'output\incremental.zip'
+   draft: false
+   prerelease: false
+   on:
+      branch: $(DEPLOY_BRANCH)

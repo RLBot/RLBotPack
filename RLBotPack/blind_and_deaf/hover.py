@@ -1,36 +1,51 @@
 from rlutilities.simulation import Game, Input, Car
-from rlutilities.linear_algebra import vec3, look_at, norm
+from rlutilities.linear_algebra import vec3, normalize, look_at, norm
 from rlutilities.mechanics import AerialTurn
 
 
-def normalized(v):
-    return v / norm(v)
-
-def direction(a, b):
-    return normalized(b - a)
-
 
 class Hover:
-    def __init__(self, car: Car, info: Game):
-        self.turn = AerialTurn(car)
+    """
+    PD controller for hovering in the air.
+    This was also used in the Airshow :)
+    """
+    P = 2.8
+    D = 3.0
 
-        self.target = None
+    def __init__(self, car: Car):
+        self.turn = AerialTurn(car)
+        self.target: vec3 = None
         self.car: Car = car
-        self.info: Game = info
-        self.controls = Input()
-        self.jump = False
+        self.up: vec3 = None
+        self.controls: Input = Input()
+        self.__time_spent_on_ground = 0.0
 
     def step(self, dt):
         delta_target = self.target - self.car.position
+        if norm(delta_target) > 700:
+            delta_target *= 700 / norm(delta_target)
 
-        if norm(delta_target) > 500:
-            delta_target = direction(self.car.position, self.target) * 500
+        target_direction = normalize(vec3(
+            (delta_target[0]) * self.P - self.car.velocity[0] * self.D,
+            (delta_target[1]) * self.P - self.car.velocity[1] * self.D,
+            1000
+        ))
 
-        target_direction = delta_target - self.car.velocity + vec3(0, 0, 500)
+        # reinitialize the AerialTurn object every frame, because it bugs out sometimes
+        # TODO: actually fix this in RLU
+        self.turn = AerialTurn(self.car)
 
-        self.turn.target = look_at(target_direction, direction(self.car.position, vec3(0, 0, 0)))
+        self.turn.target = look_at(target_direction, self.up)
+
         self.turn.step(dt)
         self.controls = self.turn.controls
-        self.controls.boost = delta_target[2] - self.car.velocity[2] * 0.5 > 0 and self.car.forward()[2] > 0.2
-        self.controls.throttle = not self.car.on_ground
-        self.controls.jump = self.car.position[2] < 30 and self.info.time % 1.0 < 0.5
+        self.controls.boost = 0
+
+        # tap boost to keep height
+        if (delta_target[2] - self.car.velocity[2] * 0.5) > 0:
+            self.controls.boost = 1
+        # if the target is relatively far, hold boost even when we're higher than the target to keep moving
+        if delta_target[2] < 0 and self.car.forward()[2] < 0.5:
+            self.controls.boost = 1
+
+        self.controls.throttle = True

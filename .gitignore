@@ -5,3 +5,4 @@ RLBot_Core_Interface.dll
 *.iml
 rlbot.cfg
 RefreshEnv.cmd
+.git/

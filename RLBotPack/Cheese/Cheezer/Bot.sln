@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bot", "Bot\Bot.csproj", "{9EB09392-E673-4BF0-AF36-7131B6ED67C3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RedUtils", "RedUtils\RedUtils.csproj", "{767742E7-B7B0-464E-B7C8-A5B09388282D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9EB09392-E673-4BF0-AF36-7131B6ED67C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9EB09392-E673-4BF0-AF36-7131B6ED67C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9EB09392-E673-4BF0-AF36-7131B6ED67C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9EB09392-E673-4BF0-AF36-7131B6ED67C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{767742E7-B7B0-464E-B7C8-A5B09388282D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{767742E7-B7B0-464E-B7C8-A5B09388282D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{767742E7-B7B0-464E-B7C8-A5B09388282D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{767742E7-B7B0-464E-B7C8-A5B09388282D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4AD770D6-C6A9-490F-8546-B47BF1B281B9}
+	EndGlobalSection
+EndGlobal
