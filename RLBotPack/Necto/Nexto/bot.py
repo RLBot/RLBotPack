@@ -54,7 +54,7 @@ class Nexto(BaseAgent):
         self.gamemode = None
 
         # toxic handling
-        self.isToxic = True
+        self.isToxic = False
         self.orangeGoals = 0
         self.blueGoals = 0
         self.demoedCount = 0
