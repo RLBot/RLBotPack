@@ -47,7 +47,7 @@ class Agent:
         state = tuple(torch.from_numpy(s).float() for s in state)
 
         with torch.no_grad():
-            out = self.actor(state)
+            out, weights = self.actor(state)
         self.state = state
 
         out = (out,)
@@ -78,4 +78,4 @@ class Agent:
         # print(Categorical(logits=logits).sample())
         parsed = self._lookup_table[actions.numpy().item()]
 
-        return parsed
+        return parsed, weights
