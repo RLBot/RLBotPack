@@ -1,5 +1,8 @@
 import numpy as np
 import torch
+import random
+import math
+
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.quick_chats import QuickChats
@@ -51,7 +54,7 @@ class Nexto(BaseAgent):
         self.gamemode = None
 
         # toxic handling
-        self.isToxic = False
+        self.isToxic = True
         self.orangeGoals = 0
         self.blueGoals = 0
         self.demoedCount = 0
@@ -253,7 +256,7 @@ class Nexto(BaseAgent):
 
         humanMates = [p for p in packet.game_cars[:packet.num_cars] if p.team == self.team and p.is_bot is False]
         humanOpps = [p for p in packet.game_cars[:packet.num_cars] if p.team != self.team and p.is_bot is False]
-        goodGoal = [0, -5120] if self.team == 1 else [0, 5120]
+        goodGoal = [0, -5120] if self.team == 0 else [0, 5120]
         badGoal = [0, 5120] if self.team == 0 else [0, -5120]
 
         if player.is_demolished and self.demoedTickCount == 0:  # and not self.lastFrameDemod:
@@ -314,7 +317,7 @@ class Nexto(BaseAgent):
         if scoredOn:
             for p in humanMates:
                 d = math.sqrt((p.physics.location.x - goodGoal[0]) ** 2 + (p.physics.location.y - goodGoal[1]) ** 2)
-                if d < 2000:
+                if d < 3000:
                     i = random.randint(0, 2)
                     if i == 0:
                         self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Compliments_NiceBlock)
