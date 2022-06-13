@@ -1,7 +1,7 @@
 {
 	"recommendations": [
 		{
-			"bots": ["Nexto (v1710)"]
+			"bots": ["Nexto"]
 		},
 		{
 			"bots": ["Necto"]
@@ -10,10 +10,10 @@
 			"bots": ["Element"]
 		},
 		{
-			"bots": ["Nexto (v1710)", "Nexto (v1710)"]
+			"bots": ["Nexto", "Nexto"]
 		},
 		{
-			"bots": ["Nexto (v1710)", "Nexto (v1710)", "Nexto (v1710)"]
+			"bots": ["Nexto", "Nexto", "Nexto"]
 		}
 	]
 }
