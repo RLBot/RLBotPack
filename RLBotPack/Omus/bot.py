@@ -1,10 +1,8 @@
-from tkinter.messagebox import NO
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 import numpy as np
 import keyboard
-from torch import zero_
 
 from agent import Agent
 from obs.advanced_obs import AdvancedObs
