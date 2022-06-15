@@ -3,6 +3,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 import numpy as np
 import keyboard
+import pickle
 
 from agent import Agent
 from obs.advanced_obs import AdvancedObs
@@ -161,21 +162,29 @@ class Omus(BaseAgent):
         self.center_text = ""
         self.train_controls = ['Off']*8
         self.set_controls = ['Off']*8
-        self.gpad_controls = ['JStick-','JStick-','JStick-','No','GPad-','GPad-','GPad-','GPad-']
         self.first_jump = True
         self.control_pressed = [False]*11
-        self.controls = ['']*11
-        self.controls[0] = 5 # throttle_bind
-        self.controls[1] = 4 # reverse_bind
-        self.controls[2] = 0 # steer_bind1 if discrete, this is left (also yaw)
-        self.controls[3] = '?' # steer_bind2  if discrete, this is right (also yaw)
-        self.controls[4] = 1 # pitch_bind1 if discrete, this is nose down
-        self.controls[5] = '?' # pitch_bind2 if discrete, this is nose up
-        self.controls[6] = 2 # roll_bind1 if discrete, this is left
-        self.controls[7] = 15 # roll_bind2 if discrete, this is right
-        self.controls[8] = 0 # jump_bind
-        self.controls[9] = 1 # boost_bind
-        self.controls[10] = 9 # handbrake_bind
+        try:
+            with open("Omus/keybinds.pkl", "rb") as f:
+                saved_controls = pickle.load(f)
+                self.controls = saved_controls[0]
+                self.gpad_controls = saved_controls[1]
+        except:
+            self.controls = ['']*11
+            self.gpad_controls = ['JStick-','JStick-','JStick-','No','GPad-','GPad-','GPad-','GPad-']
+            self.controls[0] = 5 # throttle_bind
+            self.controls[1] = 4 # reverse_bind
+            self.controls[2] = 0 # steer_bind1 if discrete, this is left (also yaw)
+            self.controls[3] = '?' # steer_bind2  if discrete, this is right (also yaw)
+            self.controls[4] = 1 # pitch_bind1 if discrete, this is nose down
+            self.controls[5] = '?' # pitch_bind2 if discrete, this is nose up
+            self.controls[6] = 2 # roll_bind1 if discrete, this is left
+            self.controls[7] = 15 # roll_bind2 if discrete, this is right
+            self.controls[8] = 0 # jump_bind
+            self.controls[9] = 1 # boost_bind
+            self.controls[10] = 9 # handbrake_bind
+            with open("Omus/keybinds.pkl", "wb") as f:
+                pickle.dump([self.controls,self.gpad_controls], f)
         self.instructions = 'Off'
         self.awaiting_gpad = False
         self.altkey = False
@@ -390,7 +399,6 @@ class Omus(BaseAgent):
             keyboard.add_hotkey('ctrl+alt+7', self.menu_7b_toggle)
             keyboard.add_hotkey('8', self.menu_8_toggle)
             keyboard.add_hotkey('backspace', self.menu_bspace_toggle)
-            keyboard.add_hotkey('|', self.dans_keybinds)
         
         if not self.auto_control:
             # user changing keybinds
@@ -402,16 +410,16 @@ class Omus(BaseAgent):
             color2 = self.renderer.lime()
             color3 = self.renderer.pink()
             bg_color = self.renderer.create_color(100, 0, 0, 0)
-            text = f"Select input number to toggle training, \
-            \nController keybind, hold ctrl+number\
-            \nKeyboard keybind, hold ctrl+alt+number\
-            \n'1' Handbrake (not required) (keybind: {self.gpad_controls[7] if self.gpad_controls[7] != 'No' else ''}{self.controls[10] if self.set_controls[7] == 'Off' else 'Awaiting input'})\
-            \n'2' Thrtle (easy): {self.train_controls[0]} (keybind(s): {self.gpad_controls[0] if self.gpad_controls[0] != 'No' else ''}{self.controls[0] if self.set_controls[0] == 'Off' else 'Awaiting input, if discrete input throttle then reverse'}{f', {self.controls[1]}' if self.set_controls[0] == 'Off' and self.controls[1] != '?' else ''})\
-            \n'3' Boost  (easy): {self.train_controls[6]} (keybind: {self.gpad_controls[6] if self.gpad_controls[6] != 'No' else ''}{self.controls[9] if self.set_controls[6] == 'Off' else 'Awaiting input'})\
-            \n'4' Roll   (easy): {self.train_controls[4]} (keybind(s): {self.gpad_controls[4] if self.gpad_controls[4] != 'No' else ''}{self.controls[6] if self.set_controls[4] == 'Off' else 'Awaiting input, if discrete input roll left then right'}{f', {self.controls[7]}' if self.set_controls[4] == 'Off' and self.controls[7] != '?' else ''})\
-            \n'5' Jump   (hard): {self.train_controls[5]} (keybind: {self.gpad_controls[5] if self.gpad_controls[5] != 'No' else ''}{self.controls[8] if self.set_controls[5] == 'Off' else 'Awaiting input'})\
-            \n'6' Steer  (hard): {self.train_controls[1]} (keybind(s): {self.gpad_controls[1] if self.gpad_controls[1] != 'No' else ''}{self.controls[2] if self.set_controls[1] == 'Off' else 'Awaiting input, if discrete input steer left then right'}{f', {self.controls[3]}' if self.set_controls[1] == 'Off' and self.controls[3] != '?' else ''})\
-            \n'7' Pitch  (hard): {self.train_controls[2]} (keybind(s): {self.gpad_controls[2] if self.gpad_controls[2] != 'No' else ''}{self.controls[4] if self.set_controls[2] == 'Off' else 'Awaiting input, if discrete input pitch down then up'}{f', {self.controls[5]}' if self.set_controls[2] == 'Off' and self.controls[5] != '?' else ''})\
+            text = f"Press a number from the menu to toggle training\
+            \nTo set a new controller keybind, press CTRL+NUM\
+            \nTo set a new keyboard keybind, press CTRL+ALT+NUM\
+            \n'1' Handbrake (cannot train) (keybind: {self.gpad_controls[7] if self.gpad_controls[7] != 'No' else ''}{self.controls[10] if self.set_controls[7] == 'Off' else 'Awaiting input'})\
+            \n'2' Thrtle: {self.train_controls[0]} (keybind(s): {self.gpad_controls[0] if self.gpad_controls[0] != 'No' else ''}{self.controls[0] if self.set_controls[0] == 'Off' else 'If not JStick, press throttle then reverse'}{f', {self.controls[1]}' if self.set_controls[0] == 'Off' and self.controls[1] != '?' else ''})\
+            \n'3' Boost : {self.train_controls[6]} (keybind: {self.gpad_controls[6] if self.gpad_controls[6] != 'No' else ''}{self.controls[9] if self.set_controls[6] == 'Off' else 'Awaiting input'})\
+            \n'4' Roll  : {self.train_controls[4]} (keybind(s): {self.gpad_controls[4] if self.gpad_controls[4] != 'No' else ''}{self.controls[6] if self.set_controls[4] == 'Off' else 'If not JStick, press roll left then right'}{f', {self.controls[7]}' if self.set_controls[4] == 'Off' and self.controls[7] != '?' else ''})\
+            \n'5' Jump  : {self.train_controls[5]} (keybind: {self.gpad_controls[5] if self.gpad_controls[5] != 'No' else ''}{self.controls[8] if self.set_controls[5] == 'Off' else 'Awaiting input'})\
+            \n'6' Steer : {self.train_controls[1]} (keybind(s): {self.gpad_controls[1] if self.gpad_controls[1] != 'No' else ''}{self.controls[2] if self.set_controls[1] == 'Off' else 'If not JStick, press steer left then right'}{f', {self.controls[3]}' if self.set_controls[1] == 'Off' and self.controls[3] != '?' else ''})\
+            \n'7' Pitch : {self.train_controls[2]} (keybind(s): {self.gpad_controls[2] if self.gpad_controls[2] != 'No' else ''}{self.controls[4] if self.set_controls[2] == 'Off' else 'If not JStick, press pitch down then up'}{f', {self.controls[5]}' if self.set_controls[2] == 'Off' and self.controls[5] != '?' else ''})\
             \n'backspace' to replay last\
             \nBakkes game speed can be reduced!\
             \nPress '8' to toggle instructions"
@@ -790,6 +798,8 @@ class Omus(BaseAgent):
                         self.set_controls[setkey] = 'Off'
                         self.altkey = False
                         self.ticks = 0
+                        with open("Omus/keybinds.pkl", "wb") as f:
+                            pickle.dump([self.controls,self.gpad_controls], f)
                 if event.type == JOYAXISMOTION:
                     if setkey_remapped == 0 and abs(event.value) > 0.6:
                         self.altkey = True
@@ -802,6 +812,8 @@ class Omus(BaseAgent):
                         self.bind_is_set = True
                         self.altkey = False
                         self.ticks = 0
+                        with open("Omus/keybinds.pkl", "wb") as f:
+                            pickle.dump([self.controls,self.gpad_controls], f)
                     elif setkey_remapped in [2,4,6] and abs(event.value) > 0.6:
                         self.controls[setkey_remapped] = event.axis
                         self.controls[setkey_remapped+1] = '?'
@@ -810,6 +822,8 @@ class Omus(BaseAgent):
                         self.bind_is_set = True
                         self.altkey = False
                         self.ticks = 0
+                        with open("Omus/keybinds.pkl", "wb") as f:
+                            pickle.dump([self.controls,self.gpad_controls], f)
         if not self.bind_is_set and not gpad:
             key = keyboard.read_key()
             if not key in {'1','2','3','4','5','6','7','9','8','0','ctrl','alt'}:
@@ -823,6 +837,8 @@ class Omus(BaseAgent):
                     self.set_controls[setkey] = 'Off'
                     self.altkey = False
                     self.ticks = 0
+                    with open("Omus/keybinds.pkl", "wb") as f:
+                            pickle.dump([self.controls,self.gpad_controls], f)
 
 
     def setup_kickoff(self):
@@ -1049,18 +1065,3 @@ class Omus(BaseAgent):
             self.game_phase = 'Pause'
             self.prev_time = self.cur_time
             keyboard.unhook_all_hotkeys()
-
-
-    def dans_keybinds(self):
-        self.gpad_controls = ['No','JStick-','JStick-','No','No','No','No','No']
-        self.controls[0] = 'i' # throttle_bind
-        self.controls[1] = 'k' # reverse_bind
-        self.controls[2] = 0 # steer_bind1 if discrete, this is left (also yaw)
-        self.controls[3] = '?' # steer_bind2  if discrete, this is right (also yaw)
-        self.controls[4] = 1 # pitch_bind1 if discrete, this is nose down
-        self.controls[5] = '?' # pitch_bind2 if discrete, this is nose up
-        self.controls[6] = 'z' # roll_bind1 if discrete, this is left
-        self.controls[7] = 'x' # roll_bind2 if discrete, this is right
-        self.controls[8] = 'g' # jump_bind
-        self.controls[9] = 'j' # boost_bind
-        self.controls[10] = 'l' # handbrake_bind
