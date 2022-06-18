@@ -5,7 +5,7 @@ import numpy as np
 import keyboard
 import pickle
 
-from agent import Agent
+from agent import Agent_Omus
 from obs.advanced_obs import AdvancedObs
 from action.discrete_act import DiscreteAction
 from rlgym_compat import GameState
@@ -24,7 +24,7 @@ class Omus(BaseAgent):
         # Swap the action parser if you are using a different one, RLGym's Discrete and Continuous are also available
         self.act_parser = DiscreteAction()
         # Your neural network logic goes inside the Agent class, go take a look inside src/agent.py
-        self.agent = Agent()
+        self.agent_omus = Agent_Omus()
         # Adjust the tickskip if your agent was trained with a different value
         self.tick_skip = 6
 
@@ -47,10 +47,45 @@ class Omus(BaseAgent):
         self.action = np.zeros(8)
         self.update_action = True
         self.trainer_init = False
+        self.ko_diag_array = np.array([
+        [1, 0, 0, 0, 0,0,1,0], #0
+        [1, 0, 0, 0, 0,0,1,0],
+        [1, 0, 0, 0, 0,0,1,0],
+        [1, 0, 0, 0, 0,0,1,0],
+        [1, 0,-1, 0, 1,0,1,0],
+        [1, 0,-1, 0, 1,0,1,0],
+        [1, 0,-1, 0, 1,0,1,0],
+        [1,-1,-1, 0, 1,0,1,0],
+        [1,-1,-1,-1, 1,1,1,0],
+        [1, 0,-1,-1, 1,0,1,0],
+        [1, 0,-1, 0, 1,1,1,0], #10
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 0, 1,0,1,0],
+        [1, 0, 1, 1, 1,0,1,0], #20
+        [1, 0, 1, 1, 1,0,1,0],
+        [1, 0, 1, 1, 1,0,1,0],
+        [1, 0, 1, 1, 1,0,1,0],
+        [1, 0, 1, 1, 1,0,0,0],
+        [1, 0, 1, 1, 1,0,0,0],
+        [1, 0, 1, 1, 1,0,0,0],
+        [1, 0, 0, 0, 0,0,0,0],
+        [1, 0, 0,-1, 0,0,0,0],
+        [1,-1, 0,-1, 0,0,0,0],
+        [1,-1, 0,-1, 0,0,0,0], #30
+        [1,-1, 0, 0, 0,0,0,0],
+        [1, 0, 0, 0, 0,0,0,0],
+    ])
         self.kickoff_time = 0
         self.ticks2 = -1
         self.ko_spawn_pos = 'Center'
-
+        
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         if len(self.game_state.players) == 1:
@@ -92,7 +127,7 @@ class Omus(BaseAgent):
                     self.game_state.players = [player, opponent]
 
                 obs = self.obs_builder.build_obs(player, self.game_state, self.action)
-                self.action = self.act_parser.parse_actions(self.agent.act(obs, self.gamemode), self.game_state)[0]  # Dim is (N, 8)
+                self.action = self.act_parser.parse_actions(self.agent_omus.act(obs, self.gamemode), self.game_state)[0]  # Dim is (N, 8)
 
             if self.ticks >= self.tick_skip - 1:
                 self.update_controls(self.action)
@@ -124,6 +159,12 @@ class Omus(BaseAgent):
                 self.ko_spawn_pos = 'Center'
             # counter-fake kickoffs
             step_20hz = int(np.floor((self.ticks2-self.kickoff_time)/6))
+            if self.ko_spawn_pos == 'Diagonal L':
+                if step_20hz <= 30:
+                    self.update_controls(self.ko_diag_array[step_20hz])
+            if self.ko_spawn_pos == 'Center':
+                if 25 <= step_20hz <= 35:
+                    self.controls.handbrake = 1
             if np.linalg.norm(self.game_state.ball.position - np.zeros(3)) < 1050:
                 if (step_20hz <= 78 and (self.ko_spawn_pos == 'Diagonal L' or self.ko_spawn_pos == 'Diagonal R')) or\
                     (step_20hz <= 85 and (self.ko_spawn_pos != 'Diagonal L' or self.ko_spawn_pos != 'Diagonal R')):
