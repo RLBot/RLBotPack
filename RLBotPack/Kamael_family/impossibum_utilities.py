@@ -7286,7 +7286,6 @@ def normalize(v):
         float32,
         typeof(False),
     ),
-    nopython=True,
     cache=True,
 )
 def jumpSimulatorNormalizingJit(
