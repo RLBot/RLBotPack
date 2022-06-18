@@ -4,7 +4,7 @@ import pathlib
 from action.discrete_act import DiscreteAction
 
 
-class Agent:
+class Agent_Omus:
     def __init__(self):
         _path = pathlib.Path(__file__).parent.resolve()
         custom_objects = {
