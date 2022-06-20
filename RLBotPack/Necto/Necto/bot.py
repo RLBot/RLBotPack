@@ -93,10 +93,9 @@ class Necto(BaseAgent):
         self.ticks += ticks_elapsed
         self.game_state.decode(packet, ticks_elapsed)
 
-        if not packet.game_info.is_round_active:
-            self.obs_builder.reset(self.game_state)
+        if self.update_action == 1 and len(self.game_state.players) > self.index:
+            self.update_action = 0
 
-        if self.update_action and len(self.game_state.players) > self.index:
             player = self.game_state.players[self.index]
             teammates = [p for p in self.game_state.players if p.team_num == self.team and p != player]
             opponents = [p for p in self.game_state.players if p.team_num != self.team]
@@ -114,13 +113,10 @@ class Necto(BaseAgent):
             if self.render:
                 self.render_attention_weights(weights, obs)
 
-        # if self.ticks >= self.tick_skip - 1:
-        #     self.update_controls(self.action)
-
         if self.ticks >= self.tick_skip:
             self.ticks = 0
             self.update_controls(self.action)
-            self.update_action = True
+            self.update_action = 1
 
         if self.hardcoded_kickoffs:
             self.maybe_do_kickoff(packet, ticks_elapsed)
