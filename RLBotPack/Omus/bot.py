@@ -5,7 +5,7 @@ import numpy as np
 import keyboard
 import pickle
 
-from agent import Agent_Omus
+from agent_omus import Agent_Omus
 from obs.advanced_obs import AdvancedObs
 from action.discrete_act import DiscreteAction
 from rlgym_compat import GameState
@@ -162,7 +162,9 @@ class Omus(BaseAgent):
             if self.ko_spawn_pos == 'Diagonal L':
                 if step_20hz <= 30:
                     self.update_controls(self.ko_diag_array[step_20hz])
-            if self.ko_spawn_pos == 'Center':
+            if not self.game_state.players[self.team].on_ground:
+                self.controls.handbrake = 1
+            elif self.ko_spawn_pos == 'Center':
                 if 25 <= step_20hz <= 35:
                     self.controls.handbrake = 1
             if np.linalg.norm(self.game_state.ball.position - np.zeros(3)) < 1050:
