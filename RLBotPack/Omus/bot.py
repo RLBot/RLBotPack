@@ -568,7 +568,7 @@ class Omus(BaseAgent):
             if self.game_phase == 'Speedflip':
                 if self.train_controls[5] == 'On':
                     if (step_20hz == 8 and self.first_jump) or step_20hz == 10:
-                        self.center_text = '^'
+                        self.center_text = '^^'
                     else:
                         self.center_text = ''
                     if step_20hz <= 15 and self.first_jump:
@@ -577,6 +577,9 @@ class Omus(BaseAgent):
                             self.prev_time = self.ticks - 43
                         elif step_20hz > 7:
                             step_20hz = 6
+                    self.renderer.begin_rendering()
+                    self.renderer.draw_string_2d(900, 380, 5, 5, self.center_text, self.renderer.lime())
+                    self.renderer.end_rendering()
             try:
                 if self.game_phase == 'Speedflip':
                     hardcoded_controls = self.speedflip_array[step_20hz]
