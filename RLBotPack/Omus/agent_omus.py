@@ -1,4 +1,3 @@
-import numpy as np
 from stable_baselines3 import PPO
 import pathlib
 from action.discrete_act import DiscreteAction
@@ -23,7 +22,6 @@ class Agent_Omus:
             action = self.omus_50.predict(state, deterministic=True)
         elif gamemode =='kickoff':
             action = self.omus_ko.predict(state, deterministic=True)
-
         return action[0]
 
 if __name__ == "__main__":
