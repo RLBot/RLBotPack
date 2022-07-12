@@ -185,7 +185,7 @@ class Omus(BaseAgent):
         self.controls.throttle = action[0]
         self.controls.steer = action[1]
         self.controls.pitch = action[2]
-        self.controls.yaw = 0 if action[5] > 0 else action[3]
+        self.controls.yaw = action[3]
         self.controls.roll = action[4]
         self.controls.jump = action[5] > 0
         self.controls.boost = action[6] > 0
