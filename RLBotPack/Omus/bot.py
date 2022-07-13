@@ -162,8 +162,6 @@ class Omus(BaseAgent):
             if self.ko_spawn_pos == 'Diagonal L':
                 if step_20hz <= 30:
                     self.update_controls(self.ko_diag_array[step_20hz])
-            if not self.game_state.players[self.team].on_ground:
-                self.controls.handbrake = 1
             elif self.ko_spawn_pos == 'Center':
                 if 25 <= step_20hz <= 35:
                     self.controls.handbrake = 1
@@ -187,7 +185,7 @@ class Omus(BaseAgent):
         self.controls.throttle = action[0]
         self.controls.steer = action[1]
         self.controls.pitch = action[2]
-        self.controls.yaw = 0 if action[5] > 0 else action[3]
+        self.controls.yaw = action[3]
         self.controls.roll = action[4]
         self.controls.jump = action[5] > 0
         self.controls.boost = action[6] > 0
