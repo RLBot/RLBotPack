@@ -5,7 +5,7 @@ import numpy as np
 import keyboard
 import pickle
 
-from agent import Agent_Omus
+from agent_omus import Agent_Omus
 from obs.advanced_obs import AdvancedObs
 from action.discrete_act import DiscreteAction
 from rlgym_compat import GameState
@@ -162,7 +162,7 @@ class Omus(BaseAgent):
             if self.ko_spawn_pos == 'Diagonal L':
                 if step_20hz <= 30:
                     self.update_controls(self.ko_diag_array[step_20hz])
-            if self.ko_spawn_pos == 'Center':
+            elif self.ko_spawn_pos == 'Center':
                 if 25 <= step_20hz <= 35:
                     self.controls.handbrake = 1
             if np.linalg.norm(self.game_state.ball.position - np.zeros(3)) < 1050:
@@ -185,7 +185,7 @@ class Omus(BaseAgent):
         self.controls.throttle = action[0]
         self.controls.steer = action[1]
         self.controls.pitch = action[2]
-        self.controls.yaw = 0 if action[5] > 0 else action[3]
+        self.controls.yaw = action[3]
         self.controls.roll = action[4]
         self.controls.jump = action[5] > 0
         self.controls.boost = action[6] > 0
@@ -566,7 +566,7 @@ class Omus(BaseAgent):
             if self.game_phase == 'Speedflip':
                 if self.train_controls[5] == 'On':
                     if (step_20hz == 8 and self.first_jump) or step_20hz == 10:
-                        self.center_text = '^'
+                        self.center_text = '^^'
                     else:
                         self.center_text = ''
                     if step_20hz <= 15 and self.first_jump:
@@ -575,6 +575,9 @@ class Omus(BaseAgent):
                             self.prev_time = self.ticks - 43
                         elif step_20hz > 7:
                             step_20hz = 6
+                    self.renderer.begin_rendering()
+                    self.renderer.draw_string_2d(900, 380, 5, 5, self.center_text, self.renderer.lime())
+                    self.renderer.end_rendering()
             try:
                 if self.game_phase == 'Speedflip':
                     hardcoded_controls = self.speedflip_array[step_20hz]
