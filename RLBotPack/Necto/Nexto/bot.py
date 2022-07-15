@@ -3,11 +3,27 @@ import torch
 import random
 import math
 
+from datetime import datetime
+
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.quick_chats import QuickChats
 from rlgym_compat import GameState
 
+
+
+import sys
+import os
+
+current = os.path.dirname(os.path.realpath(__file__))
+print(current)
+parent = os.path.dirname(current)
+print(parent)
+nexto_dir = parent+'\\Nexto'
+print(nexto_dir)
+
+
+sys.path.append(nexto_dir)
 from agent import Agent
 from nexto_obs import NextoObsBuilder, BOOST_LOCATIONS
 
@@ -40,7 +56,7 @@ class Nexto(BaseAgent):
         # 1=best action, 0.5=sampling from probability, 0=random, -1=worst action, or anywhere inbetween
         self.beta = beta
         self.render = render
-        self.hardcoded_kickoffs = hardcoded_kickoffs
+        self.hardcoded_kickoffs = False
         self.stochastic_kickoffs = stochastic_kickoffs
 
         self.game_state: GameState = None
@@ -54,7 +70,7 @@ class Nexto(BaseAgent):
         self.gamemode = None
 
         # toxic handling
-        self.isToxic = False
+        self.isToxic = True
         self.orangeGoals = 0
         self.blueGoals = 0
         self.demoedCount = 0
@@ -66,7 +82,9 @@ class Nexto(BaseAgent):
         self.demoCalloutCount = 0
         self.lastPacket = None
 
-        print('Nexto Ready - Index:', index)
+        self.teams = 1
+
+        print('Toxic Nexto Ready - Index:', index)
         print("Remember to run Nexto at 120fps with vsync off! "
               "Stable 240/360 is second best if that's better for your eyes")
         print("Also check out the RLGym Twitch stream to watch live bot training and occasional showmatches!")
