@@ -15,7 +15,7 @@ This bot uses gcode sliced by [Cura](https://ultimaker.com/software/ultimaker-cu
 ### Profile settings:
 Use the profile `snowbot_solid.curaprofile`. To import it, press Ctrl+J to manage profiles and press the import button, then select the `.curaprofile`.
 ## How to slice an image
-1. You don't neeed to do this if you want to use one of the test gcodes. Otherwise, open Cura.
+1. You don't neeed to do this if you want to use one of the example gcodes. Otherwise, open Cura.
 2. Hit the folder icon and open your image.
 3. The height should be .4, the base 0, and width should be 80 or less and depth 100 or less. Darker should be higher with a linear color model and 1% transmittance with 1 smoothing.
 4. Hit Ok to import your image.
@@ -25,7 +25,7 @@ Use the profile `snowbot_solid.curaprofile`. To import it, press Ctrl+J to manag
 8. Press the Slice button.
 9. Once slicing has completed, preview the moves if you'd like, then save the gcode to disk somewhere.
 ## How to draw an image gcode
-1. Slice your image/model and save it to disk somewhere or use one of the images in the `tests` folder/
+1. Slice your image/model and save it to disk somewhere or use one of the image gcodes in the `examples` folder
 2. With RLBot, start a game on a mannfield-snowy with only Snowbot, unlimited time, gravity at super high, and max score at one (so you can end the game and save the replay).
 3. Browse with the bot's interface and press select file.
 4. Wait for the bot to finish. Be aware that many things will reset the progress, including opening the game settings.
