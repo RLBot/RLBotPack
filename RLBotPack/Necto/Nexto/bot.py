@@ -383,7 +383,3 @@ class Nexto(BaseAgent):
 
         if self.pesterCount > 0:
             self.pesterCount -= 1
-
-
-
-
