@@ -18,7 +18,7 @@ parent = os.path.dirname(current)
 nexto_dir = parent
 
 sys.path.append(nexto_dir)
-sys.path.append(nexto_dir+'\\Nexto')
+sys.path.append(nexto_dir+'/Nexto')
 from Nexto.agent import Agent
 from Nexto.bot import Nexto
 

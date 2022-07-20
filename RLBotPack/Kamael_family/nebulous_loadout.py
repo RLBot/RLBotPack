@@ -1,19 +1,19 @@
-import random
 import csv
 import os
+import random
+from pathlib import Path
+
 from rlbot.agents.base_loadout_generator import BaseLoadoutGenerator
 from rlbot.matchconfig.loadout_config import LoadoutConfig
-
 
 script = os.path.realpath(__file__)
 def generate_items_dict():
     try:
-        import rlbot_gui
-        csv_path = rlbot_gui.__file__[:-11]+"gui\\csv\\items.csv"
+        csv_path = os.path.join(Path(script).parent.parent, "items.csv")
     except Exception as e:
-        script_path = os.path.realpath(__file__)
-        csv_path = script_path[:-19]+"items.csv"
-        print(f"Encountered error: '{str(e)}' loading items.csv from rlbot_gui. Using local backup instead.")
+        print(f"Encountered error: '{str(e)}' loading items.csv from the botpack. Looking for local copy.")
+        csv_path = os.path.join(Path(script).parent, "items.csv")
+
     items_dict = dict()
     with open(csv_path, "r") as item_file:
         csv_reader = csv.reader(item_file)
