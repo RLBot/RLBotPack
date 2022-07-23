@@ -842,6 +842,7 @@
 1277,Antenna,Product_TA ProductsDB.Products.pack_nba,NBA Flags
 1279,Skin,Product_TA ProductsDB.Products.Skin_NeoCar_Pill,Masamune: Otaku
 1280,Skin,Product_TA ProductsDB.Products.Skin_NeoCar_Squid,Masamune: DJ Sushi
+1282,Skin,Product_TA ProductsDB.Products.Skin_Rhino2_AdyDaddy,Road Hog XL: High Flier
 1283,Skin,Product_TA ProductsDB.Products.Skin_Rhino2_RollOut,Road Hog XL: Wildfire
 1284,Skin,Product_TA ProductsDB.Products.Skin_Rhino2_SpaceTrip,Road Hog XL: Space Trip
 1286,Body,Product_TA ProductsDB.Products.Body_Aftershock,Aftershock
@@ -909,6 +910,7 @@
 1385,Skin,Product_TA ProductsDB.Products.Skin_takumi_ii_EdgeStatic,Takumi RX-T: Distortion
 1388,Skin,Product_TA ProductsDB.Products.Skin_takumi_ii_SnakeSkin,Takumi RX-T: Snakeskin
 1389,Skin,Product_TA ProductsDB.Products.Skin_takumi_ii_TechArrows,Takumi RX-T: Arrowhead
+1395,Skin,Product_TA ProductsDB.Products.skin_torch2_edgestatic,X-Devil Mk2: Distortion
 1412,Body,Product_TA ProductsDB.Products.BlackMarketTest_Skin,Mystery Universal Decal
 1416,Body,Product_TA ProductsDB.Products.Body_CarCar,Breakout Type-S
 1417,Skin,Product_TA ProductsDB.Products.Skin_CarCar_Defrag,Breakout Type-S: Iris
@@ -926,6 +928,7 @@
 1436,Skin,Product_TA ProductsDB.Products.Skin_Labyrinth,Labyrinth
 1437,Skin,Product_TA ProductsDB.Products.Skin_Pixelfire,Parallax
 1438,Skin,Product_TA ProductsDB.Products.Skin_Slipstream,Slipstream
+1441,Skin,Product_TA ProductsDB.Products.skin_Rhino_EdgeStatic,Road Hog: Distortion
 1442,Skin,Product_TA ProductsDB.Products.Skin_Rhino_Premium_Stripes,Road Hog: Carbonated
 1443,Skin,Product_TA ProductsDB.Products.Skin_Rhino_SnakeSkin,Road Hog: Snakeskin
 1447,Skin,Product_TA ProductsDB.Products.skin_torch_edgedots,X-Devil: Dot Matrix
@@ -2064,6 +2067,7 @@
 3384,Boost,Product_TA ProductsDB.Products.boost_s8r_bsg,Season 8 - Bronze
 3385,Boost,Product_TA ProductsDB.Products.boost_s8r_cgc,Season 8 - Diamond
 3386,Boost,Product_TA ProductsDB.Products.boost_s8r_dp,Season 8 - Gold
+3393,Skin,Product_TA ProductsDB.Products.skin_levain_werewolf,Werewolf: Big Bad
 3395,Skin,Product_TA ProductsDB.Products.skin_diggy_clean,MR11: Sleek
 3396,Hat,Product_TA ProductsDB.Products.hat_mc,Monstercat Uncaged
 3398,Skin,Product_TA ProductsDB.Products.skin_doggy_alt,Gazella GT: Diecast
@@ -4028,9 +4032,20 @@
 6289,Skin,Product_TA ProductsDB.Products.skin_aftershock_bouncecube,Aftershock: Tumbling Blocks
 6294,Skin,Product_TA ProductsDB.Products.skin_aftershock_techarrows,Aftershock: Vector
 6296,Skin,Product_TA ProductsDB.Products.skin_aftershock_xmat,Aftershock: Kana
+6310,Skin,Product_TA ProductsDB.Products.skin_brick_TechArrows,Tygris: Vector
+6312,Skin,Product_TA ProductsDB.Products.skin_brick_xmat,Tygris: Kana
 6313,Skin,Product_TA ProductsDB.Products.skin_musclecar_arz_h,Dominus: Arizona Cardinals
 6314,EngineAudio,Product_TA ProductsDB.Products.engineaudio_tomahawk,Jackal
+6315,Skin,Product_TA ProductsDB.Products.skin_cannonboy_bouncecube,Triton: Tumbling Blocks
+6320,Skin,Product_TA ProductsDB.Products.skin_cannonboy_TechArrows,Triton: Vector
+6321,Skin,Product_TA ProductsDB.Products.skin_cannonboy_Tsunami,Triton: Anthrophobe
+6323,Skin,Product_TA ProductsDB.Products.skin_carrot_comet,Diestro: Agamid
+6326,Skin,Product_TA ProductsDB.Products.skin_carrot_omens,Diestro: Martian Wind
 6331,Wheels,Product_TA ProductsDB.Products.wheel_twist_twist,Twista: Revolved
+6343,Skin,Product_TA ProductsDB.Products.skin_chip_bouncecube,Sentinel: Tumbling Blocks
+6348,Skin,Product_TA ProductsDB.Products.skin_chip_TechArrows,Sentinel: Vector
+6349,Skin,Product_TA ProductsDB.Products.skin_chip_Tsunami,Sentinel: Anthrophobe
+6350,Skin,Product_TA ProductsDB.Products.skin_chip_xmat,Sentinel: Kana
 6377,Skin,Product_TA ProductsDB.Products.skin_grain_omens,Fennec: Martian Wind
 6378,Skin,Product_TA ProductsDB.Products.skin_grain_TechArrows,Fennec: Vector
 6381,Skin,Product_TA ProductsDB.Products.skin_musclecar_atl_h,Dominus: Atlanta Falcons
@@ -4065,6 +4080,12 @@
 6410,Skin,Product_TA ProductsDB.Products.skin_musclecar_was_h,Dominus: Washington Football Team
 6414,Hat,Product_TA ProductsDB.Products.hat_nfl_atl,Atlanta Falcons
 6423,Hat,Product_TA ProductsDB.Products.hat_nfl_bal,Baltimore Ravens
+6428,Skin,Product_TA ProductsDB.Products.skin_levain_omens,Werewolf: Martian Wind
+6429,Skin,Product_TA ProductsDB.Products.skin_levain_TechArrows,Werewolf: Vector
+6430,Skin,Product_TA ProductsDB.Products.skin_levain_Tsunami,Werewolf: Anthrophobe
+6431,Skin,Product_TA ProductsDB.Products.skin_levain_xmat,Werewolf: Kana
+6435,Skin,Product_TA ProductsDB.Products.skin_Marauder_omens,Marauder: Martian Wind
+6437,Skin,Product_TA ProductsDB.Products.skin_Marauder_Tsunami,Marauder: Anthrophobe
 6467,Skin,Product_TA ProductsDB.Products.skin_sixty_UIR,BMW M240i: United In Rivalry
 6470,GoalExplosion,Product_TA ProductsDB.Products.explosion_teepeed,TP
 6485,Skin,Product_TA ProductsDB.Products.skin_sixty_a,BMW M240i: Thundernight Metallic
@@ -4074,16 +4095,26 @@
 6490,Skin,Product_TA ProductsDB.Products.skin_musclecar_shopifyrebellion,Dominus: Rebellion (Home)
 6492,Skin,Product_TA ProductsDB.Products.skin_MuscleCar_comet,Dominus: Agamid
 6493,Skin,Product_TA ProductsDB.Products.skin_MuscleCar_omens,Dominus: Martian Wind
+6494,Skin,Product_TA ProductsDB.Products.skin_MuscleCar_Tsunami,Dominus: Anthrophobe
+6509,Skin,Product_TA ProductsDB.Products.skin_NeoCar_bouncecube,Masamune: Tumbling Blocks
+6530,Skin,Product_TA ProductsDB.Products.skin_Octane_comet,Octane: Agamid
+6531,Skin,Product_TA ProductsDB.Products.skin_Octane_omens,Octane: Martian Wind
+6532,Skin,Product_TA ProductsDB.Products.skin_Octane_Tsunami,Octane: Anthrophobe
+6553,Skin,Product_TA ProductsDB.Products.skin_retro_TechArrows,Nimbus: Vector
 6554,Skin,Product_TA ProductsDB.Products.skin_retro_tsunami,Nimbus: Anthrophobe
+6555,Skin,Product_TA ProductsDB.Products.skin_retro_xmat,Nimbus: Kana
 6556,Hat,Product_TA ProductsDB.Products.hat_nfl_arz,Arizona Cardinals
 6562,Skin,Product_TA ProductsDB.Products.skin_octane_shopifyrebellion,Octane: Rebellion (Home)
+6563,Skin,Product_TA ProductsDB.Products.skin_Rhino2_bouncecube,Road Hog XL: Tumbling Blocks
 6573,Skin,Product_TA ProductsDB.Products.skin_Scarab_TechArrows,Scarab: Vector
 6576,Skin,Product_TA ProductsDB.Products.skin_grain_shopifyrebellion,Fennec: Rebellion (Home)
+6582,Skin,Product_TA ProductsDB.Products.skin_shark_TechArrows,Peregrine TT: Vector
 6591,MusicStingers,Product_TA ProductsDB.Products.Anthem_AL3JANDRO_Loca,Loca
 6594,MusicStingers,Product_TA ProductsDB.Products.Anthem_AL3JANDRO_SoGood,So Good
 6595,MusicStingers,Product_TA ProductsDB.Products.Anthem_AL3JANDRO_WeOwnTheNight,We Own The Night
 6596,MusicStingers,Product_TA ProductsDB.Products.Album_Anthem_AL3JANDRO_HHM2021,HHM 2021
 6597,MusicStingers,Product_TA ProductsDB.Products.Anthem_Stonebank_KeepUpThePace,Keep Up The Pace
+6614,Skin,Product_TA ProductsDB.Products.skin_takumi_ii_bouncecube,Takumi RX-T: Tumbling Blocks
 6619,Hat,Product_TA ProductsDB.Products.hat_nfl_buf,Buffalo Bills
 6620,Hat,Product_TA ProductsDB.Products.hat_nfl_chi,Chicago Bears
 6621,Hat,Product_TA ProductsDB.Products.hat_nfl_cle,Cleveland Browns
@@ -4092,6 +4123,10 @@
 6624,Hat,Product_TA ProductsDB.Products.hat_nfl_gb,Green Bay Packers
 6625,Hat,Product_TA ProductsDB.Products.hat_nfl_hou,Houston Texans
 6626,Hat,Product_TA ProductsDB.Products.hat_nfl_ind,Indianapolis Colts
+6635,Skin,Product_TA ProductsDB.Products.skin_Torch2_comet,X-Devil Mk2: Agamid
+6636,Skin,Product_TA ProductsDB.Products.skin_Torch2_omens,X-Devil Mk2: Martian Wind
+6645,Skin,Product_TA ProductsDB.Products.skin_Torment_Tsunami,Hotshot: Anthrophobe
+6654,Skin,Product_TA ProductsDB.Products.skin_twinzer_xmat,Twinzer: Kana
 6655,Hat,Product_TA ProductsDB.Products.hat_nfl_jax,Jacksonville Jaguars
 6656,Hat,Product_TA ProductsDB.Products.hat_nfl_kc,Kansas City Chiefs
 6657,Hat,Product_TA ProductsDB.Products.hat_nfl_lac,Los Angeles Chargers
@@ -4366,6 +4401,7 @@
 6990,Skin,Product_TA ProductsDB.Products.skin_Octane_FBarz,Octane: Arizona Cardinals
 6991,Skin,Product_TA ProductsDB.Products.skin_Octane_FBatl,Octane: Atlanta Falcons
 6992,Antenna,Product_TA ProductsDB.Products.Flag_Radiohead,Radiohead
+6993,Skin,Product_TA ProductsDB.Products.skin_cannonboy_huntress,Triton: Huntress
 6995,Skin,Product_TA ProductsDB.Products.skin_norton_omens,Nexus: Martian Wind
 6997,Antenna,Product_TA ProductsDB.Products.antenna_interstellar,Star Burst
 6998,SupersonicTrail,Product_TA ProductsDB.Products.ss_core,Corbital
@@ -4522,6 +4558,7 @@
 7176,EngineAudio,Product_TA ProductsDB.Products.engineaudio_ran,McLaren 765LT
 7178,Skin,Product_TA ProductsDB.Products.skin_grain_twankle,Fennec: Hyperspace
 7179,Skin,Product_TA ProductsDB.Products.skin_musclecar_twankle,Dominus: Hyperspace
+7180,Skin,Product_TA ProductsDB.Products.skin_octane_twankle,Octane: Hyperspace
 7181,Skin,Product_TA ProductsDB.Products.skin_ramen_twankle,Dingo: Hyperspace
 7185,Wheels,Product_TA ProductsDB.Products.wheel_alpine_radiant,Rival: Radiant
 7186,Wheels,Product_TA ProductsDB.Products.wheel_sunny_holy,Happy Sunbeam: Sacred
@@ -4551,6 +4588,7 @@
 7223,Wheels,Product_TA ProductsDB.Products.wheel_yee,Cooperduper
 7224,Wheels,Product_TA ProductsDB.Products.wheel_buttonmash,Buttonmash
 7225,Wheels,Product_TA ProductsDB.Products.wheel_tritri,Tri-fly
+7226,Wheels,Product_TA ProductsDB.Products.wheel_airmage_hatch,Aero Mage: Hatch
 7227,Skin,Product_TA ProductsDB.Products.skin_grain_evilgeniuses_A,Fennec: Evil Geniuses (Away)
 7228,Skin,Product_TA ProductsDB.Products.skin_grain_PWR_A,Fennec: PWR (Away)
 7229,Skin,Product_TA ProductsDB.Products.skin_grain_queso_A,Fennec: Team Queso (Away)
@@ -4620,6 +4658,7 @@
 7294,Skin,Product_TA ProductsDB.Products.skin_octane_KarmineCorp_A,Octane: Karmine Corp (Away)
 7295,Skin,Product_TA ProductsDB.Products.skin_octane_SemperEsports_A,Octane: SMPR Esports (Away)
 7296,Skin,Product_TA ProductsDB.Products.skin_octane_SKGaming_A,Octane: SK Gaming (Away)
+7298,Skin,Product_TA ProductsDB.Products.skin_musclecar_dragon,Dominus: Dragon Lord
 7299,Skin,Product_TA ProductsDB.Products.skin_grain_Furia_A,Fennec: Furia (Away)
 7300,Skin,Product_TA ProductsDB.Products.skin_grain_GroundZero_A,Fennec: Ground Zero Gaming (Away)
 7301,Skin,Product_TA ProductsDB.Products.skin_grain_NRG_TC_A,Fennec: NRG (Away)
@@ -4691,6 +4730,7 @@
 7382,Skin,Product_TA ProductsDB.Products.skin_musclecar_complexity_tc_a,Dominus: Complexity (Away)
 7383,Skin,Product_TA ProductsDB.Products.skin_octane_complexity_tc,Octane: Complexity (Home)
 7384,Skin,Product_TA ProductsDB.Products.skin_octane_complexity_tc_a,Octane: Complexity (Away)
+7386,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Ghost,Ghost Gaming
 7387,Skin,Product_TA ProductsDB.Products.skin_grain_misfits_tc,Fennec: Misfits Gaming (Home)
 7388,Skin,Product_TA ProductsDB.Products.skin_grain_misfits_tc_a,Fennec: Misfits Gaming (Away)
 7389,Skin,Product_TA ProductsDB.Products.skin_musclecar_misfits_tc,Dominus: Misfits Gaming (Home)
@@ -4768,14 +4808,22 @@
 7470,MusicStingers,Product_TA ProductsDB.Products.Anthem_S5_Feature_02,Shinigami Eyes
 7471,GoalExplosion,Product_TA ProductsDB.Products.explosion_TBM,The Batman
 7473,Hat,Product_TA ProductsDB.Products.hat_elvesb,Big Bite
+7474,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Renegades,Renegades
 7475,Hat,Product_TA ProductsDB.Products.hat_anvil,Anvil
 7477,Body,Product_TA ProductsDB.Products.body_Maui_t2,Nomad GXT
+7478,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_NRG,NRG
 7479,Wheels,Product_TA ProductsDB.Products.wheel_alpine_infinite,Rival: Infinite
+7481,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Misfits,Misfits Gaming
 7482,Wheels,Product_TA ProductsDB.Products.wheel_zuka,Gala
+7484,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_BDS,Team BDS
 7486,Wheels,Product_TA ProductsDB.Products.wheel_duckie,Scrub-a-Dub
 7487,EngineAudio,Product_TA ProductsDB.Products.engineaudio_maser,Mamba
+7488,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Dignitas,Dignitas
+7489,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Endpoint,Endpoint
+7490,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_SMPR,SMPR Esports
 7491,Wheels,Product_TA ProductsDB.Products.wheel_nunya,Nunya
 7492,Boost,Product_TA ProductsDB.Products.boost_sphexe,Shield Breaker
+7493,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Vitality,Team Vitality
 7494,PaintFinish,Product_TA ProductsDB.Products.paintfinish_BlingedOut,Bling
 7496,EngineAudio,Product_TA ProductsDB.Products.engineaudio_rage,Lamborghini Countach LPI 800-4
 7497,Antenna,Product_TA ProductsDB.Products.antenna_flydragon,Dragonfly
@@ -4786,6 +4834,11 @@
 7502,EngineAudio,Product_TA ProductsDB.Products.engineaudio_scar_b,NASCAR Next Gen Chevrolet Camaro
 7503,EngineAudio,Product_TA ProductsDB.Products.engineaudio_scar_c,NASCAR Next Gen Toyota Camry
 7504,SupersonicTrail,Product_TA ProductsDB.Products.ss_sphexe,Shield Breaker
+7505,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Complexity,Complexity
+7506,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_EG,Evil Geniuses
+7507,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Faze,FaZe Clan
+7508,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_G2,G2 Esports
+7509,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Karmine,Karmine Corp
 7511,Wheels,Product_TA ProductsDB.Products.wheel_latchkey,Cupola
 7512,Body,Product_TA ProductsDB.Products.body_rage,Lamborghini Countach LPI 800-4
 7513,Skin,Product_TA ProductsDB.Products.skin_scar_b_01,NASCAR Next Gen Chevrolet Camaro: Hendrick Motorsports #5
@@ -4799,6 +4852,11 @@
 7523,Wheels,Product_TA ProductsDB.Products.wheel_rage_B,Lamborghini Countach 70?s
 7524,Wheels,Product_TA ProductsDB.Products.wheel_elvesb,Brainfreeze
 7526,Skin,Product_TA ProductsDB.Products.skin_ran_fronds,McLaren 765LT: Miami Grand Prix
+7527,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Envy,Envy
+7528,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_Furia,Furia
+7529,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_GZG,Ground Zero Gaming
+7530,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_SSG,Spacestation Gaming
+7531,GoalExplosion,Product_TA ProductsDB.Products.Explosion_ESports_V1,Version1
 7532,Body,Product_TA ProductsDB.Products.body_lux,Maestro
 7533,Wheels,Product_TA ProductsDB.Products.wheel_lux,Carat Cutter
 7534,MusicStingers,Product_TA ProductsDB.Products.album_anthem_whm2022,Behind the Scenes
@@ -4814,6 +4872,7 @@
 7546,Hat,Product_TA ProductsDB.Products.hat_futureglasses_psplus,ROBO-Visor Plus
 7547,Wheels,Product_TA ProductsDB.Products.wheel_crote_psplus,Clodhopper Plus
 7548,Skin,Product_TA ProductsDB.Products.skin_booji,Boujee
+7550,Wheels,Product_TA ProductsDB.Products.wheel_bubu_fg,Med. Rare
 7551,Skin,Product_TA ProductsDB.Products.skin_triangleflip_psplus,Shield Glitch Plus
 7552,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_scar_a_01,Stewart-Haas Racing #4
 7553,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_scar_a_02,RFK Racing #17
@@ -4826,7 +4885,10 @@
 7560,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_scar_c_01,Joe Gibbs Racing #19
 7561,Boost,Product_TA ProductsDB.Products.boost_techy_psplus,Virtual Wave Plus
 7562,Skin,Product_TA ProductsDB.Products.skin_durian_lightning,Chikara: Zapped
+7563,Boost,Product_TA ProductsDB.Products.boost_electrobeam_fg,Fallout
+7564,Hat,Product_TA ProductsDB.Products.hat_chomps_fg,Colorful Canines
 7568,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_fronds,Miami Grand Prix
+7569,Skin,Product_TA ProductsDB.Products.skin_octane_froster_fg,Octane: Cluster Buster
 7570,Skin,Product_TA ProductsDB.Products.Skin_torres,Marred Shard
 7571,MusicStingers,Product_TA ProductsDB.Products.anthem_shell_01,FALL (Clean)
 7572,Antenna,Product_TA ProductsDB.Products.flag_fronds,Miami Grand Prix Flag
@@ -4849,6 +4911,7 @@
 7596,EngineAudio,Product_TA ProductsDB.Products.Engineaudio_Cured,Formula 1 2022
 7597,Wheels,Product_TA ProductsDB.Products.wheel_dimen,Halcyon
 7598,Skin,Product_TA ProductsDB.Products.Skin_bartees,Affluenter
+7600,PlayerBanner,Product_TA ProductsDB.Products.PlayerBanner_chatter,Colorful Canines
 7601,PlayerBanner,Product_TA ProductsDB.Products.PlayerBanner_fractureB,Formula 1 2022
 7602,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_sassy,Nissan Z Performance
 7605,Skin,Product_TA ProductsDB.Products.Skin_Sassy_FazeClan,Nissan Z Performance: Nissan x FaZe Clan
@@ -4886,10 +4949,13 @@
 7662,Skin,Product_TA ProductsDB.Products.skin_lux_huntress,Maestro: Huntress
 7665,Wheels,Product_TA ProductsDB.Products.wheel_starlite,Debutante
 7666,Wheels,Product_TA ProductsDB.Products.wheel_fishroll,Sushi Roller
+7668,Skin,Product_TA ProductsDB.Products.skin_grain_tux,Fennec: Tinted Formal
 7669,Skin,Product_TA ProductsDB.Products.skin_lux_litesmoke,Maestro: Brume
 7670,Hat,Product_TA ProductsDB.Products.hat_wallet,Fat Stacks
+7672,Skin,Product_TA ProductsDB.Products.skin_grain_tux_bw,Fennec: Fancy Formal
 7673,PremiumInventory,Product_TA ProductsDB.Products.crateunlocked_anniversary22,Golden Egg '22
 7674,Skin,Product_TA ProductsDB.Products.Skin_Vanquish_Wizard_PSPlus,Merc: Warlock PS
+7675,Hat,Product_TA ProductsDB.Products.hat_tophat_metal_fancy,Top Hat: Anniversary Edition
 7676,Hat,Product_TA ProductsDB.Products.Hat_WizardHat_PSPlus,Wizard Hat PS
 7677,Wheels,Product_TA ProductsDB.Products.wheel_starz_inverted,A-Lister: Inverted
 7678,Wheels,Product_TA ProductsDB.Products.wheel_sicky,Ochroid
@@ -4898,8 +4964,10 @@
 7683,Wheels,Product_TA ProductsDB.Products.wheel_dimen_twist,Halcyon: Revolved
 7684,PlayerAvatarBorder,Product_TA ProductsDB.Products.AvatarBorder_Sapphire,Contestor
 7685,Skin,Product_TA ProductsDB.Products.skin_musclecar_dueling,Dominus: 10dril
+7687,PlayerAvatarBorder,Product_TA ProductsDB.Products.AvatarBorder_Blings,Precious Metal
 7692,PlayerBanner,Product_TA ProductsDB.Products.PlayerBanner_Spotlight,Premiere
 7694,Skin,Product_TA ProductsDB.Products.skin_lux_branded,Maestro: Apollo
+7695,Wheels,Product_TA ProductsDB.Products.wheel_ninja_gilded,Spyder: Anniversary Edition
 7698,PremiumInventory,Product_TA ProductsDB.Products.crateunlocked_AT7,Accolade VII
 7699,Hat,Product_TA ProductsDB.Products.hat_fancyglasses,Fancy Shades
 7700,SupersonicTrail,Product_TA ProductsDB.Products.ss_doughnut,Dunker
@@ -4907,9 +4975,11 @@
 7704,Skin,Product_TA ProductsDB.Products.skin_lux_marble,Maestro: Marble Floor
 7711,MusicStingers,Product_TA ProductsDB.Products.album_anthem_phillboucher_vol1,Catharsis
 7713,MusicStingers,Product_TA ProductsDB.Products.Anthem_PhillBoucher_Blind,Blind
+7722,MusicStingers,Product_TA ProductsDB.Products.anthem_rlcs_theme,RLCS Theme
 7723,Wheels,Product_TA ProductsDB.Products.wheel_starlite_crystal,Debutante: Crystalized
 7724,EngineAudio,Product_TA ProductsDB.Products.engineaudio_lux,Maestro
 7725,Hat,Product_TA ProductsDB.Products.Hat_excavator,Excavator
+7726,GoalExplosion,Product_TA ProductsDB.Products.Explosion_Dragon_BW,Dueling Dragons: Yin & Yang
 7727,PlayerBanner,Product_TA ProductsDB.Products.playerbanner_chargedbattery,Fully Charged
 7730,Hat,Product_TA ProductsDB.Products.hat_jellyfish,Jellyfish
 7732,GoalExplosion,Product_TA ProductsDB.Products.explosion_phoenix,Phoenix Fire
