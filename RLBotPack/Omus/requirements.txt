@@ -8,6 +8,9 @@ rlgym-compat>=1.0.2
 numpy
 pickle5
 cloudpickle
+keyboard
+pygame
+pathlib
 
 # This will cause pip to auto-upgrade and stop scaring people with warning messages
 pip

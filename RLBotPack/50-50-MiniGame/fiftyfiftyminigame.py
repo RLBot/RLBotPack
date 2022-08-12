@@ -3,14 +3,12 @@ import keyboard
 
 from rlbot.agents.base_script import BaseScript
 from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator, GameInfoState
-from rlbot.utils.structures.quick_chats import QuickChats
 
 class FiftyFiftyMiniGame(BaseScript):
     '''
     FiftyFiftyMiniGame is a RLBot script
     the goal it to be the first to touch the ball outside the center circle
-    it is designed for 1v1 and works best with the 'disable goal reset' mutator active
-    both players spawn in the center circle with a slightly randomized rotation
+    it is designed for 1v1 and requires the 'disable goal reset' mutator active
     '''
     def __init__(self):
         super().__init__("FiftyFiftyMiniGame")
@@ -20,13 +18,13 @@ class FiftyFiftyMiniGame(BaseScript):
         self.prev_ticks = 0
         self.ticks = 0
         self.disable_goal_reset = False
-        self.pause_time = 1 # Can increase to 1-2s if hard coded kickoffs are causing issues
+        self.pause_time = 1 # Can increase if hard coded kickoffs are causing issues
         self.cur_time = 0
         self.first_kickoff = True
         self.state_buffer = np.empty((0,37))
         self.blue_omus = False
         self.record_omus = False
-        self.text2 = ""
+        self.text2 = self.kickoff_countdown = ""
         self.circle = [(round(np.cos(2*np.pi/120*x)*1200),round(np.sin(2*np.pi/120*x)*1200),15) for x in range(0,120+1)]
         self.horz_ball_var = 'Off' # horizontal ball variance
         self.vert_ball_var = 'Off' # vertical ball variance
@@ -48,10 +46,10 @@ class FiftyFiftyMiniGame(BaseScript):
             self.cur_time = packet.game_info.seconds_elapsed
             self.ticks += 1
 
-            # checks if Omus is on Blue
-            if self.ticks <= 1000:
-                if packet.game_cars[0].name == 'Omus 1.0':
-                    self.blue_omus = True
+            # checks if Omus is on Blue - Currently Unavailable
+            # if self.ticks <= 1000:
+            #     if packet.game_cars[0].name == 'Omus 1.0':
+            #         self.blue_omus = True
 
             # check if 'disable goal reset' mutator is active
             if self.ticks == 1:
@@ -60,24 +58,34 @@ class FiftyFiftyMiniGame(BaseScript):
                 if mutators.RespawnTimeOption() == 3:
                     self.disable_goal_reset = True
                 # initialise reading keyboard for menu selection
-                keyboard.add_hotkey('1', self.menu_1_toggle)
+                # keyboard.add_hotkey('1', self.menu_1_toggle) -Currently Unavailable
                 keyboard.add_hotkey('2', self.menu_2_toggle)
                 keyboard.add_hotkey('3', self.menu_3_toggle)
                 keyboard.add_hotkey('4', self.menu_4_toggle)
                 keyboard.add_hotkey('5', self.menu_5_toggle)
             
+            # for standard kickoff, allow time for boost pads to respawn
+            if self.standard_kickoffs == 'On':
+                self.pause_time = 4
+            else:
+                self.pause_time = 1
+
             # rendering
             color = self.renderer.yellow()
-            text = f"Please set FPS to 120. Standard match, Omus is ~GrandChamp\
-            \nPress '1' to record, to learn more search 'omus details' in RLBot discord: {'On' if self.record_omus else 'Off'}\
-            \n'2' for horizontal ball variance (~Champ):{self.horz_ball_var}\
-            \n'3' for vertical ball variance (~Gold):   {self.vert_ball_var}\
-            \n'4' for ball velocity preview:            {self.ball_preview}\
-            \n'5' for standard match kickoffs (~Gold):  {self.standard_kickoffs}"
+            color2 = self.renderer.lime()
+            text = f"Omus is about GrandChamp for the base 50-MiniGame\
+            \nSearch 'omus setup' in RLBot discord if you are having issues\
+            \n'2' add horizontal ball variance (~C-GC): {self.horz_ball_var}\
+            \n'3' add vertical ball variance (~Plat):   {self.vert_ball_var}\
+            \n'4' add ball velocity preview:            {self.ball_preview}\
+            \n'5' for standard kickoffs (~Champ-GC):    {self.standard_kickoffs}"
             self.game_interface.renderer.begin_rendering()
             self.game_interface.renderer.draw_polyline_3d(self.circle, color)
             self.game_interface.renderer.draw_string_2d(20, 50, 1, 1, text, color)
-            self.game_interface.renderer.draw_string_2d(20, 200, 1, 1, self.text2 if self.cur_time-self.error_timer < 3 else "" , color)
+            self.game_interface.renderer.draw_string_2d(900, 420, 5, 5, self.kickoff_countdown, color2)
+            self.game_interface.renderer.draw_string_2d(900, 420, 5, 5, self.kickoff_countdown, color2)
+            self.game_interface.renderer.draw_string_2d(900, 420, 5, 5, self.kickoff_countdown, color2)
+            # self.game_interface.renderer.draw_string_2d(20, 200, 1, 1, self.text2 if self.cur_time-self.error_timer < 3 else "" , color) - Currently Unavailable
             self.game_interface.renderer.end_rendering()
 
             '''phase 0''' # setup round
@@ -87,10 +95,10 @@ class FiftyFiftyMiniGame(BaseScript):
             if self.disable_goal_reset == True:
                 if self.goal_scored(packet):
                     self.setup_std_kickoff(packet) if self.standard_kickoffs == 'On' else self.setup_newround(packet)
-                    if self.omus_defeated(packet) and self.record_omus:
-                        self.defeats_buffer = np.append(self.defeats_buffer, self.state_buffer, axis=0)
-                        np.save('Omus_replay_states.npy', self.defeats_buffer)
-                    self.state_buffer = np.empty((0,37))
+                    # if self.omus_defeated(packet) and self.record_omus: - Currently Unavailable
+                    #     self.defeats_buffer = np.append(self.defeats_buffer, self.state_buffer, axis=0)
+                    #     np.save('Omus_replay_states.npy', self.defeats_buffer)
+                    # self.state_buffer = np.empty((0,37))
 
             # pause for 'pause_time' then resume
             if self.game_phase == -1 and self.cur_time - self.prev_time < self.pause_time:
@@ -98,10 +106,20 @@ class FiftyFiftyMiniGame(BaseScript):
                     self.set_game_state(GameState(cars=self.paused_car_states))
                 else:
                     self.set_game_state(self.game_state)
+                if self.standard_kickoffs == 'On': # show kickoff countdown
+                    self.kickoff_countdown = f'{5-int(np.ceil(self.cur_time-self.prev_time))}'
+                    if self.kickoff_countdown == '4' or self.kickoff_countdown == '5':
+                        self.kickoff_countdown = ''
+                    # elif self.kickoff_countdown == '0':
+                    #     self.kickoff_countdown = 'GO!'
             elif self.game_phase == -1:
                 self.game_phase = 1
+            else:
+                self.kickoff_countdown = ''
 
             '''phase 1''' # ball remains in circle
+            if self.game_phase == 2 and np.linalg.norm(np.array([packet.game_ball.physics.location.x, packet.game_ball.physics.location.y, packet.game_ball.physics.location.z]) - np.array([0, 0, 97])) <= 1200:
+                self.game_phase = 1
             if self.game_phase == 1 and np.linalg.norm(np.array([packet.game_ball.physics.location.x, packet.game_ball.physics.location.y, packet.game_ball.physics.location.z]) - np.array([0, 0, 97])) > 1200:
                 phase2_time = packet.game_info.seconds_elapsed
                 self.game_phase = 2
@@ -120,17 +138,17 @@ class FiftyFiftyMiniGame(BaseScript):
             if self.game_phase == 2 and packet.game_info.is_kickoff_pause and packet.game_ball.latest_touch.time_seconds <= phase2_time:
                 self.game_phase = 0
             
-            # recording gamestate to use as statesetting in training
-            if self.record_omus:
-                if packet.game_cars[0].has_wheel_contact:
-                    self.b_wheel_contact_timer = self.cur_time
-                if packet.game_cars[1].has_wheel_contact:
-                    self.o_wheel_contact_timer = self.cur_time
-                b_has_flip = True if packet.game_cars[0].double_jumped == False and self.cur_time - self.b_wheel_contact_timer < 1.4 else False
-                o_has_flip = True if packet.game_cars[1].double_jumped == False and self.cur_time - self.o_wheel_contact_timer < 1.4 else False
-                if self.ticks % 30 == 0 and self.game_phase > 0 and packet.game_info.is_round_active:
-                    cur_state = self.save_gamestate(packet, b_has_flip, o_has_flip)
-                    self.state_buffer = np.append(self.state_buffer, cur_state, axis=0)
+            # recording gamestate to use as statesetting in training - Currently Unavailable
+            # if self.record_omus:
+            #     if packet.game_cars[0].has_wheel_contact:
+            #         self.b_wheel_contact_timer = self.cur_time
+            #     if packet.game_cars[1].has_wheel_contact:
+            #         self.o_wheel_contact_timer = self.cur_time
+            #     b_has_flip = True if packet.game_cars[0].double_jumped == False and self.cur_time - self.b_wheel_contact_timer < 1.4 else False
+            #     o_has_flip = True if packet.game_cars[1].double_jumped == False and self.cur_time - self.o_wheel_contact_timer < 1.4 else False
+            #     if self.ticks % 30 == 0 and self.game_phase > 0 and packet.game_info.is_round_active:
+            #         cur_state = self.save_gamestate(packet, b_has_flip, o_has_flip)
+            #         self.state_buffer = np.append(self.state_buffer, cur_state, axis=0)
 
 
     def goal_scored(self, packet):
@@ -207,7 +225,7 @@ class FiftyFiftyMiniGame(BaseScript):
                 elif rand1 < 5/5:
                     pos = Vector3(0.0, -4608, 17)
                     yaw = np.pi * 0.5
-                car_state = CarState(boost_amount=33.3, physics=Physics(location=pos, rotation=Rotator(yaw=yaw, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
+                car_state = CarState(boost_amount=34, physics=Physics(location=pos, rotation=Rotator(yaw=yaw, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
             elif car.team == 1:
@@ -226,7 +244,7 @@ class FiftyFiftyMiniGame(BaseScript):
                 elif rand1 < 5/5:
                     pos = Vector3(0.0, 4608, 17)
                     yaw = np.pi * -0.5
-                car_state = CarState(boost_amount=33.3, physics=Physics(location=pos, rotation=Rotator(yaw=yaw, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
+                car_state = CarState(boost_amount=34, physics=Physics(location=pos, rotation=Rotator(yaw=yaw, pitch=0, roll=0), velocity=Vector3(0, 0, 0),
                         angular_velocity=Vector3(0, 0, 0)))
                 car_states[p] = car_state
         if self.horz_ball_var == 'Off':
@@ -318,20 +336,22 @@ class FiftyFiftyMiniGame(BaseScript):
         cur_state[36] = ball.physics.angular_velocity.z
         return np.expand_dims(cur_state, axis=0)
 
-
-    def menu_1_toggle(self):
-        if self.blue_omus:
-            self.record_omus = not self.record_omus
-            if not self.record_omus:
-                self.state_buffer = np.empty((0,37))
-        else:
-            self.text2 = "Error: Please set Omus to Blue Team"
-            self.error_timer = self.cur_time
+    # Currently Unavailable
+    # def menu_1_toggle(self):
+    #     if self.blue_omus:
+    #         self.record_omus = not self.record_omus
+    #         if not self.record_omus:
+    #             self.state_buffer = np.empty((0,37))
+    #             self.standard_kickoffs = 'Off'
+    #     else:
+    #         self.text2 = "Error: Please set Omus to Blue Team"
+    #         self.error_timer = self.cur_time
 
 
     def menu_2_toggle(self):
         if self.horz_ball_var == 'Off':
             self.horz_ball_var = 'On'
+            self.standard_kickoffs = 'Off'
         else:
             self.horz_ball_var = 'Off'
 
@@ -339,12 +359,14 @@ class FiftyFiftyMiniGame(BaseScript):
     def menu_3_toggle(self):
         if self.vert_ball_var == 'Off':
             self.vert_ball_var = 'On'
+            self.standard_kickoffs = 'Off'
         else:
             self.vert_ball_var = 'Off'
     
     def menu_4_toggle(self):
         if self.ball_preview == 'Off':
             self.ball_preview = 'On'
+            self.standard_kickoffs = 'Off'
         else:
             self.ball_preview = 'Off'
     
