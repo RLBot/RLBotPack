@@ -1,7 +1,8 @@
 from math import sqrt, floor, atan2, sin, cos, inf, degrees
 from random import randint
 from queue import Empty
-from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
+from rlbot.agents.base_agent SimpleControllerState
+from rlbot.agents.standalone.standalone_bot import StandaloneBot, run_bot
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 # from rlbot.utils.game_state_util import (
 #     GameState,
@@ -41,7 +42,7 @@ from collections import deque
 #     return inner
 
 
-class Kamael(BaseAgent):
+class Kamael(StandaloneBot):
     def initialize_agent(self):
         self.controller_state = None  # SimpleControllerState()
         self.me = physicsObject()
@@ -1540,3 +1541,6 @@ class Kamael(BaseAgent):
         self.last_controller = action
 
         return action
+    
+if __name__ == "__main__":
+    run_bot(Kamael)
