@@ -2,13 +2,13 @@ import csv
 import random
 
 from rlbot.agents.base_loadout_generator import BaseLoadoutGenerator
-from rlbot.csv import items
+from rlbot.csv.items import get_items_path
 from rlbot.matchconfig.loadout_config import LoadoutConfig
 
 
 def generate_items_dict():
     items_dict = dict()
-    with items.open_csv() as f:
+    with open(get_items_path(), 'r') as f:
         csv_reader = csv.reader(f)
         for item in csv_reader:
             # 0: id, 1: type, 2: useless garbage, 3: name
