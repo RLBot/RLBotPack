@@ -29,9 +29,9 @@ class MyBot(BaseAgent):
         # This runs once before the bot starts up
         self.controller_state = SimpleControllerState()
         if(self.team == 0): #blue
-            modelDir = "src\\blueModel"
+            modelDir = "src/blueModel"
         elif(self.team == 1): #orange
-            modelDir = "src\\orangeModel"
+            modelDir = "src/orangeModel"
             
         self.model = tf.keras.models.load_model(modelDir) 
         self.isKickoff = True  

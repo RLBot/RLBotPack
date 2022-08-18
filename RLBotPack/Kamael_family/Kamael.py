@@ -423,7 +423,7 @@ class Kamael(StandaloneBot):
     def get_ignore_list(self):
         ignore_list = []
         with open(
-            str(Path(__file__).parent.absolute()) + "\\bot_ignore_list.txt"
+            str(Path(__file__).parent.absolute()) + "/bot_ignore_list.txt"
         ) as specials:
             for name in specials.readlines():
                 ignore_list.append(str(name.strip()).lower())
