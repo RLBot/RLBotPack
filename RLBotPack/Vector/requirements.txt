@@ -5,7 +5,7 @@ rlbot==1.*
 torch>=1.5.1+cpu
 rlgym-compat>=1.0.2
 numpy
-stable_baselines3
+stable-baselines3
 pickle5
 
 # This will cause pip to auto-upgrade and stop scaring people with warning messages
