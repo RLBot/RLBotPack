@@ -1,15 +1,22 @@
-import csv
 import random
-
+import csv
+import os
 from rlbot.agents.base_loadout_generator import BaseLoadoutGenerator
-from rlbot.csv.items import get_items_path
 from rlbot.matchconfig.loadout_config import LoadoutConfig
 
 
+script = os.path.realpath(__file__)
 def generate_items_dict():
+    try:
+        import rlbot_gui
+        csv_path = rlbot_gui.__file__[:-11]+"gui\\csv\\items.csv"
+    except Exception as e:
+        script_path = os.path.realpath(__file__)
+        csv_path = script_path[:-19]+"items.csv"
+        print(f"Encountered error: '{str(e)}' loading items.csv from rlbot_gui. Using local backup instead.")
     items_dict = dict()
-    with open(get_items_path(), 'r') as f:
-        csv_reader = csv.reader(f)
+    with open(csv_path, "r") as item_file:
+        csv_reader = csv.reader(item_file)
         for item in csv_reader:
             # 0: id, 1: type, 2: useless garbage, 3: name
             if item[3].find("Mystery") == -1 and item[3].find("Import") == -1:
@@ -17,6 +24,7 @@ def generate_items_dict():
                     items_dict[item[1]] = [item]
                 else:
                     items_dict[item[1]].append(item)
+
     return items_dict
 
 

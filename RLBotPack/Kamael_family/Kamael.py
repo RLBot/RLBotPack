@@ -1,45 +1,14 @@
 from math import sqrt, floor, atan2, sin, cos, inf, degrees
 from random import randint
 from queue import Empty
-from rlbot.agents.base_agent SimpleControllerState
+from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.agents.standalone.standalone_bot import StandaloneBot, run_bot
 from rlbot.utils.structures.game_data_struct import GameTickPacket
-# from rlbot.utils.game_state_util import (
-#     GameState,
-#     BallState,
-#     CarState,
-#     Physics,
-#     Vector3 as vector3,
-#     Rotator,
-# )
-
-# from rlbot.matchcomms.common_uses.set_attributes_message import handle_set_attributes_message,make_set_attributes_message
-#from impossibum_utilities import *
 from impossibum_states import *
-
-# import cProfile, pstats, io
 import numpy as np
 from pathlib import Path
 import time
 from collections import deque
-
-
-# def profile(fnc):
-#     """A decorator that uses cProfile to profile a function"""
-#
-#     def inner(*args, **kwargs):
-#         pr = cProfile.Profile()
-#         pr.enable()
-#         retval = fnc(*args, **kwargs)
-#         pr.disable()
-#         s = io.StringIO()
-#         sortby = "cumulative"
-#         ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-#         ps.print_stats()
-#         print(s.getvalue())
-#         return retval
-#
-#     return inner
 
 
 class Kamael(StandaloneBot):
@@ -423,7 +392,7 @@ class Kamael(StandaloneBot):
     def get_ignore_list(self):
         ignore_list = []
         with open(
-            str(Path(__file__).parent.absolute()) + "/bot_ignore_list.txt"
+            str(Path(__file__).parent.absolute()) + "\\bot_ignore_list.txt"
         ) as specials:
             for name in specials.readlines():
                 ignore_list.append(str(name.strip()).lower())
