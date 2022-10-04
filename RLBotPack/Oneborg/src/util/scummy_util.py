@@ -60,6 +60,25 @@ def flip_value(x):
 '''
 Section: Vector Mathematics
 '''
+# Get direction with offset
+def direction_offset(dir, circlev, offset):
+    angle_pitch = math.asin(dir.z)
+    angle_yaw = math.acos(dir.x * safe_div(Vec3(dir.x, dir.y, 0).length())) * sign(dir.y)
+    if circlev - Vec3(0, 0, sign(circlev.z)) == Vec3(0, 0, 0):
+        angle_yaw += offset * sign(circlev.z)
+    elif circlev - Vec3(sign(circlev.x), 0, 0) == Vec3(0, 0, 0):
+        angle_pitch += offset * sign(circlev.x)
+    return Vec3(math.cos(angle_yaw) * math.cos(angle_pitch), math.sin(angle_yaw) * math.cos(angle_pitch), math.sin(angle_pitch))
+# Get acceleration
+def get_accel(vel):
+    if vel < 0:
+        return 3500
+    elif vel <= 1400:
+        return 1600 - vel * 1440 / 1400
+    elif vel <= 1410:
+        return (1410 - vel) * 16
+    else:
+        return 0
 # Plane smoothening
 def flat_on_surface(pos1, pos2, dropshot):
     offset = pos1 - surface_pos(pos1, dropshot)
@@ -149,7 +168,7 @@ def wall_transition_path(pos1, pos2, dropshot):
                 return rp2
             else:
                 b_dist = Vec3(rp2.x, rp2.y, 0).length()
-                ball_angle = math.acos(pos2.x * safe_div(b_dist)) * sign(pos2.y)
+                ball_angle = math.acos(rp2.x * safe_div(b_dist)) * sign(rp2.y)
                 surface_angle = math.floor(ball_angle / math.pi * 3) * math.pi / 3 + math.pi / 6
                 return Vec3(rp2.x, rp2.y, 0) + Vec3(rp2.z * math.cos(surface_angle), rp2.z * math.sin(surface_angle), 0)
         return rp2
@@ -355,7 +374,7 @@ def max_jump_height(g, double):
 Section: Aerials
 '''
 # Get the direction to intersect the ball in the air (car location(Vec3), car velocity(Vec3), offset time(Number), self.get_ball_prediction_struct(), target(Vec3), boost quantity(Number), packet)
-def aerial_dir(pos, vel, t_offset, ball_prediction, send_location, boost, offset, boost_power, gravity, packet):
+def aerial_dir(pos, vel, t_offset, ball_prediction, send_location, boost, offset, boost_power, gravity, begin_tick, search_dir, packet):
     def predict_ball(t):
         ball_in_future = find_slice_at_time(ball_prediction, t)
         if ball_in_future is not None:
@@ -364,14 +383,39 @@ def aerial_dir(pos, vel, t_offset, ball_prediction, send_location, boost, offset
             return packet.game_ball
     nearest_time = 0
     nearest_val = math.inf
-    for i in range(1, 101):
+    prev_disparity = -math.inf
+    for i in range(begin_tick, (101 * (1 + sign(search_dir))) // 2, search_dir):
         t = i / 20
         bp = predict_ball(t_offset + t)
         point_pos = Vec3(bp.physics.location) - dir_to_point(Vec3(bp.physics.location), send_location) * offset
         int_dist = ((pos + vel * t - Vec3(0, 0, gravity / 2) * t**2) - point_pos).length()
         if t <= boost * 3 / 100:
             if int_dist <= boost_power / 2 * t**2:
-                return point_pos - (pos + vel * t - Vec3(0, 0, gravity / 2) * t**2), t
+                return point_pos - (pos + vel * t - Vec3(0, 0, gravity / 2) * t**2), t + prev_disparity / (prev_disparity + boost_power / 2 * t**2 - int_dist) / 20
+        prev_disparity = int_dist - boost_power / 2 * t**2
+    return Vec3(predict_ball(t_offset).physics.location), 0
+# Get the direction to intersect the ball in the air (car location(Vec3), car velocity(Vec3), offset time(Number), self.get_ball_prediction_struct(), target(Vec3), boost quantity(Number), packet)
+def aerial_dir_x(pos, vel, t_offset, ball_prediction, send_location, boost, offset, boost_power, gravity, begin_tick, search_dir, front_dir, packet):
+    def predict_ball(t):
+        ball_in_future = find_slice_at_time(ball_prediction, t)
+        if ball_in_future is not None:
+            return ball_in_future
+        else:
+            return packet.game_ball
+    nearest_time = 0
+    nearest_val = math.inf
+    prev_disparity = -math.inf
+    for i in range(begin_tick, (101 * (1 + sign(search_dir))) // 2, search_dir):
+        t = i / 20
+        bp = predict_ball(t_offset + t)
+        point_pos = Vec3(bp.physics.location) - dir_to_point(Vec3(bp.physics.location), send_location) * offset
+        int_vector = point_pos - (pos + vel * t - Vec3(0, 0, gravity / 2) * t**2)
+        t2 = t - get_angle(front_dir, int_vector) / 5.5
+        int_dist = int_vector.length()
+        if t <= boost * 3 / 100:
+            if int_dist <= boost_power / 2 * t**2:
+                return int_vector, t + prev_disparity / (prev_disparity + boost_power / 2 * t**2 - int_dist) / 20
+        prev_disparity = int_dist - boost_power / 2 * t**2
     return Vec3(predict_ball(t_offset).physics.location), 0
 # Control of aerial (Intended point direction(Vec3), Current point direction(Vec3))
 def aerial_control(front, orig, k):
@@ -420,3 +464,56 @@ def get_aerial_control(dir, orig):
         if False:
             print("B: " + str(travel_angle) + ", Ref(p): " + str(ref_pitch) + ", Target(p): " + str(target_pitch) + ", Offset(y): " + str(offset_yaw))
     return found_angle * sign(abs(ad * math.sin(found_angle) - ae) - abs(ad * math.sin(-found_angle) - ae))
+'''
+Section: Dropshot
+'''
+# Get the row of a tile based on index
+def get_row(index):
+    if index == clamp(math.floor(index), 0, 139):
+        if index < 70:
+            return math.floor(-6.5 + math.sqrt(2 * index + 6.5**2))
+        else:
+            return math.floor(20.5 - math.sqrt(2 * (140 - index) + 6.5**2))
+# Get the index minimum of a tile based on row
+def get_index_minimum(row):
+    if row < 7:
+        return (row**2 + 13 * row) // 2
+    else:
+        return 161 - (row - 21) * (row - 20) // 2
+# Get the position of a tile
+def get_pos(index):
+    row = get_row(index)
+    y = (122 + 576 / math.cos(math.pi / 6) * clamp(abs(6.5 - row) - 0.5, 0, 7)) * sign(row - 6.5)
+    x = 768 * 3 - 384 * (abs(row - 6.5) - 6.5) - 768 * (index - get_index_minimum(row))
+    return Vec3(x, y, 0)
+'''
+# Update damage to tiles
+def damage_tile(li, pos, power):
+    new_li = li
+    if abs(pos.y) > 122:
+        aff_row = 6.5 + sign(pos.y) * (0.5 + math.floor((abs(pos.y) - 122) / (576 / math.cos(math.pi / 6)) - 122))
+        row_min = math.floor(aff_row)
+        row_max = math.ceil(aff_row)
+        index_min = get_index_minimum(row_min)
+        pos_min = get_pos(index_min)
+        index_max = get_index_minimum(row_max)
+        pos_max = get_pos(index_max)
+        if (pos_min - pos).length() < (pos_max - pos).length():
+            index = index_min
+        else:
+            index = index_max
+        row = get_row(index)
+        new_li[index] = clamp(new_li[index] + 1, 0, 2)
+        # Damage multiple tiles
+        if 3 >= power >= 2:
+            for i in range(row - (power - 1), row + power):
+                index_in_row = 
+                for l in range():
+    return new_li
+'''
+# Reset tiles after goal
+def reset_side(li, team):
+    new_li = li
+    for i in range(70):
+        new_li[i + team * 70] = 0
+    return new_li
