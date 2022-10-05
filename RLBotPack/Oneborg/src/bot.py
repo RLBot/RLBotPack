@@ -640,7 +640,7 @@ class MyBot(BaseAgent):
         if False:
             mode, mode_comp = behaviour_x()
         elif self.dropshot == True:
-            if number_friendly == 1:
+            if number_friendly >= 1:
                 mode, mode_comp = duel_dropshot()
             elif number_friendly == 2:
                 mode, mode_comp = doubles_dropshot()
@@ -649,7 +649,7 @@ class MyBot(BaseAgent):
             elif number_friendly >= 4:
                 mode, mode_comp = chaos_dropshot()
         else:
-            if number_friendly == 1:
+            if number_friendly >= 1:
                 mode, mode_comp = duel()
             elif number_friendly == 2:
                 mode, mode_comp = doubles()
