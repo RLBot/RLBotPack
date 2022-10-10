@@ -132,12 +132,12 @@ class MyBot(BaseAgent):
             self.inverted = True
             self.opponent_index = 0
 
-        self.filename = "./Seer/13250.pt"
+        self.filename = "./Seer/21800.pt"
 
         print("Seer Loading: " + self.filename)
 
         self.policy = SeerNetwork()
-        self.policy.load_state_dict(torch.load(self.filename))
+        self.policy.load_state_dict(torch.load(self.filename, map_location=torch.device('cpu')))
         self.policy.eval()
 
         self.controls = SimpleControllerState()
