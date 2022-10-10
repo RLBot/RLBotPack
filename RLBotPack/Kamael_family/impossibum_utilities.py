@@ -448,8 +448,8 @@ def retreating_tally(teamPlayerList):
 
 
 def player_retreat_status(ally: physicsObject, ball: Vector, team: int, num_allies=2):
-    retreat_threshold = 450  # if team == 0 else 200
-    retreat_distance = 3500  # if team == 0 else 3500
+    retreat_threshold = 500  # if team == 0 else 200
+    retreat_distance = 2500  # if team == 0 else 3500
     dist = distance2D(ally.location, ball)
     # if ball[1] * sign(team) > 0:
     #     return False
@@ -457,14 +457,14 @@ def player_retreat_status(ally: physicsObject, ball: Vector, team: int, num_alli
     if dist < retreat_distance and ally.location[1] * sign(team) < 3000:
         # if ally.location[1] * sign(team) < 4500:
         #     retreat_threshold *=2
+        if dist > retreat_threshold:
+            if team == 0:
+                if ally.velocity[1] < -retreat_threshold:
+                    return True
 
-        if team == 0:
-            if ally.velocity[1] < -retreat_threshold:
-                return True
-
-        else:
-            if ally.velocity[1] > retreat_threshold:
-                return True
+            else:
+                if ally.velocity[1] > retreat_threshold:
+                    return True
 
     return False
 
@@ -2155,7 +2155,7 @@ def secondManPositioning(agent):
                 demo_target = directional_demo_picker(agent, direction=_dir)
                 if demo_target is not None and demo_check(agent, demo_target):
                     difference = agent.me.location - demo_target.location
-                    if abs(difference[0]) < abs(difference[1]) + 200:
+                    if abs(difference[0]) < abs(difference[1]) + 350:
                         if _dir != 2 or demo_target.location[1] * sign(
                                 agent.team
                         ) < agent.ball.location[1] * sign(agent.team):
@@ -2166,8 +2166,11 @@ def secondManPositioning(agent):
     ):
         return smart_retreat(agent)
 
+    scaler = 2500
+    if not agent.offensive:
+        scaler = 1500
     _direction = (agent.ball.location.flatten() - enemyGoal).normalize()
-    destination = agent.ball.location.flatten() + _direction.scale(3000)
+    destination = agent.ball.location.flatten() + _direction.scale(scaler)
     x_target = clamp(3000, -3000, destination[0])
     destination.data[1] += abs(destination[0] - x_target) * sign(agent.team)
     destination.data[0] = x_target
@@ -2191,7 +2194,7 @@ def secondManPositioning(agent):
         # y_target = destination[1]
         maintain_speed = False
 
-    if abs(y_target) < 4700:
+    if y_target * sign(agent.team) > 4700:
         if agent.me.location[1] * sign(agent.team) < agent.ball.location[1] * sign(
                 agent.team
         ):
@@ -2206,7 +2209,7 @@ def secondManPositioning(agent):
         ) > agent.ball.location[1] * sign(agent.team):
             boost_suggestion = cannister_info[0]
         else:
-            mode = 0
+            mode = 2
             # if offensive:
             #     if agent.me.boostLevel >= 35:
             #         mode = 2
@@ -2220,7 +2223,7 @@ def secondManPositioning(agent):
             agent.update_action({"type": "BOOST", "target": boost_suggestion.index})
             return driveController(agent, target.flatten(), 0, flips_enabled=True)
 
-    if abs(y_target) < 4500:
+    if y_target * sign(agent.team) < 4700:
         timer = agent.currentHit.prediction_time
         # if (
         #     agent.me.location[1] * sign(agent.team)
@@ -2390,7 +2393,7 @@ def thirdManPositioning(agent, buffer=None):
                 demo_target = directional_demo_picker(agent, direction=_dir)
                 if demo_target is not None and demo_check(agent, demo_target):
                     difference = agent.me.location - demo_target.location
-                    if abs(difference[0]) < abs(difference[1]) + 200:
+                    if abs(difference[0]) < abs(difference[1]) + 350:
                         if _dir != 2 or demo_target.location[1] * sign(
                                 agent.team
                         ) < agent.ball.location[1] * sign(agent.team):
@@ -2400,6 +2403,8 @@ def thirdManPositioning(agent, buffer=None):
             agent.team
     ):
         return smart_retreat(agent)
+
+
 
     _direction = (
             agent.ball.location.flatten() - Vector([0, 5200 * -sign(agent.team), 0])
@@ -2452,7 +2457,7 @@ def thirdManPositioning(agent, buffer=None):
             Vector([x_target, y_target, 0]),
             0,
             expedite=False,
-            maintainSpeed=True,
+            maintainSpeed=False,
             flips_enabled=False,
         )
 
