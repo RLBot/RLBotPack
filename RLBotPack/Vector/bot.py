@@ -7,13 +7,13 @@ from obs.advanced_obs import AdvancedObs
 from rlgym_compat import GameState
 
 KICKOFF_CONTROLS = (
-        11 * 8 * [SimpleControllerState(throttle=1, boost=True)]
-        + 4 * 8 * [SimpleControllerState(throttle=1, boost=True, steer=-1)]
+        11 * 6 * [SimpleControllerState(throttle=1, boost=True)]
+        + 4 * 7 * [SimpleControllerState(throttle=1, boost=True, steer=-1)]
         + 2 * 8 * [SimpleControllerState(throttle=1, jump=True, boost=True)]
         + 1 * 8 * [SimpleControllerState(throttle=1, boost=True)]
         + 1 * 8 * [SimpleControllerState(throttle=1, yaw=0.8, pitch=-0.7, jump=True, boost=True)]
-        + 13 * 8 * [SimpleControllerState(throttle=1, pitch=1, boost=True)]
-        + 10 * 8 * [SimpleControllerState(throttle=1, roll=1, pitch=0.5)]
+        + 13 * 6 * [SimpleControllerState(throttle=1, pitch=1, boost=True)]
+        + 10 * 5 * [SimpleControllerState(throttle=1, roll=1, pitch=0.53)]
 )
 
 KICKOFF_NUMPY = np.array([
@@ -54,7 +54,7 @@ class RLGymExampleBot(BaseAgent):
         self.controls = SimpleControllerState()
         self.action = np.zeros(8)
         self.tick_multi = 120
-        self.kickoff_index = -1
+        # self.kickoff_index = -1
 
     def reshape_state(self, gamestate, player, opponents, allies):
         """ TODO - replace me with code that handles different sized teams
@@ -63,21 +63,24 @@ class RLGymExampleBot(BaseAgent):
         self.game_state.players = [player, closest_op]
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        cur_time = packet.game_info.seconds_elapsed
+        # cur_time = packet.game_info.seconds_elapsed
+        cur_time = packet.game_info.frame_num
         delta = cur_time - self.prev_time
         self.prev_time = cur_time
-        ticks_elapsed = self.ticks * self.tick_multi
+        # ticks_elapsed = self.ticks * self.tick_multi
+        ticks_elapsed = self.ticks
         self.ticks += delta
 
-        if not self.observed:
+        # if not self.observed:
+        if ticks_elapsed > self.tick_skip-1:
             self.game_state.decode(packet, ticks_elapsed)
-            if packet.game_info.is_kickoff_pause and not packet.game_info.is_round_active:
-                ''' This would be a good time to reset the obs/action if you're using a stacking obs
-                    otherwise it shouldn't really matter'''
-                #self.obs_builder.reset(self.game_state)
-                #self.action = np.zeros(8)
-                #self.update_controls(self.action)
-                pass
+            # if packet.game_info.is_kickoff_pause and not packet.game_info.is_round_active:
+            #     ''' This would be a good time to reset the obs/action if you're using a stacking obs
+            #         otherwise it shouldn't really matter'''
+            #     self.obs_builder.reset(self.game_state)
+            #     self.action = np.zeros(8)
+            #     self.update_controls(self.action)
+            #     pass
             player = self.game_state.players[self.index]
             opponents = [p for p in self.game_state.players if p.team_num != self.team]
             allies = [p for p in self.game_state.players if p.team_num == self.team and p.car_id != self.index]
@@ -86,18 +89,21 @@ class RLGymExampleBot(BaseAgent):
                 self.reshape_state(self.game_state, player, opponents, allies)
 
             self.current_obs = self.obs_builder.build_obs(player, self.game_state, self.action)
+            self.action = self.agent.act(self.current_obs)
+            self.update_controls(self.action)
             self.observed = True
-
-        elif ticks_elapsed >= self.tick_skip-2:
-            if not self.acted:
-                self.action = self.agent.act(self.current_obs)
-                self.update_controls(self.action)
-                self.acted = True
-
-        if ticks_elapsed >= self.tick_skip-1:
             self.ticks = 0
-            self.observed = False
-            self.acted = False
+
+        # elif ticks_elapsed >= self.tick_skip-2:
+        #     if not self.acted:
+        #         self.action = self.agent.act(self.current_obs)
+        #         self.update_controls(self.action)
+        #         self.acted = True
+        #
+        # if ticks_elapsed >= self.tick_skip-1:
+        #     self.ticks = 0
+        #     self.observed = False
+        #     self.acted = False
 
         self.maybe_do_kickoff(packet, ticks_elapsed)
 
@@ -106,6 +112,7 @@ class RLGymExampleBot(BaseAgent):
     def maybe_do_kickoff(self, packet, ticks_elapsed):
         if packet.game_info.is_kickoff_pause:
             if self.kickoff_index >= 0:
+                # kickoff_index is in reality also the step count for the actions to take
                 self.kickoff_index += round(ticks_elapsed)
             elif self.kickoff_index == -1:
                 is_kickoff_taker = False
@@ -129,8 +136,7 @@ class RLGymExampleBot(BaseAgent):
 
                 self.kickoff_index = 0 if is_kickoff_taker else -2
 
-            if 0 <= self.kickoff_index < len(KICKOFF_NUMPY) \
-                    and packet.game_ball.physics.location.y == 0:
+            if 0 <= self.kickoff_index < len(KICKOFF_NUMPY) and packet.game_ball.physics.location.y == 0:
                 action = KICKOFF_NUMPY[self.kickoff_index]
                 self.action = action
                 self.update_controls(self.action)
