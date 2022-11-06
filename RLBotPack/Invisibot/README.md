@@ -30,6 +30,6 @@ give other bots invisibility powers. Here are the requirements:
 The bot is working pretty well. Sometimes the simulation is not perfect and it results
 in the bot not being in the place that the "controlling" bot expects. This results in
 invisibot performing worse than the "controlling" bot. Since the controlling bot is
-Kamael though, a bad Nexto still performs pretty well.
+Nexto though, a bad Nexto still performs pretty well.
 
 
