@@ -135,7 +135,7 @@ class goto_goal():
         relative_target = agent.friend_goal.location - agent.me.location
         local_target = agent.me.local(relative_target)
         defaultPD(agent, local_target)
-        throttlegoal = (cap(agent.me.location.dist(agent.friend_goal.location),0,2300) / 2300 - 100)
+        throttlegoal = cap(agent.me.location.dist(agent.friend_goal.location) - 200, 0, 2300)
         defaultThrottle(agent, throttlegoal)
             
 
@@ -394,7 +394,7 @@ class jump_shot():
                 #simulating a deadzone so that the dodge is more natural
                 agent.controller.pitch = self.p if abs(self.p) > 0.2 else 0 
                 agent.controller.yaw = self.y if abs(self.y) > 0.3 else 0
-
+ 
 
 class cheese_kickoff():
     #A simple 1v1 kickoff that just drives up behind the ball and dodges
@@ -404,9 +404,12 @@ class cheese_kickoff():
         local_target = agent.me.local(target - agent.me.location)
         defaultPD(agent, local_target)
         defaultThrottle(agent, 2300)
+        if (agent.ball.location - agent.me.location).magnitude() < 300:
+            agent.pop()
+            agent.push(flip(agent.me.local(agent.ball.location - agent.me.location)))
+            
         if local_target.magnitude() < 650:
             agent.pop()
-            #flip towards opponent goal
             agent.push(flip(agent.me.local(agent.foe_goal.location - agent.me.location)))
 
 class recovery():

@@ -1,4 +1,3 @@
-from stat import FILE_ATTRIBUTE_NO_SCRUB_DATA
 from turtle import Vec2D
 from tools import  *
 from objects import *
@@ -155,6 +154,8 @@ class ExampleBot(GoslingAgent):
 
 
     def run(agent):
+        targets = {"goal": (agent.foe_goal.left_post, agent.foe_goal.right_post), "not_my_net": (agent.friend_goal.right_post, agent.friend_goal.left_post)}
+        shots = find_hits(agent, targets)
         controls = SimpleControllerState()
         agent.process()
         friends = len(agent.friends)
@@ -197,14 +198,26 @@ class ExampleBot(GoslingAgent):
                 if agent.current_shot_condition != agent.offense_defense_switch:
                     if agent.should_go_for_shot():
                         if len(agent.friends) != 0:
-                            GoForShot = False
-                            for i in range(agent.friends):
-                                if agent.me.location.dist(agent.ball.location) <= agent.friends[i].location.dist(agent.ball.location):
-                                    GoForShot = True
-                            
-                            if GoForShot == True:
-                                agent.clear()
-                                agent.push(agent.shot)
+                            friends = len(agent.friends)
+                            for i in range(friends):
+                                friends_distance_to_ball = []
+                                friends_distance_to_ball.append(agent.ball.location.dist(agent.friends[i-1].location))
+                                my_distance_to_ball = agent.ball.location.dist(agent.me.location)
+                                if min(friends_distance_to_ball) > my_distance_to_ball or min(friends_distance_to_ball) == my_distance_to_ball:
+                                    agent.clear()
+                                    agent.push(agent.shot)
+                                    agent.current_shot_condition = agent.offense_defense_switch
+                                else:
+                                    agent.pop()
+                                    agent.push(goto_goal())
+                                    if agent.me.location.dist(agent.ball.location) < 2000 or agent.me.location.dist(agent.friend_goal.location) < 1000:
+                                        if agent.is_clear():
+                                            if len(shots["goal"]) > 0:
+                                                agent.push(shots["goal"][0])
+                                            elif len(shots["not_my_net"]) > 0:
+                                                agent.push(shots["not_my_net"][0])
+                                            else:
+                                                agent.push(short_shot())
 
                         else:
                             agent.clear()
@@ -225,20 +238,28 @@ class ExampleBot(GoslingAgent):
                         my_distance_to_ball = agent.ball.location.dist(agent.me.location)
                         if min(friends_distance_to_ball) >= my_distance_to_ball:
                             if min(friends_distance_to_ball) == my_distance_to_ball:
-                                if agent.team == 0 and agent.me.location.x < 0:
+                                if agent.team == 0 and agent.me.location.x > 0:
                                     agent.push(cheese_kickoff())
-                                if agent.team == 1 and agent.me.location.x > 0:
+                                if agent.team == 1 and agent.me.location.x < 0:
                                     agent.push(cheese_kickoff())
                             else:
                                 agent.push(cheese_kickoff())
+                        else:
+                            nearest_boost = agent.get_nearest_boost()
+                            if nearest_boost is not None:
+                                agent.push(goto_boost(nearest_boost))
+
                         return
+
+
+        if agent.is_clear():
 
             if agent.me.airborne:
                 agent.push(recovery())
                 return
 
             nearest_boost = agent.get_nearest_boost()
-            if nearest_boost is not None:
+            if nearest_boost is not None and agent.me.boost < 25:
                 if agent.me.boost < MAIN_GET_BOOST_MIN_VALUE and not (agent.ball_going_into_our_net or agent.ball_going_into_danger_zone) and (2 > agent.offense_defense_switch >= 0 or (nearest_boost.location - agent.me.location).magnitude() < 900):
                     agent.push(goto_boost(nearest_boost))
                     return
