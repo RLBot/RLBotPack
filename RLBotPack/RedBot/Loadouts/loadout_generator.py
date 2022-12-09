@@ -10,7 +10,7 @@ class RandomLoadoutGenerator(BaseLoadoutGenerator):
     def generate_loadout(self, player_index: int, team: int) -> LoadoutConfig:
         
         # Creates a list of all the loadout files in the loadouts folder
-        loadouts_folder = Path(__file__).parent / 'loadouts'
+        loadouts_folder = self.base_directory / 'loadouts'
         loadout_list = [f for f in loadouts_folder.glob("*.cfg") if f.is_file()]
 
         # Chooses a random loadout file from the list, and applies it to our bot! :D
