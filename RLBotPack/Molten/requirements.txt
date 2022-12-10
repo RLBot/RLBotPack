@@ -1,2 +1,1 @@
-rlbot==1.*
-tmcp==1.*
+tmcp
