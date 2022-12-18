@@ -2,7 +2,7 @@ from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.messages.flat.QuickChatSelection import QuickChatSelection
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from util.ball_prediction_analysis import find_slice_at_time
+from util.ball_prediction_analysis import *
 from util.boost_pad_tracker import BoostPadTracker
 from util.drive import steer_toward_target
 from util.sequence import Sequence, ControlStep
@@ -14,7 +14,11 @@ Section: Numeral Mathematics
 '''
 # Solve a quadratic equation
 def solve_quadratic(a, b, c, ans, side):
-    return -b / (2 * a) + math.sqrt(b**2 / (4 * a**2) - (c - ans) / a) * sign(side)
+    rt = (ans - c) / a + b**2 / (4 * a**2)
+    if rt < 0:
+        return None
+    else:
+        return -b / (2 * a) + math.sqrt(rt) * sign(side)
 # Division without risk of division by 0 error (divided by(Number))
 def safe_div(x):
     if x != 0:
@@ -158,6 +162,41 @@ def surface_pos_two(pos, from_pos, freshhold, dropshot):
     # Second check
     new_pos = surface_pos(pos, dropshot)
     return new_pos
+# Position on Surface (position(Vec3), dropshot mode(Bool))
+def surface_pos_twox(pos, from_pos, freshhold, dropshot):
+    nearest_dist = math.inf
+    new_pos = pos
+    from_posN = surface_pos(from_pos, dropshot)
+    # First check: If both can be placed on the same surface with reasonable freshhold
+    if dropshot == True:
+        b_dist = Vec3(pos.x, pos.y, 0).length()
+        from_b_dist = Vec3(from_pos.x, from_pos.y, 0).length()
+        if b_dist > 0:
+            ball_angle = math.acos(pos.x * safe_div(b_dist)) * sign(pos.y)
+            from_angle = math.acos(from_pos.x * safe_div(from_b_dist)) * sign(from_pos.y)
+            surface_angle = math.floor(ball_angle / math.pi * 3) * math.pi / 3 + math.pi / 6
+            from_surface_angle = math.floor(from_angle / math.pi * 3) * math.pi / 3 + math.pi / 6
+            if 4555 - b_dist * math.cos(ball_angle - surface_angle) <= freshhold and 4555 - from_b_dist * math.cos(from_angle - from_surface_angle) < nearest_dist:
+                new_pos = Vec3(4555 * math.cos(surface_angle), 4555 * math.sin(surface_angle), pos.z) + Vec3(math.cos(ball_angle) * b_dist, math.sin(ball_angle) * b_dist, 0) * safe_div(math.cos(ball_angle - surface_angle)) - Vec3(math.cos(surface_angle) * b_dist, math.sin(surface_angle) * b_dist, 0)
+                nearest_dist = 4555 - b_dist * math.cos(ball_angle - surface_angle)
+        if pos.z <= freshhold and from_posN.z == 0:
+            new_pos = Vec3(pos.x, pos.y, 0)
+            nearest_dist = pos.z
+    else:
+        if 1022 - abs(from_pos.z - 1022) < nearest_dist and 4096 - abs(from_pos.x) >= 1022 - abs(from_pos.z - 1022) <= 5120 - abs(from_pos.y) and 1022 - abs(pos.z - 1022) <= freshhold and sign(from_pos.z - 1022) == sign(pos.z - 1022):
+            new_pos = Vec3(pos.x, pos.y, 1022 + sign(from_pos.z - 1022) * 1022)
+            nearest_dist = 1022 - abs(from_pos.z - 1022)
+        if 4096 - abs(from_pos.x) < nearest_dist and 1022 - abs(from_pos.z - 1022) >= 4096 - abs(from_pos.x) <= 5120 - abs(from_pos.y) and 4096 - abs(pos.x) <= freshhold and sign(from_pos.x) == sign(pos.x):
+            new_pos = Vec3(4096 * sign(pos.x), pos.y, pos.z)
+            nearest_dist = 4096 - abs(from_pos.x)
+        if 5120 - abs(from_pos.y) < nearest_dist and 1022 - abs(from_pos.z - 1022) >= 5120 - abs(from_pos.y) <= 4096 - abs(from_pos.x) and 5120 - abs(pos.y) <= freshhold and sign(from_pos.y) == sign(pos.y):
+            new_pos = Vec3(pos.x, 5120 * sign(pos.y), pos.z)
+            nearest_dist = 5120 - abs(from_pos.y)
+    if nearest_dist != math.inf:
+        return new_pos
+    # Second check
+    new_pos = surface_pos(pos, dropshot)
+    return new_pos
 # Driving path for wall transitions
 def wall_transition_path(pos1, pos2, dropshot):
     rp1 = surface_pos(pos1, dropshot)
@@ -189,6 +228,29 @@ def wall_transition_path(pos1, pos2, dropshot):
             elif abs(rp2.x) == 4096:
                 return Vec3((4096 + abs(rp2.y - rp1.y)) * sign(rp2.x), rp1.y, rp2.z)
         return rp2
+# Predict bounce with formulas
+def predict_surface_bounce(pos, vel, height, g):
+    def get_smallest(li):
+        smallest = math.inf
+        for i in li:
+            if i < smallest:
+                smallest = i
+        return smallest
+    if True:
+        pred_x = (4096 - height - pos.x * sign(vel.x)) * safe_div(vel.x) * sign(vel.x)
+        pred_y = (5120 - height - pos.y * sign(vel.y)) * safe_div(vel.y) * sign(vel.y)
+    else:
+        vdir = Vec3(vel.x, vel.y, 0)
+        pdir = Vec3(pos.x, pos.y, 0)
+        v_offset = pdir.length() * math.cos(get_angle(vdir, -pdir))
+        h_offset = pdir.length() * math.sin(get_angle(vdir, -pdir))
+    pred_z1 = solve_quadratic(-g / 2, vel.z, pos.z, height, 1)
+    if pred_z1 == None:
+        pred_z1 = 0
+    pred_z2 = solve_quadratic(-g / 2, vel.z, pos.z, 2044 - height, -1)
+    if pred_z2 == None:
+        pred_z2 = math.inf
+    return get_smallest([pred_x, pred_y, pred_z1, pred_z2])
 # Direction to point (position ref(Vec3), point to(Vec3))
 def dir_to_point(pos1, pos2):
     return (pos2 - pos1) * safe_div((pos2 - pos1).length())
@@ -212,6 +274,7 @@ def next_bounce(t_offset, ball_prediction, pos, vel, g_offset, target, dropshot,
 # Determine when the car can intersect the ball (offset time(Number), self.get_ball_prediction_struct(), car location(Vec3), car velocity(Vec3), max ball distance from surface allowed(Number), distance to point to target(Number), target(Vec3), dropshot mode(Bool), packet)
 def intersect_time(t_offset, ball_prediction, pos, vel, height_threshold, g_offset, target, dropshot, surface, boost, packet):
     ref = pos
+    wait = 0
     if surface == True:
         ref = surface_pos(ref, dropshot)
     def predict_ball(t):
@@ -220,19 +283,26 @@ def intersect_time(t_offset, ball_prediction, pos, vel, height_threshold, g_offs
             return ball_in_future
         else:
             return packet.game_ball
+    # Determine the deadline
+    if predict_future_goal(ball_prediction) == None:
+        deadline = 5
+    else:
+        deadline = predict_future_goal(ball_prediction) / 60
     # Ball prediction
-    for i in range(1, 101):
+    for i in range(1, int(deadline * 20 + 1)):
         bp = predict_ball(t_offset + i / 20)
         point_pos = Vec3(bp.physics.location) - dir_to_point(Vec3(bp.physics.location), target) * g_offset
         point_pos2 = point_pos
         if surface == True:
             point_pos = wall_transition_path(pos, point_pos, dropshot)
+        if (point_pos - ref).length() <= vel * i / 20 and not (point_pos2 - surface_pos(point_pos2, dropshot)).length() <= height_threshold:
+            wait = 1
         if True:
             if (point_pos - ref).length() <= vel * i / 20 and (point_pos2 - surface_pos(point_pos2, dropshot)).length() <= height_threshold:
-                return i / 20
+                return (i - wait) / 20
         else:
             if (point_pos2 - ref).length() <= vel * i / 20 and (point_pos - surface_pos(point_pos, dropshot)).length() <= height_threshold:
-                return i / 20
+                return (i - wait) / 20
     return 0
 # Determine when the car can intersect the ball (offset time(Number), self.get_ball_prediction_struct(), car location(Vec3), car velocity(Vec3), max ball distance from surface allowed(Number), distance to point to target(Number), target(Vec3), dropshot mode(Bool), packet)
 def intersect_time_x(t_offset, ball_prediction, pos, vel, height_threshold, g_offset, target, dropshot, surface, boost, boost_strength, packet):
@@ -279,8 +349,13 @@ def intersect_time_x(t_offset, ball_prediction, pos, vel, height_threshold, g_of
         velB = 1410 + boost_strength * (tb - tc2)
     if tb >= tc3 and velB == 0:
         velB = 2300
+    # Determine the deadline
+    if predict_future_goal(ball_prediction) == None:
+        deadline = 5
+    else:
+        deadline = predict_future_goal(ball_prediction) / 60
     # Ball prediction
-    for i in range(1, 101):
+    for i in range(1, int(deadline * 20 + 1)):
         cc1, cc2, cc3, cc1n = clamp(tc1, 0, tb), clamp(tc2, 0, tb), clamp(tc3, 0, tb), clamp(tc1n, tb, math.inf)
         # Distance covered with boost
         dist_wb = b1 * ((math.e**(-a1 * 0) / a1 + 0) - (math.e**(-a1 * clamp(tv + i / 20, 0, cc1)) / a1 + clamp(tv + i / 20, 0, cc1))) + b2 * ((math.e**(-a2 * cc1) / a2 + cc1) - (math.e**(-a2 * clamp(tv + i / 20, cc1, cc2)) / a2 + clamp(tv + i / 20, cc1, cc2))) + 1410 * (clamp(tv + i / 20, cc2, cc3) - cc2) + (boost_strength / 2) * (clamp(tv + i / 20, cc2, cc3)**2 - cc2**2) + 2300 * (clamp(tv + i / 20, cc3, math.inf) - cc3)
@@ -314,7 +389,12 @@ def nearest_intersection(t_offset, ball_prediction, pos, height_threshold, g_off
             return ball_in_future
         else:
             return packet.game_ball
-    for i in range(1, 101):
+    # Determine the deadline
+    if predict_future_goal(ball_prediction) == None:
+        deadline = 5
+    else:
+        deadline = predict_future_goal(ball_prediction) / 60
+    for i in range(1, int(deadline * 20 + 1)):
         bp = predict_ball(t_offset + i / 20)
         point_pos = Vec3(bp.physics.location) - dir_to_point(Vec3(bp.physics.location), target) * g_offset
         point_pos2 = point_pos
@@ -418,7 +498,7 @@ def aerial_dir_x(pos, vel, t_offset, ball_prediction, send_location, boost, offs
         prev_disparity = int_dist - boost_power / 2 * t**2
     return Vec3(predict_ball(t_offset).physics.location), 0
 # Control of aerial (Intended point direction(Vec3), Current point direction(Vec3))
-def aerial_control(front, orig, k):
+def aerial_control(front, orig, k, lim):
     car_direction = Vec3(math.cos(orig.yaw) * math.cos(orig.pitch), math.sin(orig.yaw) * math.cos(orig.pitch), math.sin(orig.pitch))
     to_attack = get_aerial_control(dir_convert(front), orig)
     # Roll
@@ -429,7 +509,7 @@ def aerial_control(front, orig, k):
     p_c = math.cos(to_attack)
     p_y = -math.sin(to_attack)
     # Pitch & Yaw
-    return (p_c * math.cos(orig.roll) + p_y * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1, 1), (p_y * math.cos(orig.roll) - p_c * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1, 1)
+    return (p_c * math.cos(orig.roll) + p_y * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1 * safe_div(bool(lim)), 1 * safe_div(bool(lim))), (p_y * math.cos(orig.roll) - p_c * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1 * safe_div(bool(lim)), 1 * safe_div(bool(lim)))
 # Get the controls (Intended point direction(Vec3), Current point direction(Vec3))
 def get_aerial_control(dir, orig):
     # The problem
@@ -464,8 +544,14 @@ def get_aerial_control(dir, orig):
         if False:
             print("B: " + str(travel_angle) + ", Ref(p): " + str(ref_pitch) + ", Target(p): " + str(target_pitch) + ", Offset(y): " + str(offset_yaw))
     return found_angle * sign(abs(ad * math.sin(found_angle) - ae) - abs(ad * math.sin(-found_angle) - ae))
+# Get the angular velocity based on two points (previous frame, current frame)
+def get_angular_velocity(previous, current):
+    pitch_1, pitch_2 = math.asin(previous.z * safe_div(previous.length())), math.asin(current.z * safe_div(current.length()))
+    yaw_1, yaw_2 = math.acos(previous.x * safe_div(Vec3(previous.x, previous.y).length())) * sign(previous.y), math.acos(current.x * safe_div(Vec3(current.x, current.y).length())) * sign(current.y)
+    return pitch_2 - pitch_1, yaw_2 - yaw_1
 '''
 Section: Dropshot
+'''
 '''
 # Get the row of a tile based on index
 def get_row(index):
@@ -486,7 +572,6 @@ def get_pos(index):
     y = (122 + 576 / math.cos(math.pi / 6) * clamp(abs(6.5 - row) - 0.5, 0, 7)) * sign(row - 6.5)
     x = 768 * 3 - 384 * (abs(row - 6.5) - 6.5) - 768 * (index - get_index_minimum(row))
     return Vec3(x, y, 0)
-'''
 # Update damage to tiles
 def damage_tile(li, pos, power):
     new_li = li
@@ -507,13 +592,12 @@ def damage_tile(li, pos, power):
         # Damage multiple tiles
         if 3 >= power >= 2:
             for i in range(row - (power - 1), row + power):
-                index_in_row = 
-                for l in range():
+                index_in_row = 0
     return new_li
-'''
 # Reset tiles after goal
 def reset_side(li, team):
     new_li = li
     for i in range(70):
         new_li[i + team * 70] = 0
     return new_li
+'''
