@@ -512,7 +512,7 @@ class MyBot(BaseAgent):
             e_carrying = nearest_enemy is not None and (Vec3(nearest_enemy.physics.velocity) - ball_velocity).length() < 100 and (Vec3(nearest_enemy.physics.location) - ball_location).length() <= 500 and get_angle(car_location - ball_location, -send_location - ball_location) > math.pi / 180 * 26.57
             # Fundamental mode
             if (not (emergency != None and sign(predict_ball(emergency).physics.location.y) == sign(send_location.y)) or nearest_enemy == None or (nearest_et > nearest_ft and get_angle(Vec3(nearest_enemy.physics.location) - ball_location, mid_location - ball_location) >= math.pi / 2)) and get_angle(Vec3(predict_ball(intersection).physics.location) - car_location, send_location - car_location) <= math.pi / 2 and not e_carrying and (sign(car_velocity.y) * sign(send_location.y) >= 0 or nearest_et >= nearest_ft) or cond_hold or abs(car_location.y + send_location.y) <= car_velocity.length() * 0.75:
-                if nearest_et <= 1.5 or predict_ball(intersection).physics.location.z > max_jump_height(-packet.game_info.world_gravity_z, False) / 10 * 9:
+                if (nearest_et <= 1.5 or emergency != None) and predict_ball(intersection).physics.location.z > max_jump_height(-packet.game_info.world_gravity_z, False) / 10 * 9:
                     mode = "Reach"
                 else:
                     mode = "Power shot"
