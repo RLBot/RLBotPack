@@ -356,7 +356,7 @@ class MyBot(BaseAgent):
                     override = self.generic_flip(packet, -flip_value(math.cos(get_angle(dir_convert(Vec3(side_direction.x, side_direction.y, 0)), dir_convert(Vec3(ball_location.x - car_location.x, ball_location.y - car_location.y, 0))))) * sign(roof_direction.z), -flip_value(math.cos(get_angle(dir_convert(Vec3(car_direction.x, car_direction.y, 0)), dir_convert(Vec3(ball_location.x - car_location.x, ball_location.y - car_location.y, 0))))), 0, 0, 0.5)
                 controls.boost = False
                 controls.throttle = 0
-            if get_angle(tl - car_location, car_velocity) > math.pi / 2 and sign(steer_toward_target(my_car, tl)) != sign(steer_toward_target(my_car, Vec3(predict_ball(intersectionN).physics.location))):
+            if get_angle(tl - car_location, car_velocity) > math.pi / 2 and sign(steer_toward_target(my_car, tl)) != sign(steer_toward_target(my_car, Vec3(predict_ball(intersectionN).physics.location))) and (surface_pos(car_location, self.dropshot) - surface_pos(Vec3(predict_ball(intersectionN).physics.location), self.dropshot)).length() <= intersectionN * car_velocity.length():
                 controls.steer = fix_reversing(steer_toward_target(my_car, Vec3(predict_ball(intersectionN).physics.location)), Vec3(predict_ball(intersectionN).physics.location))
             else:
                 controls.steer = fix_reversing(steer_toward_target(my_car, tl), tl)
