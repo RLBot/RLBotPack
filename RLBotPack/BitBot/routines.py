@@ -109,9 +109,6 @@ class aerial_shot():
             agent.push(recovery())
         if not shot_valid(agent, self, 90):
             agent.pop()
-        if agent.me.location.z > 150:
-            agent.controller.roll = -1
-
 
 class flip():
     #Flip takes a vector in local coordinates and flips/dodges in that direction

@@ -12,9 +12,9 @@ class LoadoutGenerator(BaseLoadoutGenerator):
         loadout = self.load_cfg_file(Path('appearance.cfg'), team)
 
         """
-        F150 - 5713
-        Mustang - 6836
+        Dingo - 5361
+        Dominus - 403
         """
-        loadout.car_id = random.choice((5713, 6836))
+        loadout.car_id = random.choice((5361, 403))
 
         return loadout
