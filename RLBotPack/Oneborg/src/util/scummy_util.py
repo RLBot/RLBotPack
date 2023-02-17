@@ -14,7 +14,27 @@ Section: Numeral Mathematics
 '''
 # Solve a quadratic equation
 def solve_quadratic(a, b, c, ans, side):
-    return -b / (2 * a) + math.sqrt(b**2 / (4 * a**2) - (c - ans) / a) * sign(side)
+    rt = (ans - c) / a + b**2 / (4 * a**2)
+    if rt < 0:
+        return None
+    else:
+        return -b / (2 * a) + math.sqrt(rt) * sign(side)
+# Get the smallest
+def get_smallest(li):
+    smallest = math.inf
+    for i in li:
+        if i < smallest:
+            smallest = i
+    return smallest
+# Get the index of the smallest
+def get_smallest_i(li):
+    smallest = math.inf
+    smi = 0
+    for i in range(len(li)):
+        if li[i] < smallest:
+            smallest = li[i]
+            smi = i
+    return smi
 # Division without risk of division by 0 error (divided by(Number))
 def safe_div(x):
     if x != 0:
@@ -60,6 +80,15 @@ def flip_value(x):
 '''
 Section: Vector Mathematics
 '''
+# Get if an object is going to enter the range
+def will_intersect(r_pos, r_vel, r):
+    if r_pos.length() <= r:
+        return True
+    elif get_angle(r_pos, -r_vel) <= math.sqrt(r**2 / (r_pos.length()**2 - r**2)):
+        return get_angle(r_pos, -r_vel) <= math.sqrt(r**2 / (r_pos.length()**2 - r**2))
+# Get the position after a freefall
+def freefall(pos, vel, g, t):
+    return pos + vel * t - Vec3(0, 0, g / 2) * t**2
 # Get direction with offset
 def direction_offset(dir, circlev, offset):
     angle_pitch = math.asin(dir.z)
@@ -105,8 +134,8 @@ def get_angle(p1, p2):
     return angle
 # Position on Surface (position(Vec3), dropshot mode(Bool))
 def surface_pos(pos, dropshot):
-    nearest_dist = math.inf
-    new_pos = pos
+    nearest_dist = pos.z
+    new_pos = Vec3(pos.x, pos.y, 0)
     if dropshot == True:
         b_dist = Vec3(pos.x, pos.y, 0).length()
         if b_dist > 0:
@@ -122,9 +151,6 @@ def surface_pos(pos, dropshot):
         if 5120 - clamp(abs(pos.y), 0, 5120) < nearest_dist and (abs(pos.x) > 846 or pos.z > 596):
             new_pos = Vec3(pos.x, sign(pos.y) * 5120, pos.z)
             nearest_dist = 5120 - clamp(abs(pos.y), 0, 5120)
-    if pos.z < nearest_dist:
-        new_pos = Vec3(pos.x, pos.y, 0)
-        nearest_dist = pos.z
     return new_pos
 # Position on Surface (position(Vec3), dropshot mode(Bool))
 def surface_pos_two(pos, from_pos, freshhold, dropshot):
@@ -158,6 +184,41 @@ def surface_pos_two(pos, from_pos, freshhold, dropshot):
     # Second check
     new_pos = surface_pos(pos, dropshot)
     return new_pos
+# Position on Surface (position(Vec3), dropshot mode(Bool))
+def surface_pos_twox(pos, from_pos, freshhold, dropshot):
+    nearest_dist = math.inf
+    new_pos = pos
+    from_posN = surface_pos(from_pos, dropshot)
+    # First check: If both can be placed on the same surface with reasonable freshhold
+    if dropshot == True:
+        b_dist = Vec3(pos.x, pos.y, 0).length()
+        from_b_dist = Vec3(from_pos.x, from_pos.y, 0).length()
+        if b_dist > 0:
+            ball_angle = math.acos(pos.x * safe_div(b_dist)) * sign(pos.y)
+            from_angle = math.acos(from_pos.x * safe_div(from_b_dist)) * sign(from_pos.y)
+            surface_angle = math.floor(ball_angle / math.pi * 3) * math.pi / 3 + math.pi / 6
+            from_surface_angle = math.floor(from_angle / math.pi * 3) * math.pi / 3 + math.pi / 6
+            if 4555 - b_dist * math.cos(ball_angle - surface_angle) <= freshhold and 4555 - from_b_dist * math.cos(from_angle - from_surface_angle) < nearest_dist:
+                new_pos = Vec3(4555 * math.cos(surface_angle), 4555 * math.sin(surface_angle), pos.z) + Vec3(math.cos(ball_angle) * b_dist, math.sin(ball_angle) * b_dist, 0) * safe_div(math.cos(ball_angle - surface_angle)) - Vec3(math.cos(surface_angle) * b_dist, math.sin(surface_angle) * b_dist, 0)
+                nearest_dist = 4555 - b_dist * math.cos(ball_angle - surface_angle)
+        if pos.z <= freshhold and from_posN.z == 0:
+            new_pos = Vec3(pos.x, pos.y, 0)
+            nearest_dist = pos.z
+    else:
+        if 1022 - abs(from_pos.z - 1022) < nearest_dist and 4096 - abs(from_pos.x) >= 1022 - abs(from_pos.z - 1022) <= 5120 - abs(from_pos.y) and 1022 - abs(pos.z - 1022) <= freshhold and sign(from_pos.z - 1022) == sign(pos.z - 1022):
+            new_pos = Vec3(pos.x, pos.y, 1022 + sign(from_pos.z - 1022) * 1022)
+            nearest_dist = 1022 - abs(from_pos.z - 1022)
+        if 4096 - abs(from_pos.x) < nearest_dist and 1022 - abs(from_pos.z - 1022) >= 4096 - abs(from_pos.x) <= 5120 - abs(from_pos.y) and 4096 - abs(pos.x) <= freshhold and sign(from_pos.x) == sign(pos.x):
+            new_pos = Vec3(4096 * sign(pos.x), pos.y, pos.z)
+            nearest_dist = 4096 - abs(from_pos.x)
+        if 5120 - abs(from_pos.y) < nearest_dist and 1022 - abs(from_pos.z - 1022) >= 5120 - abs(from_pos.y) <= 4096 - abs(from_pos.x) and 5120 - abs(pos.y) <= freshhold and sign(from_pos.y) == sign(pos.y):
+            new_pos = Vec3(pos.x, 5120 * sign(pos.y), pos.z)
+            nearest_dist = 5120 - abs(from_pos.y)
+    if nearest_dist != math.inf:
+        return new_pos
+    # Second check
+    new_pos = surface_pos(pos, dropshot)
+    return new_pos
 # Driving path for wall transitions
 def wall_transition_path(pos1, pos2, dropshot):
     rp1 = surface_pos(pos1, dropshot)
@@ -177,7 +238,8 @@ def wall_transition_path(pos1, pos2, dropshot):
             if abs(rp2.x) == 4096:
                 return Vec3((4096 + rp2.z) * sign(rp2.x), rp2.y, rp1.z)
             elif abs(rp2.y) == 5120:
-                return Vec3(rp2.x, (5120 + abs(rp2.z)) * sign(rp2.y), rp1.z)
+                if abs(pos1.x + (pos2.x - pos1.x) * abs(5120 * sign(rp2.y) - rp1.y) * safe_div(abs((5120 + abs(rp2.z)) * sign(rp2.y) - rp1.y)) > 893):
+                    return Vec3(rp2.x, (5120 + abs(rp2.z)) * sign(rp2.y), rp1.z)
         elif abs(rp1.x) == 4096:
             if rp2.z == 0:
                 return Vec3(rp1.x, rp2.y, -abs(rp1.x - rp2.x))
@@ -189,6 +251,17 @@ def wall_transition_path(pos1, pos2, dropshot):
             elif abs(rp2.x) == 4096:
                 return Vec3((4096 + abs(rp2.y - rp1.y)) * sign(rp2.x), rp1.y, rp2.z)
         return rp2
+# Predict bounce with formulas
+def predict_surface_bounce(pos, vel, height, g):
+    pred_x = (4096 - height - pos.x * sign(vel.x)) * safe_div(vel.x) * sign(vel.x)
+    pred_y = (5120 - height - pos.y * sign(vel.y)) * safe_div(vel.y) * sign(vel.y)
+    pred_z1 = solve_quadratic(-g / 2, vel.z, pos.z, height, 1)
+    if pred_z1 == None:
+        pred_z1 = 0
+    pred_z2 = solve_quadratic(-g / 2, vel.z, pos.z, 2044 - height, -1)
+    if pred_z2 == None:
+        pred_z2 = math.inf
+    return get_smallest([pred_x, pred_y, pred_z1, pred_z2])
 # Direction to point (position ref(Vec3), point to(Vec3))
 def dir_to_point(pos1, pos2):
     return (pos2 - pos1) * safe_div((pos2 - pos1).length())
@@ -301,7 +374,7 @@ def intersect_time_x(t_offset, ball_prediction, pos, vel, height_threshold, g_of
                 return i / 20
     return 0
 # Determine when the car is closest to the ball (offset time(Number), self.get_ball_prediction_struct(), car location(Vec3), car velocity(Vec3), max ball distance from surface allowed(Number), distance to point to target(Number), target(Vec3), dropshot mode(Bool), packet)
-def nearest_intersection(t_offset, ball_prediction, pos, height_threshold, g_offset, target, dropshot, surface, packet):
+def nearest_intersection(t_offset, vel, ball_prediction, pos, height_threshold, g_offset, target, dropshot, surface, packet):
     ref = pos
     nearest_t = 0
     nearest_dist = math.inf
@@ -320,7 +393,7 @@ def nearest_intersection(t_offset, ball_prediction, pos, height_threshold, g_off
         point_pos2 = point_pos
         if (point_pos - surface_pos(point_pos, dropshot)).length() <= height_threshold:
             if engaged == True:
-                if (point_pos - pos).length() < nearest_dist:
+                if vel**2 / 7000 < (point_pos - pos).length() < nearest_dist:
                     nearest_dist = (point_pos - pos).length()
                     nearest_t = i / 20
                 else:
@@ -418,7 +491,7 @@ def aerial_dir_x(pos, vel, t_offset, ball_prediction, send_location, boost, offs
         prev_disparity = int_dist - boost_power / 2 * t**2
     return Vec3(predict_ball(t_offset).physics.location), 0
 # Control of aerial (Intended point direction(Vec3), Current point direction(Vec3))
-def aerial_control(front, orig, k):
+def aerial_control(front, orig, k, lim):
     car_direction = Vec3(math.cos(orig.yaw) * math.cos(orig.pitch), math.sin(orig.yaw) * math.cos(orig.pitch), math.sin(orig.pitch))
     to_attack = get_aerial_control(dir_convert(front), orig)
     # Roll
@@ -429,7 +502,7 @@ def aerial_control(front, orig, k):
     p_c = math.cos(to_attack)
     p_y = -math.sin(to_attack)
     # Pitch & Yaw
-    return (p_c * math.cos(orig.roll) + p_y * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1, 1), (p_y * math.cos(orig.roll) - p_c * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1, 1)
+    return (p_c * math.cos(orig.roll) + p_y * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1 * safe_div(bool(lim)), 1 * safe_div(bool(lim))), (p_y * math.cos(orig.roll) - p_c * math.sin(orig.roll)) * clamp(get_angle(front, car_direction) * k, -1 * safe_div(bool(lim)), 1 * safe_div(bool(lim)))
 # Get the controls (Intended point direction(Vec3), Current point direction(Vec3))
 def get_aerial_control(dir, orig):
     # The problem
@@ -464,6 +537,11 @@ def get_aerial_control(dir, orig):
         if False:
             print("B: " + str(travel_angle) + ", Ref(p): " + str(ref_pitch) + ", Target(p): " + str(target_pitch) + ", Offset(y): " + str(offset_yaw))
     return found_angle * sign(abs(ad * math.sin(found_angle) - ae) - abs(ad * math.sin(-found_angle) - ae))
+# Get the angular velocity based on two points (previous frame, current frame)
+def get_angular_velocity(previous, current):
+    pitch_1, pitch_2 = math.asin(previous.z * safe_div(previous.length())), math.asin(current.z * safe_div(current.length()))
+    yaw_1, yaw_2 = math.acos(previous.x * safe_div(Vec3(previous.x, previous.y).length())) * sign(previous.y), math.acos(current.x * safe_div(Vec3(current.x, current.y).length())) * sign(current.y)
+    return pitch_2 - pitch_1, yaw_2 - yaw_1
 '''
 Section: Dropshot
 '''
