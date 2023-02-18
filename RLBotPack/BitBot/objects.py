@@ -1,7 +1,7 @@
 import math
 import rlbot.utils.structures.game_data_struct as game_data_struct
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
-
+from tmcp import TMCPHandler, TMCPMessage, ActionType
 
 # This file holds all of the objects used in gosling utils
 # Includes custom vector and matrix objects
@@ -20,6 +20,8 @@ class GoslingAgent(BaseAgent):
         self.game = game_object()
         # A list of boosts
         self.boosts = []
+        #TMCP
+        self.special_list = []
         # goals
         self.friend_goal = goal_object(self.team)
         self.foe_goal = goal_object(not self.team)
