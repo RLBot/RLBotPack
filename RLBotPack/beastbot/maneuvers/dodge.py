@@ -14,7 +14,7 @@ class DodgeManeuver(Maneuver):
                  t_first_wait=0.00,
                  t_aim=0.08,
                  t_second_jump=0.28,
-                 t_second_wait=0.14):
+                 t_second_wait=0.35):
         super().__init__()
 
         self.target = target
