@@ -2,7 +2,7 @@ import math
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-from behaviours.moves import AimCone
+from controllers.aim_cone import AimCone
 from behaviours.utsystem import Choice
 from utility import predict, rendering
 from utility.info import Field

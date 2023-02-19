@@ -1,6 +1,6 @@
 from rlbot.agents.base_agent import SimpleControllerState
 
-from behaviours.moves import AimCone
+from controllers.aim_cone import AimCone
 from behaviours.utsystem import Choice
 from maneuvers.collect_boost import CollectClosestBoostManeuver, filter_pads
 from utility import predict, rendering

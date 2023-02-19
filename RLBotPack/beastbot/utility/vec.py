@@ -37,6 +37,9 @@ class Vec3:
         scale = 1 / float(scale)
         return self * scale
 
+    def __abs__(self) -> 'Vec3':
+        return Vec3(abs(self.x), abs(self.y), abs(self.z))
+
     def __str__(self):
         return "Vec3(" + str(self.x) + ", " + str(self.y) + ", " + str(self.z) + ")"
 
@@ -241,6 +244,14 @@ def inv(mat: Mat33) -> Mat33:
     invm.set(2, 2, (mat.get(0, 0) * mat.get(1, 1) - mat.get(0, 1) * mat.get(1, 0)) * invdet)
     
     return invm
+
+
+def vec_max(a: Vec3, b: Vec3) -> Vec3:
+    return Vec3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z))
+
+
+def max_comp(vec: Vec3) -> float:
+    return max(vec.x, vec.y, vec.z)
 
 
 def angle_between(v: Vec3, u: Vec3) -> float:

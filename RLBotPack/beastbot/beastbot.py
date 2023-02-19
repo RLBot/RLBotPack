@@ -1,16 +1,17 @@
-import time
-
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from behaviours import moves
+from controllers import other
 from behaviours.carry import Carry
 from behaviours.clear_ball import ClearBall
 from behaviours.save_goal import SaveGoal
 from behaviours.shoot_at_goal import ShootAtGoal
+from controllers.fly import FlyController
 from maneuvers.kickoff import choose_kickoff_maneuver
 from utility.info import GameInfo
-from behaviours.moves import DriveController, AimCone, ShotController
+from controllers.drive import DriveController
+from controllers.shooting import ShotController
+from controllers.aim_cone import AimCone
 from utility.rendering import draw_ball_path
 from behaviours.utsystem import UtilitySystem, Choice
 from utility.vec import xy, Vec3, norm, dot
@@ -30,6 +31,7 @@ class Beast(BaseAgent):
         self.ut = None
         self.drive = DriveController()
         self.shoot = ShotController()
+        self.fly = FlyController()
 
     def initialize_agent(self):
         self.info = GameInfo(self.index, self.team)
