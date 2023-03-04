@@ -47,7 +47,7 @@ class Beast(BaseAgent):
 
         # Check if match is over
         if packet.game_info.is_match_ended:
-            return moves.celebrate(self)  # Assuming we win!
+            return other.celebrate(self)  # Assuming we win!
 
         self.renderer.begin_rendering()
 
