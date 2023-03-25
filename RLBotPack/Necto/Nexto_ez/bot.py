@@ -17,7 +17,7 @@ sys.path.append(nexto_dir + '/Nexto')
 from Nexto.bot import Nexto
 
 
-class Nexto_ez(Nexto):
+class Nexto_EZ(Nexto):
     def __init__(self, name, team, index):
         super().__init__(name, team, index)
 

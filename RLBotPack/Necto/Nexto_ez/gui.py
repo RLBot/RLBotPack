@@ -2,6 +2,7 @@ from rlbot.botmanager.agent_metadata import AgentMetadata
 from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.utils.logging_utils import get_logger
 
+from pathlib import Path
 from shared_memory import shared_memory
 import tkinter as tk
 from tkinter import ttk
@@ -37,7 +38,8 @@ class NextoEzGui(BotHelperProcess):
         root = tk.Tk()
         root.minsize(width=350, height=50)
         root.resizable(False, False)
-        root.title('Nexto-ez')
+        root.title('Nexto-EZ')
+        root.iconbitmap(str(Path(__file__).parent / "nexto_logo.ico"))
 
 
         root.columnconfigure(0, weight=3)
@@ -87,15 +89,13 @@ class NextoEzGui(BotHelperProcess):
 
         self.row_i = 1
 
-        def update_value(memory, value_label, value):
-            memory.buf[0] = int(round((1 - value) * 255))
-            value_label.configure(text='{:.0f}%'.format(value * 100))
-
         def add_bot_slider(metadata, value):
-            def val2str(val):
-                return '{: .0f}%'.format(val * 100)
-
             memory = shared_memory.SharedMemory(metadata.helper_process_request.options["shared_memory_name"])
+
+            def update_format_value(val):
+                nonlocal memory
+                memory.buf[0] = int(round((1 - val) * 255))
+                return '{: .0f}%'.format(val * 100)
 
             # label for the slider
             ttk.Label(
@@ -108,14 +108,21 @@ class NextoEzGui(BotHelperProcess):
                 sticky='e'
             )
 
+            # percentage label
             value_label = ttk.Label(
                 root,
-                text=val2str(value),
+                text=update_format_value(value),
             )
             value_label.grid(
                 column=1,
                 row=self.row_i,
             )
+
+            def update_slider(val):
+                nonlocal value_label
+                val = float(val)
+                update_format_value(val)
+                value_label.configure(text='{:.0f}%'.format(val * 100))
 
             #  slider
             Scale(
@@ -124,7 +131,7 @@ class NextoEzGui(BotHelperProcess):
                 to=1,
                 value=value,
                 orient='horizontal',
-                command=lambda val: update_value(memory, value_label, float(val)),
+                command=lambda val: update_slider(val),
             ).grid(
                 column=2,
                 row=self.row_i,
@@ -134,7 +141,7 @@ class NextoEzGui(BotHelperProcess):
 
         for botTeamList in self.bots:
             for metadata in botTeamList:
-                add_bot_slider(metadata, 0.5)
+                add_bot_slider(metadata, 0.8)
 
         root.mainloop()
 
