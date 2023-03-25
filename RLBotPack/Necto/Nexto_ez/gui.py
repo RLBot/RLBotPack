@@ -89,12 +89,10 @@ class NextoEzGui(BotHelperProcess):
 
         self.row_i = 1
 
-        def add_bot_slider(metadata, value):
+        def add_bot_slider(metadata):
             memory = shared_memory.SharedMemory(metadata.helper_process_request.options["shared_memory_name"])
 
-            def update_format_value(val):
-                nonlocal memory
-                memory.buf[0] = int(round((1 - val) * 255))
+            def format_value(val):
                 return '{: .0f}%'.format(val * 100)
 
             # label for the slider
@@ -111,7 +109,7 @@ class NextoEzGui(BotHelperProcess):
             # percentage label
             value_label = ttk.Label(
                 root,
-                text=update_format_value(value),
+                text=format_value(memory.buf[0] / 255),
             )
             value_label.grid(
                 column=1,
@@ -119,17 +117,18 @@ class NextoEzGui(BotHelperProcess):
             )
 
             def update_slider(val):
+                nonlocal memory
                 nonlocal value_label
                 val = float(val)
-                update_format_value(val)
-                value_label.configure(text='{:.0f}%'.format(val * 100))
+                memory.buf[0] = int(round((1 - val) * 255))
+                value_label.configure(text=format_value(val))
 
             #  slider
             Scale(
                 root,
                 from_=0,
                 to=1,
-                value=value,
+                value=memory.buf[0] / 255,
                 orient='horizontal',
                 command=lambda val: update_slider(val),
             ).grid(
@@ -141,7 +140,7 @@ class NextoEzGui(BotHelperProcess):
 
         for botTeamList in self.bots:
             for metadata in botTeamList:
-                add_bot_slider(metadata, 0.8)
+                add_bot_slider(metadata)
 
         root.mainloop()
 

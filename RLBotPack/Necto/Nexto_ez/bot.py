@@ -1,4 +1,5 @@
 import numpy as np
+from config import *
 
 from pathlib import Path
 from rlbot.botmanager.helper_process_request import HelperProcessRequest
@@ -22,7 +23,7 @@ class Nexto_EZ(Nexto):
         super().__init__(name, team, index)
 
         self.shared_memory = shared_memory.SharedMemory(create=True, size=1)
-        self.shared_memory.buf[0] = 0
+        self.shared_memory.buf[0] = int(round(STRENGTH * 2.55))
 
     def update_controls(self, packet: GameTickPacket):
         if np.random.random() * 255 > self.shared_memory.buf[0]:
@@ -35,8 +36,8 @@ class Nexto_EZ(Nexto):
             self.controls.yaw = np.random.random() * 2 - 1
             self.controls.roll = np.random.random() * 2 - 1
 
-    def get_helper_process_request(self) -> HelperProcessRequest:
-
-        return HelperProcessRequest(str(Path(__file__).parent / "gui.py"), "nexto-ez", options={
-            "shared_memory_name": self.shared_memory.name,
-        })
+    def get_helper_process_request(self):
+        if SHOW_GUI:
+            return HelperProcessRequest(str(Path(__file__).parent / "gui.py"), "nexto-ez", options={
+                "shared_memory_name": self.shared_memory.name,
+            })
