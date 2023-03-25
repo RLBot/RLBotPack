@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk
 
 
-class NextoEzGui(BotHelperProcess):
+class Nexto_EZ_GUI(BotHelperProcess):
 
     exec_path = None
 

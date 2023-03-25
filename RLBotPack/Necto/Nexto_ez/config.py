@@ -1,4 +1,4 @@
-# If true, the laser will only be on while boosting. Otherwise the lasers will always be enabled.
+# Show a window that allows adjusting of the diffiiculty in real time
 SHOW_GUI = True
 
 # in Percent. 100% = Full Nexto, 0% = random agent
