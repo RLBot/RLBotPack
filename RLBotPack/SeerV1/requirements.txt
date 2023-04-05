@@ -1,6 +1,0 @@
-rlbot
-torch
-numpy
-scikit-learn
-numba
-SeerPPO>=0.0.8
