@@ -13,7 +13,9 @@ class Field:
     LENGTH = 10240
     HEIGHT = 2044
     GOAL_WIDTH = 1900
-    GOAL_HEIGHT = 640
+    GOAL_HEIGHT = 642
+    CORNER_WALL_AX_INTERSECT = 8064
+    SIZE = Vec3(WIDTH, LENGTH, HEIGHT)
 
 
 class Ball:

@@ -253,7 +253,7 @@ class MyBot(BaseAgent):
             # Target
             target_ball = predict_ball(earliest_intersection)
             target_location = Vec3(target_ball.physics.location)
-            target_location = target_location + (target_location - send_location) / (target_location - send_location).length() * 92.75
+            target_location = target_location + (target_location - send_location) / (target_location - send_location).length() * (92.75 + 42.1)
             # Smoother wall transitions
             target_location = move_target_for_walls(car_location, target_location)
             jumping = jump_ready((target_location - distance_from_surface(target_location)).length())
