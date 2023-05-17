@@ -7,6 +7,7 @@ from types import ModuleType
 from rlbot.agents.base_script import BaseScript
 from rlbot.matchconfig.loadout_config import LoadoutConfig
 from rlbot.matchconfig.match_config import PlayerConfig, MatchConfig, MutatorConfig
+from rlbot.parsing.match_settings_config_parser import game_map_dict
 from rlbot.setup_manager import SetupManager
 
 import quantum_league
@@ -31,12 +32,12 @@ def create_player_config(name: str, team):
     return player_config
 
 
-def build_match_config():
+def build_match_config(game_map="Mannfield_Night"):
     match_config = MatchConfig()
     match_config.player_configs = [create_player_config("You", i % 2) for i in range(20)] + [human_config()]
 
     match_config.game_mode = "Soccer"
-    match_config.game_map = "Mannfield_Night"
+    match_config.game_map = game_map
 
     match_config.mutators = MutatorConfig()
     # match_config.mutators.boost_amount = "Unlimited"
@@ -59,11 +60,14 @@ class MinigameRunner(BaseScript):
         self.setup_manager = SetupManager()
         self.setup_manager.game_interface = self.game_interface
 
+        current_game_map = int(self.game_interface.get_match_settings().GameMap())
+        current_game_map = list(game_map_dict.keys())[current_game_map]
+
         # copied this from TrackAndField, without this rlbot crashes for some reason
         self.setup_manager.num_participants = 0
         self.setup_manager.launch_bot_processes(MatchConfig())
 
-        self.setup_manager.load_match_config(build_match_config())
+        self.setup_manager.load_match_config(build_match_config(current_game_map))
         self.setup_manager.start_match()
 
         while True:
@@ -85,7 +89,7 @@ class MinigameRunner(BaseScript):
                 try:
                     importlib.reload(quantum_league)
                     self.minigame = quantum_league.QuantumLeague(self.game_interface, packet)
-                    print(f"[{mtime}] Reloaded choreo")
+                    print(f"[{mtime}] Reloaded minigame")
                     self.last_mtime = mtime
 
                 except Exception as ex:
