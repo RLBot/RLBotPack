@@ -3,6 +3,7 @@ from math import pi, sqrt
 import threading
 import time
 from typing import Optional
+import keyboard
 
 from rlbot.messages.flat.ControllerState import ControllerState
 from rlbot.messages.flat.PlayerInputChange import PlayerInputChange
@@ -87,20 +88,33 @@ class QuantumLeague:
 
         self.controls_tracker = ControlsTracker(self.human_index)
 
-        self.reset()
+        self.practice_mode = False
+
+        self.restart_completely()
         self.start_stage(packet)
 
-    def reset(self):
+    def restart_completely(self):
         self.attack_replays = []
         self.defend_replays = []
         self.old_ball_replay = Replay()
         self.new_ball_replay = Replay()
 
         self.state = "attack"
-        self.initial_delay = 3.0
+        self.initial_delay = 2.0
         self.time_limit = 10.0
         self.attack_time_shift = 0.5
         self.defend_time_shift = 0.5
+
+    def start_stage(self, packet):
+        self.last_reset_time = None
+        self.replaying_ball = True
+
+        self.new_ball_replay = Replay()
+        self.current_replay = Replay()
+        
+        self.old_ball_replay.reset()
+        for replay in self.attack_replays + self.defend_replays:
+            replay.reset()
 
         # initial game state
         self.interface.set_game_state(GameState(
@@ -113,14 +127,6 @@ class QuantumLeague:
         ))
         time.sleep(0.1)
 
-    def start_stage(self, packet):
-        self.last_reset_time = None
-        self.replaying_ball = True
-
-        self.current_replay = Replay()
-        for replay in self.attack_replays + self.defend_replays:
-            replay.reset()
-
     def show_text(self, text, color):
         self.renderer.begin_rendering()
         scale = 5
@@ -131,13 +137,17 @@ class QuantumLeague:
             self.renderer.draw_string_2d(100, 100, scale, scale, text, color)
         self.renderer.end_rendering()
     
-    def game_over(self):
+    def fail(self, timeout=4.0):
         score = len(self.attack_replays) + len(self.defend_replays)
-        self.show_text(f"Game over. Score: {score}", self.renderer.red())
+        if self.practice_mode:
+            self.show_text(f"Score: {score}", self.renderer.lime())
+        else:
+            self.show_text(f"Game over. Score: {score}", self.renderer.red())
         self.interface.set_game_state(GameState(game_info=GameInfoState(game_speed=0.1)))
-        time.sleep(5.0)
+        time.sleep(timeout)
         self.interface.set_game_state(GameState(game_info=GameInfoState(game_speed=1.0)))
-        self.reset()
+        if not self.practice_mode:
+            self.restart_completely()
 
     def step(self, packet: GameTickPacket):
         if self.last_reset_time is None:
@@ -159,19 +169,35 @@ class QuantumLeague:
             if self.state == "attack":
                 self.prepare_next_stage()
             else:
-                self.game_over()
+                self.fail()
             return self.start_stage(packet)
 
         if packet.teams[1].score > self.prev_orange_score:
             if self.state == "defend":
                 self.prepare_next_stage()
             else:
-                self.game_over()
+                self.fail()
             return self.start_stage(packet)
 
-        elif t > max_t:
-            self.game_over()
+        if t > max_t:
+            self.fail()
             return self.start_stage(packet)
+
+        # reset button
+        if t > self.initial_delay and keyboard.is_pressed("backspace"):
+            self.fail(timeout=0.5)
+            return self.start_stage(packet)
+        
+        # turn on practice mode
+        if keyboard.is_pressed("f1"):
+            self.practice_mode = True
+            self.show_text("Restarting in practice mode", self.renderer.lime())
+            self.interface.set_game_state(GameState(game_info=GameInfoState(game_speed=0.1)))
+            time.sleep(3.0)
+            self.interface.set_game_state(GameState(game_info=GameInfoState(game_speed=1.0)))
+            self.restart_completely()
+            return self.start_stage(packet)
+
 
         target_game_state = GameState(cars={})
 
@@ -239,7 +265,6 @@ class QuantumLeague:
             self.defend_replays.append(self.current_replay)
 
         self.old_ball_replay = self.new_ball_replay
-        self.new_ball_replay = Replay()
 
         self.state = "defend" if self.state == "attack" else "attack"
 
