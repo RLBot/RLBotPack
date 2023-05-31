@@ -1,0 +1,4 @@
+rlbot==1.*
+numba==0.56.*
+numpy
+scipy>=1.0.0
