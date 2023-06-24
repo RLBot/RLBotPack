@@ -2,7 +2,7 @@ from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.messages.flat.QuickChatSelection import QuickChatSelection
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from util.ball_prediction_analysis import find_slice_at_time
+from util.ball_prediction_analysis import find_slice_at_time, predict_future_goal
 from util.boost_pad_tracker import BoostPadTracker
 from util.drive import steer_toward_target
 from util.sequence import Sequence, ControlStep
@@ -20,7 +20,7 @@ class MyBot(BaseAgent):
         self.jump_dir = Vec3(0, 0, 0)
         self.flip_time = 0
         self.prev_rot = [0, 0, 0]
-        self.schedule_vel = Vec3(-2000 + random.random() * 4000, -2000 + random.random() * 4000, 0)
+        self.prev_jump = False
 
     def initialize_agent(self):
         self.boost_pad_tracker.initialize_boosts(self.get_field_info())
@@ -93,6 +93,16 @@ class MyBot(BaseAgent):
             if 0 <= 5120 - abs(p.y) < best:
                 np = Vec3(p.x, 5120 * sign(p.y), p.z)
                 best = 5120 - abs(p.y)
+            return np
+        def align_on_surface(p1, p2):
+            best = p1.z
+            np = Vec3(p2.x, p2.y, 0)
+            if 0 <= 4096 - abs(p1.x) < best:
+                np = Vec3(4096 * sign(p2.x), p2.y, p2.z)
+                best = 4096 - abs(p1.x)
+            if 0 <= 5120 - abs(p1.y) < best:
+                np = Vec3(p2.x, 5120 * sign(p2.y), p2.z)
+                best = 5120 - abs(p1.y)
             return np
         def surface_transition(p1, p2):
             p1 = surface_pos(p1)
@@ -312,8 +322,8 @@ class MyBot(BaseAgent):
                         max_height = bp.physics.location.z + bp.physics.velocity.z**2 / 1300
                         max_ball_vel = Vec3(bp.physics.velocity.x, bp.physics.velocity.y, -math.sqrt(abs(max_height - 92.75) / 325))
                         b_offset = surface_pos(Vec3(bp.physics.location)) - Vec3(bp.physics.location)
-                        jt, ja = jump_time_x(b_offset.length(), math.cos(b_offset.ang_to(Vec3(0, 0, -1))) * 650, True)
-                        dt = distvstime(Vec3(car.physics.velocity).length(), t - td - jt, car.boost, 1) + velvstime(Vec3(car.physics.velocity).length(), t - td - jt, car.boost, 1) * jt
+                        jt, ja = jump_time_x(b_offset.length() - 17, math.cos(b_offset.ang_to(Vec3(0, 0, -1))) * 650, True)
+                        dt = distvstime(Vec3(car.physics.velocity).length(), max(t - td - jt, 0), car.boost, 1) + velvstime(Vec3(car.physics.velocity).length(), max(t - td - jt, 0), car.boost, 1) * min(t - td, jt)
                         target_dist = surface_transition(srp, Vec3(bp.physics.location)).dist(Vec3(car.physics.location))
                         if target_dist > dt:
                             t += max(math.floor(((target_dist - dt) / (max_ball_vel.length() + min(1410 + car.boost * 119 / 4, 2300))) * 60) / 60, 1 / 60)
@@ -339,7 +349,7 @@ class MyBot(BaseAgent):
             best_i = 0
             for i2 in range(len(players[teams])):
                 p = packet.game_cars[players[teams][i2]]
-                new_t = ((Vec3(p.physics.location) - ball_location).flat().length() + 92.75) * safe_div((Vec3(p.physics.velocity) - ball_velocity).flat().length() + 292 * bool(not p.double_jumped))
+                new_t = ((Vec3(p.physics.location) - ball_location).flat().length() - 200) * safe_div((Vec3(p.physics.velocity) - ball_velocity).flat().length() + 292 * bool(not p.double_jumped))
                 if new_t < best_t:
                     best_t = new_t
                     best_i = players[teams][i2]
@@ -368,21 +378,6 @@ class MyBot(BaseAgent):
                 return qx(876 / g)
             else:
                 return hx(584 / g)
-        def aerial_dist(t, boost):
-            return 5950 / 12 * min(t, boost * 3 / 100)**2 + 5950 / 6 * boost * 3 / 100 * max(t - boost * 3 / 100, 0)
-        def air_pos(loc, vel, t):
-            return loc + vel * t + Vec3(0, 0, -325) * t**2
-        def aerial_dir():
-            for i in range(1, 301):
-                t = i / 60
-                b = predict_ball(t)
-                bp = Vec3(b.physics.location)
-                offsetog = bp - (car_location * t - Vec3(0, 0, 325) * t**2)
-                mv = (car_velocity + car_direction * car_direction.ang_to(offsetog) / math.pi * 1000 * bool(my_car.has_wheel_contact))
-                offset = bp - (car_location + mv.rescale(min(mv.length(), 2300)) * t - Vec3(0, 0, 325) * t**2)
-                if aerial_dist(t, my_car.boost) > offset.length():
-                    return t
-            return 301 / 60
         # Directions
         def circle_dir(pitch, yaw, roll):
             cp = math.cos(pitch)
@@ -513,40 +508,45 @@ class MyBot(BaseAgent):
         def dribble_selector():
             if packet.game_info.is_kickoff_pause == True:
                 tl = kickoff()
-            elif ball_location.z + ball_velocity.z**2 / 1300 < 110:
+            elif (predict_ball(nearest_st).physics.location.z + predict_ball(nearest_st).physics.velocity.z**2 / 1300 < 110 and 210 <= (car_location - ball_location).flat().length() or ball_location.z + ball_velocity.z**2 / 1300 < 110) and ball_velocity.flat().ang_to(send_location - ball_location.flat()) > math.atan(800 * safe_div(ball_location.flat().dist(send_location))):
                 tl = lift_ball()
+                back_on_ground(tl)
             elif (ball_location - car_location).flat().length() < 100 and (ball_velocity.length() > 700 and ball_velocity.flat().ang_to((send_location - ball_location).flat()) >= math.pi / 6 or ball_location.z > 120 and (car_location.dist(send_location) >= Vec3(nearest_enemy.physics.location).dist(send_location) or nearest_tt < 1)):
                 if nearest_tt < 1 and distvstime(Vec3(nearest_threat.physics.velocity).length(), car_location.flat().dist(send_location) / 1200, nearest_threat.boost, 1) >= car_location.flat().dist(send_location):
                     tl = carry_flick()
                 else:
                     tl = catch()
+                    back_on_ground(tl)
             else:
                 tl = dribble_accelerate()
-            return tl
-        def hit_selector():
-            tl = hard_hit()
+                back_on_ground(tl)
             return tl
         '''
         Finished Modes
         '''
         # Kickoff
         def kickoff():
-            tl = ball_location - send_location.rescale(92.75 / 2)
-            controls.throttle = 1
-            controls.boost = True
+            tl = ball_location - send_location.rescale(92.75 / 2 * max(1 - (ball_location - car_location).flat().ang_to((Vec3(nearest_threat.physics.location) - ball_location).flat()) * 4, 0))
+            possessive_kickoff = distvstime(Vec3(nearest_threat.physics.velocity).flat().length(), 2, nearest_threat.boost, 1) < (ball_location - Vec3(nearest_threat.physics.location)).flat().length()
+            controls.throttle = sign((ball_location - car_location).flat().length() - 92.75 - brake_distance(car_velocity.length(), 0, 3500) * bool(possessive_kickoff))
+            controls.boost = controls.throttle == 1
             controls.steer = steer_toward_target(my_car, tl)
-            if 1100 > car_velocity.length() > 1000:
-                override = self.speed_flip(packet, sign(car_location.x * send_location.y))
-            elif (tl - car_location).flat().length() < car_velocity.length() * 0.2 and my_car.has_wheel_contact == True:
-                self.jump_time = 5
-                self.jump_dir = Vec3(0, 0, 0)
-            self.renderer.draw_string_3d(car_location, 1, 1, "Kickoff", self.renderer.red())
+            if my_car.has_wheel_contact == True:
+                if 900 > car_velocity.length() > 800 and controls.throttle == 1:
+                    override = self.speed_flip(packet, sign(car_location.x * send_location.y))
+                elif (tl - car_location).flat().length() < car_velocity.length() * 0.2 and not possessive_kickoff:
+                    self.jump_time = 5
+                    self.jump_dir = Vec3(0, 0, 0)
+            self.renderer.draw_string_3d(car_location, 1, 1, "Kickoff (" + str(possessive_kickoff) + ")", self.renderer.red())
             return tl
         # Control the ball's velocity
         def lift_ball():
             o_offset = math.cos(car_direction.ang_to((ball_location - car_location).flat())) * (ball_location - car_location).flat().length()
             f_offset = o_offset - (100 - car_velocity.length() / 10)
-            tl = ball_location + sign((car_location - side_direction).flat().dist(ball_location.flat()) - (car_location + side_direction).flat().dist(ball_location.flat())) * Vec3(car_direction.y, -car_direction.x, 0).rescale((130 - max(10 - ball_velocity.length() / 20, 0) - (ball_location.z + ball_velocity.z**2 / 1300 - 92.75) * 2 * bool(f_offset < 15)) * bool(f_offset >= 0)) + car_direction.flat().rescale(50)
+            sgn = sign((car_location - side_direction).flat().dist(ball_location.flat()) - (car_location + side_direction).flat().dist(ball_location.flat()))
+            sgn2 = sign((ball_location + side_direction).flat().dist(-send_location.flat()) - (ball_location - side_direction).flat().dist(-send_location.flat()))
+            b1 = bool(car_location.flat().dist(ball_location.flat()) < 300)
+            tl = ball_location + (sgn * b1 + sgn2 * (1 - b1)) * Vec3(car_direction.y, -car_direction.x, 0).rescale((130 - max(10 - ball_velocity.length() / 20, 0) - (ball_location.z + ball_velocity.z**2 / 1300 - 92.75) * 2 * bool(f_offset < 15)) * bool(f_offset >= 0)) + car_direction.flat().rescale(50)
             if (car_location - ball_location).flat().length() < 130 or math.cos(car_direction.ang_to((ball_location - car_location).flat())) >= 0:
                 controls.throttle = sign(f_offset + 30 + (ball_location.z - 92.75) - brake_distance(car_velocity.flat().length(), ball_velocity.flat().length(), 3500))
             else:
@@ -555,7 +555,8 @@ class MyBot(BaseAgent):
                 fast_turn(tl)
             if car_velocity.length() < ball_velocity.length() and math.cos(car_direction.ang_to((ball_location - car_location).flat())) * (ball_location - car_location).flat().length() > 0 and controls.throttle == -1:
                 controls.throttle = 0
-            controls.steer = steer_toward_target(my_car, tl)
+            controls.boost = controls.throttle == 1 and car_velocity.length() <= 2290 and o_offset > 300 and car_direction.ang_to(tl - car_location) < math.pi / 2 and car_velocity.ang_to(tl - car_location) < math.pi / 2 
+            controls.steer = steer_toward_target(my_car, tl.flat())
             self.renderer.draw_string_3d(car_location, 1, 1, "Lift Ball", self.renderer.red())
             return tl
         # Send the ball into the net hard while carrying
@@ -569,12 +570,15 @@ class MyBot(BaseAgent):
                 bp = predict_ball(prev_bounce)
             bpos = Vec3(bp.physics.location).flat()
             bsv = ball_velocity.flat()
-            tl1 = bpos + Vec3(-bsv.y, bsv.x, 0).rescale(clamp(clamp(400 * bsv.ang_to(send_location - ball_location.flat()) * sign(Vec3(-bsv.y, bsv.x, 0).dist(send_location - ball_location.flat()) - Vec3(bsv.y, -bsv.x, 0).dist(send_location - ball_location.flat())), -60, 60), -bsv.ang_to((send_location - car_location).flat()) * 100, bsv.ang_to((send_location - car_location).flat()) * 100))
+            if sign(ball_velocity.y) == sign(send_location.y):
+                tl1 = bpos + Vec3(-bsv.y, bsv.x, 0).rescale(clamp(clamp(400 * bsv.ang_to(send_location - ball_location.flat()) * sign(Vec3(-bsv.y, bsv.x, 0).dist(send_location - ball_location.flat()) - Vec3(bsv.y, -bsv.x, 0).dist(send_location - ball_location.flat())), -60, 60), -bsv.ang_to((send_location - car_location).flat()) * 100, bsv.ang_to((send_location - car_location).flat()) * 100))
+            else:
+                tl1 = bpos + Vec3(-bsv.y, bsv.x, 0).rescale(clamp(clamp(400 * bsv.ang_to(send_location - ball_location.flat()) * -sign(Vec3(-bsv.y, bsv.x, 0).dist(-send_location - ball_location.flat()) - Vec3(bsv.y, -bsv.x, 0).dist(-send_location - ball_location.flat())), -60, 60), -bsv.ang_to((send_location - car_location).flat()) * 100, bsv.ang_to((send_location - car_location).flat()) * 100))
             tl2 = car_location + (bpos - send_location)
             tlopttime = (math.pi / 2 - car_direction.ang_to(car_velocity)) / 2 + car_velocity.length() / 3500
             tlopt = distvstime(0, max(prev_bounce - tlopttime, 0), 0, 1) >= surface_pos(car_location + car_velocity.rescale(car_velocity.length() * (math.pi / 2 - car_direction.ang_to(car_velocity)) / 2 + car_velocity.length()**2 / 7000)).dist(surface_pos(tl1))
-            tl = tl2 * bool(tlopt) + tl1 * bool(not tlopt)
-            if ball_location.z + ball_velocity.z**2 / 1300 >= 140 or ball_velocity.flat().ang_to((send_location - ball_location).flat()) >= math.pi / 6:
+            tl = tl1
+            if (ball_location.z + ball_velocity.z**2 / 1300 >= 140 and ((car_velocity - ball_velocity).flat().length() > 30 or ball_velocity.flat().length() < 700)) or ball_velocity.flat().ang_to((send_location - ball_location).flat()) >= math.pi / 6:
                 controls.throttle = sign(car_location.flat().dist(tl) - car_velocity.flat().length() * prev_bounce)
                 self.renderer.draw_string_3d(car_location, 1, 1, "Dribble Accelerate", self.renderer.green())
             else:
@@ -610,7 +614,11 @@ class MyBot(BaseAgent):
             # Target
             v_offset = min((vbv - tvel * math.cos(bounce_angle)) / 10 / (1 + abs(bp.physics.velocity.z) / 500), 80)
             h_offset = min((hbv + tvel * math.sin(bounce_angle)) / 10 / (1 + abs(bp.physics.velocity.z) / 500), 70)
-            tl = bpos + car_direction.rescale(v_offset) + Vec3(-car_direction.y, car_direction.x).rescale(h_offset)
+            # Prevent wall dribbles
+            if ball_location.dist(car_location) < 140 and (abs(ball_location.x) > 4096 - 150 or abs(ball_location.y) > 5120 - 150):
+                tl = surface_pos(ball_location)
+            else:
+                tl = bpos + car_direction.rescale(v_offset) + Vec3(-car_direction.y, car_direction.x).rescale(h_offset)
             controls.throttle = sign(car_location.flat().dist(tl) - car_velocity.flat().length() * prev_bounce)
             fast_turn(tl)
             controls.steer = steer_toward_target(my_car, tl)
@@ -637,129 +645,85 @@ class MyBot(BaseAgent):
                 self.renderer.draw_string_3d(car_location, 1, 1, "Carry & Flick", self.renderer.green())
             fast_turn(tl)
             controls.steer = steer_toward_target(my_car, tl)
-            if nearest_tt <= 0.5 and bool(my_car.has_wheel_contact) >= bool(nearest_enemy.has_wheel_contact) and self.jump_time == 0 and (ball_location - car_location).flat().length() <= 100 and (ball_velocity - car_velocity).length() <= 100:
+            safe_flick = (Vec3(nearest_enemy.physics.location) - ball_location).flat().length() < distvstime(Vec3(nearest_enemy.physics.velocity).length(), prev_bounce, nearest_enemy.boost, 1) and (car_location.z - nearest_enemy.physics.location.z - 40) < (nearest_enemy.physics.velocity.z - car_velocity.z) / 4
+            if nearest_tt <= 0.5 and (bool(my_car.has_wheel_contact) >= bool(nearest_enemy.has_wheel_contact) or safe_flick) and self.jump_time == 0 and (ball_location - car_location).flat().length() <= 100 and (ball_velocity - car_velocity).length() <= 100:
                 self.jump_time = 12
             if self.jump_time > 0:
-                self.jump_dir = Vec3(random.randint(-1, 1), random.randint(-1, 1), 0) * bool(ball_location.z - car_location.z < 130)
+                a = random.randint(0, 7)
+                self.jump_dir = Vec3(math.cos(a * math.pi / 4), math.sin(a * math.pi / 4), 0) * bool(ball_location.z - car_location.z < 130)
             return tl
-        # Fly in the air to hit the ball
-        def aerial():
-            b = predict_ball(aerial_t)
-            bp = Vec3(b.physics.location)
-            offsetog = bp - (car_location * aerial_t - Vec3(0, 0, 325) * aerial_t**2)
-            mv = (car_velocity + car_direction * car_direction.ang_to(offsetog) / math.pi * 1000 * bool(False))
-            offset = bp - (car_location + mv.rescale(min(mv.length(), 2300)) * aerial_t - Vec3(0, 0, 325) * aerial_t**2)
-            aerial_front = offset
-            if my_car.has_wheel_contact == True:
-                tl = Vec3(predict_ball(aerial_t).physics.location)
-            else:
-                tl = car_location + offset
-            rot_vel = [(car_rotation.pitch - self.prev_rot[0]) * 60, yaw_conversion(self.prev_rot[1], car_rotation.yaw) * 60 * math.cos(car_rotation.pitch), roll_conversion(self.prev_rot[2], car_rotation.roll) * 60]
-            fast_turn(tl)
-            dt = surface_pos(car_location + offset.normalized()) - surface_pos(car_location)
-            prev_ang = (surface_pos(car_location + car_dir(self.prev_rot[0], self.prev_rot[1])) - surface_pos(car_location)).ang_to(dt)
-            curr_ang = (surface_pos(car_location + car_direction) - surface_pos(car_location)).ang_to(dt)
-            if abs(curr_ang) < 0.1 + 0.2 * (prev_ang - curr_ang) * bool(prev_ang - curr_ang > 0):
-                if self.jump_time == 0 and (bp.dist(car_location + (car_velocity + roof_direction * 292) * aerial_t - Vec3(0, 0, 325) * aerial_t**2) < bp.dist(car_location + car_velocity * aerial_t - Vec3(0, 0, 325) * aerial_t**2) or my_car.has_wheel_contact == True):
-                    self.jump_time = 12
-            vd_pitch, vd_yaw = aerial_control(aerial_front, car_rotation, 1)
-            c_pitch = vd_pitch - math.sqrt(abs(rot_vel[0]) / 6.23) * sign(rot_vel[0]) * math.cos(car_rotation.roll - rot_vel[2] / 120) - math.sqrt(abs(rot_vel[1]) / 6.23) * sign(rot_vel[1]) * math.sin(car_rotation.roll - rot_vel[2] / 120) * math.cos(car_rotation.pitch)
-            c_yaw = vd_yaw - math.sqrt(abs(rot_vel[1]) / 4.555) * sign(rot_vel[1]) * math.cos(car_rotation.roll - rot_vel[2] / 120) * math.cos(car_rotation.pitch) - math.sqrt(abs(rot_vel[0]) / 4.555) * sign(rot_vel[0]) * -math.sin(car_rotation.roll - rot_vel[2] / 120)
-            if abs(c_pitch) > abs(c_yaw):
-                c_pitch, c_yaw = c_pitch / abs(c_pitch), c_yaw / abs(c_pitch)
-            elif abs(c_yaw) > abs(c_pitch):
-                c_pitch, c_yaw = c_pitch / abs(c_yaw), c_yaw / abs(c_yaw)
-            # Controls
-            controls.pitch, controls.yaw = c_pitch, c_yaw
-            controls.boost = not my_car.has_wheel_contact
-            if my_car.has_wheel_contact == True:
-                controls.throttle = sign((surface_pos(car_location + offset.normalized()) - surface_pos(car_location)).length() * offset.length() - car_velocity.length() * aerial_t)
-            else:
-                controls.throttle = 1
-            controls.steer = steer_toward_target(my_car, tl)
-            self.renderer.draw_string_3d(car_location, 1, 1, "Aerial", self.renderer.white())
-            return ball_location
-        # Prepare to beat the opponent in the air
-        def aerial_beat_setup():
-            b = predict_ball(aerial_t)
-            bp = Vec3(b.physics.location)
-            offsetog = bp - (car_location * aerial_t - Vec3(0, 0, 325) * aerial_t**2)
-            mv = (car_velocity + car_direction * car_direction.ang_to(offsetog) / math.pi * 1000 * bool(False))
-            offset = bp - (car_location + mv.rescale(min(mv.length(), 2300)) * aerial_t - Vec3(0, 0, 325) * aerial_t**2)
-            aerial_front = offset
-            tl = Vec3(predict_ball(aerial_t).physics.location)
-            rot_vel = [(car_rotation.pitch - self.prev_rot[0]) * 60, yaw_conversion(self.prev_rot[1], car_rotation.yaw) * 60 * math.cos(car_rotation.pitch), roll_conversion(self.prev_rot[2], car_rotation.roll) * 60]
-            fast_turn(tl)
-            controls.steer = steer_toward_target(my_car, tl)
-            controls.throttle = sign((surface_pos(car_location + offset.normalized()) - surface_pos(car_location)).length() * offset.length() - car_velocity.length() * aerial_t)
-            if nearest_enemy.has_wheel_contact == False and aerial_dist(aerial_t, nearest_enemy.boost) - (Vec3(nearest_enemy.physics.location) + Vec3(nearest_enemy.physics.velocity) * aerial_t + Vec3(0, 0, -325) * aerial_t**2).dist(tl) < aerial_dist(aerial_t, my_car.boost) - (car_location + (car_velocity + roof_direction * 292 * bool(my_car.has_wheel_contact)) * aerial_t + Vec3(0, 0, -325) * aerial_t**2).dist(tl):
-                return aerial()
-            else:
-                return tl
-        # Hard Hit
-        def hard_hit():
-            tl = surface_pos(predict_ball(nearest_st).physics.location)
-            fast_turn(tl)
-            controls.throttle = sign((surface_pos(car_location + offset.normalized()) - surface_pos(car_location)).length() * offset.length() - car_velocity.length() * aerial_t)
-            return tl
+        # Get back on the ground
+        def back_on_ground(tl):
+            if my_car.has_wheel_contact == False:
+                roll_time = (abs(car_rotation.roll) + (math.pi - abs(car_rotation.roll)) * 2) / 5.5
+                controls.roll = -sign(car_rotation.roll)
+                if car_velocity.z > 650 * 0.8:
+                    self.jump_time = bool(self.jump_time > 0) * 2
+                    self.jump_dir = Vec3(0, -1, 1) * random.choice([-1, 1])
+                elif car_location.z + car_velocity.z * roll_time - 292 * math.pi / 5.5 - 325 * roll_time**2 > 18 and my_car.double_jumped == False:
+                    controls.roll = sign(car_rotation.roll)
+                    self.jump_dir = Vec3(0, 0, 0)
+                    self.jump_time = 2 * bool(abs(car_rotation.roll + rot_vel[2] / 60) > math.pi)
+                elif car_location.z + car_velocity.z / 30 - 325 / 900 < 20:
+                    self.jump_time = 2
+                    self.jump_dir = Vec3(-1, 0, 0)
+                # Air controls
+                aerial_front = (tl - car_location).flat()
+                vd_pitch, vd_yaw = aerial_control(aerial_front, car_rotation, 1)
+                c_pitch = vd_pitch - math.sqrt(abs(rot_vel[0]) / 6.23) * sign(rot_vel[0]) * math.cos(car_rotation.roll - rot_vel[2] / 120) - math.sqrt(abs(rot_vel[1]) / 6.23) * sign(rot_vel[1]) * math.sin(car_rotation.roll - rot_vel[2] / 120) * math.cos(car_rotation.pitch)
+                c_yaw = vd_yaw - math.sqrt(abs(rot_vel[1]) / 4.555) * sign(rot_vel[1]) * math.cos(car_rotation.roll - rot_vel[2] / 120) * math.cos(car_rotation.pitch) - math.sqrt(abs(rot_vel[0]) / 4.555) * sign(rot_vel[0]) * -math.sin(car_rotation.roll - rot_vel[2] / 120)
+                if abs(c_pitch) > abs(c_yaw):
+                    c_pitch, c_yaw = c_pitch / abs(c_pitch), c_yaw / abs(c_pitch)
+                elif abs(c_yaw) > abs(c_pitch):
+                    c_pitch, c_yaw = c_pitch / abs(c_yaw), c_yaw / abs(c_yaw)
+                controls.pitch, controls.yaw = c_pitch, c_yaw
         '''
         Indev
         '''
         my_car = packet.game_cars[self.index]
         ball_prediction = self.get_ball_prediction_struct()
+        emergency = predict_future_goal(ball_prediction)
         player_list, car_index = get_players(packet)
+        send_location = Vec3(0, 5120 * sign(0.5 - self.team), 0)
         car_location = Vec3(my_car.physics.location)
         car_velocity = Vec3(my_car.physics.velocity)
         car_rotation = my_car.physics.rotation
         car_direction = car_dir(car_rotation.pitch, car_rotation.yaw)
+        rot_vel = [(car_rotation.pitch - self.prev_rot[0]) * 60, yaw_conversion(self.prev_rot[1], car_rotation.yaw) * 60 * math.cos(car_rotation.pitch), roll_conversion(self.prev_rot[2], car_rotation.roll) * 60]
         side_direction = circle_dir(car_rotation.pitch, car_rotation.yaw, car_rotation.roll + math.pi / 2)
         roof_direction = circle_dir(car_rotation.pitch, car_rotation.yaw, car_rotation.roll)
         player_orders = get_player_order(player_list)
         nearest_friendly, nearest_ft = nearest_player(player_list, player_orders, self.team)
         nearest_enemy, nearest_et = nearest_player(player_list, player_orders, 1 - self.team)
         nearest_st = player_orders[self.team][car_index]
-        aerial_t = aerial_dir()
-        aerial_eligible = aerial_t <= 5
-        send_location = Vec3(0, 5120 * sign(0.5 - self.team), 0)
         ball_location = Vec3(packet.game_ball.physics.location)
         ball_velocity = Vec3(packet.game_ball.physics.velocity)
         nearest_threat, nearest_tt = flick_threats(player_list, 1 - self.team)
         bounce, bounce_index = next_bounce(ball_location, ball_velocity, 92.75, 650)
         e_angle = (surface_pos(Vec3(predict_ball(nearest_et).physics.location)) - surface_pos(Vec3(nearest_enemy.physics.location))).ang_to(-send_location - surface_pos(Vec3(predict_ball(nearest_et).physics.location)))
+        # Useful Bools
         e_carry = (Vec3(nearest_enemy.physics.location) - ball_location).flat().length() <= 100 and 0 < ball_location.z - nearest_enemy.physics.location.z < 150
+        s_carry = (car_location - ball_location).flat().length() <= 100 and 0 < ball_location.z - car_location.z < 150
+        s_catch = (car_location - ball_location).flat().length() <= 150 and 0 < ball_location.z - car_location.z < 200
         
         controls = SimpleControllerState()
         override = None
         # Carry algorithms
         target_location = dribble_selector()
-        '''
-        if (ball_location - car_location).flat().length() < 100 and ball_velocity.length() > 700 and ball_velocity.flat().ang_to((send_location - ball_location).flat()) >= math.pi / 6:
-            target_location = catch()
-        else:
-            target_location = dribble_accelerate()
-        '''
-        '''
-        if Vec3(nearest_enemy.physics.location).dist(send_location) > car_location.dist(send_location) and nearest_ft < nearest_et > 1 and ball_location.z < 120 and ball_velocity.z < 20:
-            target_location = dribble_accelerate()
-        elif (car_location - Vec3(predict_ball(bounce).physics.location)).flat().length() > distvstime(car_velocity.length(), bounce, 0, bounce) and not (car_location.flat() - ball_location.flat()).length() <= 100 + min(ball_location.z - 92.75, 100) or nearest_et < bounce or nearest_et < nearest_ft + 0.2 or (abs(predict_ball(nearest_ft).physics.location.x) >= 3976 or abs(predict_ball(nearest_ft).physics.location.y) >= 5000) or abs(ball_location.x) > 893 and abs(predict_ball(nearest_ft).physics.location.x) <= 893 and sign(car_location.y - predict_ball(nearest_ft).physics.location.y) == sign(predict_ball(nearest_ft).physics.location.y + send_location.y):
-            target_location = hard_hit()
-        elif ball_velocity.flat().ang_to((send_location - ball_location).flat()) <= 0.1 or nearest_et < 1:  
-            target_location = carry_flick()
-        else:
-            target_location = catch()
-        '''
         if self.jump_time == 13:
             self.jump_time = 2
         self.jump_time = clamp(self.jump_time - 1, 0, 84)
         self.flip_time = clamp(self.flip_time - 1, 0, 48)
         controls.jump = self.jump_time != 13 and self.jump_time != 0
-        if controls.jump == True:
+        if controls.jump == True and self.prev_jump == False and my_car.has_wheel_contact == False:
             controls.pitch = self.jump_dir.x
             controls.yaw = self.jump_dir.y
             controls.roll = self.jump_dir.z
+            print(self.jump_dir)
             if self.jump_dir != Vec3(0, 0, 0) and my_car.double_jumped == False:
                 self.flip_time = 48
         self.prev_rot = [car_rotation.pitch, car_rotation.yaw, car_rotation.roll]
+        self.prev_jump = controls.jump
         if override:
             return override
         else:
