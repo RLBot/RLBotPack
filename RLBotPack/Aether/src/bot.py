@@ -2,7 +2,7 @@ from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.messages.flat.QuickChatSelection import QuickChatSelection
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from util.ball_prediction_analysis import find_slice_at_time, predict_future_goal
+from util.ball_prediction_analysis import find_slice_at_time
 from util.boost_pad_tracker import BoostPadTracker
 from util.drive import steer_toward_target
 from util.sequence import Sequence, ControlStep
@@ -682,7 +682,6 @@ class MyBot(BaseAgent):
         '''
         my_car = packet.game_cars[self.index]
         ball_prediction = self.get_ball_prediction_struct()
-        emergency = predict_future_goal(ball_prediction)
         player_list, car_index = get_players(packet)
         send_location = Vec3(0, 5120 * sign(0.5 - self.team), 0)
         car_location = Vec3(my_car.physics.location)
