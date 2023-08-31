@@ -639,7 +639,7 @@ class MyBot(BaseAgent):
             elif mode not in ["Aerial", "Retreat", "Retreat_E"] and nearest_et > nearest_ft + 0.2 and intersection > jt + get_angle(car_velocity, ball_location - car_location) and sign(ball_location.y + ball_velocity.y * nearest_ft) == -sign(send_location.y) and packet.game_ball.latest_touch.team == self.team:
                 mode_comp = "Setup"
             '''
-            return ball_location, [mode, mode_comp]
+            return None, [mode, mode_comp]
         # 2v2 (Dropshot)
         def doubles_dropshot():
             mode, mode_comp = "", ""
@@ -735,6 +735,7 @@ class MyBot(BaseAgent):
 
         controls = SimpleControllerState()
         # Modes and Team size
+        target_location = None
         if False:
             target_location, package = behaviour_x()
         elif self.dropshot == True:
@@ -756,7 +757,7 @@ class MyBot(BaseAgent):
             elif number_friendly >= 4:
                 target_location, package = chaos()
         mode, mode_comp = package[0], package[1]
-        if "target_location" not in locals():
+        if target_location == None:
             target_location = get_modes(mode)
         target_location = get_modes_comp(mode_comp, target_location)
         avoid_bump()
