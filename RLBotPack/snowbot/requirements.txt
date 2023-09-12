@@ -1,4 +1,0 @@
-wheel
-numpy==1.*
-rlbot==1.*
-VirxERLU-CLib==2.*

@@ -1,3 +1,0 @@
-websockets
-selenium
-webdriver_manager
