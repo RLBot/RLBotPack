@@ -5,7 +5,7 @@ from pathlib import Path
 from rlbot.botmanager.helper_process_request import HelperProcessRequest
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from shared_memory import shared_memory
+from multiprocessing import shared_memory
 import sys
 import os
 
