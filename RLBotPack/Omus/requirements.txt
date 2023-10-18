@@ -2,12 +2,10 @@
 # You will automatically get updates for all versions starting with "1.".
 rlbot==1.*
 --find-links https://download.pytorch.org/whl/torch_stable.html
-torch==1.9.1+cpu
+torch==2.0.1+cpu
 stable-baselines3
 rlgym-compat>=1.0.2
 numpy
-pickle5
-cloudpickle
 keyboard
 pygame
 pathlib
