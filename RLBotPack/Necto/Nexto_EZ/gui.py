@@ -3,7 +3,7 @@ from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.utils.logging_utils import get_logger
 
 from pathlib import Path
-from shared_memory import shared_memory
+from multiprocessing import shared_memory
 import tkinter as tk
 from tkinter import ttk
 
