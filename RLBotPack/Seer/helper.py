@@ -48,7 +48,7 @@ def invert_yaw(yaw):
     return yaw
 
 
-enc = OneHotEncoder(sparse=False, drop='if_binary',
+enc = OneHotEncoder(sparse_output=False, drop='if_binary',
                     categories=[np.array([0., 1., 2.]), np.array([0., 1., 2., 3., 4.]), np.array([0., 1., 2., 3., 4.]), np.array([0., 1., 2.]), np.array([0., 1.]), np.array([0., 1.]),
                                 np.array([0., 1.])])
 
