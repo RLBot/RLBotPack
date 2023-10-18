@@ -5,7 +5,6 @@ rlbot==1.*
 torch==2.0.1+cpu
 rlgym-compat==1.0.2
 numpy
-shared-memory38
 
 # This will cause pip to auto-upgrade and stop scaring people with warning messages
 pip
