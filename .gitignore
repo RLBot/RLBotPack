@@ -10,3 +10,4 @@ RefreshEnv.cmd
 *.cs
 *.csproj
 *.sln
+venv/

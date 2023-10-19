@@ -6,16 +6,17 @@ hiding/unhiding as appropriate.
 
 from os import path
 
+from rlbot.agents.standalone.standalone_bot import run_bot
 from rlbot.utils.class_importer import import_agent
 
-botlib = import_agent(path.abspath('../Necto/Nexto/bot.py'))
+botlib = import_agent(path.abspath('../Necto/Necto/bot.py'))
 BaseBot = botlib.get_loaded_class()
 
+from car_simulation_by_controls import CarSimmer, SimPhysics, Vec3
 from rlbot.agents.base_agent import SimpleControllerState
+from rlbot.utils.game_state_util import (CarState, GameState, Physics, Rotator,
+                                         Vector3)
 from rlbot.utils.structures.game_data_struct import GameTickPacket
-from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator
-
-from car_simulation_by_controls import SimPhysics, CarSimmer, Vec3
 
 DEBUG = False
 PROXIMITY = 1000
@@ -178,3 +179,5 @@ class InvisibotWrapper(BaseBot):
         self.__hidden = True
         self.__teleporting = 0
 
+if __name__ == "__main__":
+    run_bot(InvisibotWrapper)

@@ -1,11 +1,11 @@
 import numpy as np
 import torch
-from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
-from rlbot.utils.structures.game_data_struct import GameTickPacket
-from rlgym_compat import GameState
-
 from agent import Agent
 from necto_obs import NectoObsBuilder
+from rlbot.agents.base_agent import SimpleControllerState
+from rlbot.agents.standalone.standalone_bot import StandaloneBot, run_bot
+from rlbot.utils.structures.game_data_struct import GameTickPacket
+from rlgym_compat import GameState
 
 KICKOFF_CONTROLS = (
         11 * 4 * [SimpleControllerState(throttle=1, boost=True)]
@@ -23,7 +23,7 @@ KICKOFF_NUMPY = np.array([
 ])
 
 
-class Necto(BaseAgent):
+class Necto(StandaloneBot):
     def __init__(self, name, team, index, beta=1, render=False, hardcoded_kickoffs=True):
         super().__init__(name, team, index)
 
@@ -166,3 +166,6 @@ class Necto(BaseAgent):
         self.controls.jump = action[5] > 0
         self.controls.boost = action[6] > 0
         self.controls.handbrake = action[7] > 0
+
+if __name__ == "__main__":
+    run_bot(Necto)
