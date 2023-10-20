@@ -1,5 +1,5 @@
 from rlutilities.mechanics import Drive
-from rlutilities.simulation import Car, Input, Game
+from rlutilities.simulation import Car, Input, Game, GameState
 from rlutilities.linear_algebra import vec3, normalize, look_at, norm, xy, angle_between
 from hover import Hover
 
@@ -36,7 +36,7 @@ class GetToAirPoint:
         self.controls.throttle = not self.car.on_ground
         self.controls.jump = (self.car.position[2] < 30 or self.car.on_ground) and self.__time_spent_on_ground > 0.1
 
-        if self.info.round_active:
+        if self.info.state == GameState.Active:
             self.__time_spent_on_ground += dt
         if not self.car.on_ground:
             self.__time_spent_on_ground = 0.0
