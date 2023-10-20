@@ -2,7 +2,7 @@ from maneuvers.driving.drive import Drive
 from maneuvers.jumps.half_flip import HalfFlip
 from maneuvers.maneuver import Maneuver
 from rlutilities.linear_algebra import norm, vec3
-from rlutilities.simulation import Car, Pad
+from rlutilities.simulation import Car, BoostPad
 
 
 class HalfFlipPickup(Maneuver):
@@ -11,7 +11,7 @@ class HalfFlipPickup(Maneuver):
     This is useful on kickoffs when there are two cars on the corner position.
     Note: This isn't an actual kickoff maneuver (it doesn't go for the ball), so it doesn't inherit from Kickoff.
     """
-    def __init__(self, car: Car, pad: Pad):
+    def __init__(self, car: Car, pad: BoostPad):
         super().__init__(car)
         self.drive = Drive(car, target_pos=pad.position, target_speed=2300, backwards=True)
         self.phase = 1

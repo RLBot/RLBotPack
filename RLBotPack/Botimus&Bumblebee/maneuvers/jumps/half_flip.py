@@ -14,7 +14,7 @@ class HalfFlip:
         self.controls = Input()
 
         self.dodge = Dodge(car)
-        self.dodge.duration = 0.12
+        self.dodge.jump_duration = 0.12
         self.dodge.direction = vec2(car.forward() * (-1))
 
         self.s = 0.95 * sgn(dot(self.car.angular_velocity, self.car.up()) + 0.01)

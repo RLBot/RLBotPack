@@ -3,16 +3,21 @@ from typing import Iterable as iterable
 from typing import Iterator as iterator
 from numpy import float64
 _Shape = Tuple[int, ...]
+import rlutilities.linear_algebra
 __all__  = [
 "Ball",
+"BoostPad",
+"BoostPadState",
+"BoostPadType",
 "Car",
 "ControlPoint",
 "Curve",
 "Field",
 "Game",
+"GameState",
 "Goal",
 "Input",
-"Pad",
+"Navigator",
 "obb",
 "ray",
 "sphere",
@@ -20,15 +25,15 @@ __all__  = [
 "intersect"
 ]
 class Ball():
-    collision_radius = 93.1500015258789
-    drag = -0.030500000342726707
-    friction = 2.0
-    mass = 30.0
-    max_omega = 6.0
-    max_speed = 4000.0
-    moment_of_inertia = 99918.75
-    radius = 91.25
-    restitution = 0.6000000238418579
+    collision_radius: float
+    drag: float
+    friction: float
+    mass: float
+    max_omega: float
+    max_speed: float
+    moment_of_inertia: float
+    radius: float
+    restitution: float
 
     @overload
     def __init__(self, arg0: Ball) -> None: 
@@ -37,133 +42,194 @@ class Ball():
     def __init__(self) -> None: ...
     def hitbox(self) -> sphere: ...
     @overload
-    def step(self, arg0: float, arg1: Car) -> None: 
+    def step(self, dt: float) -> None: 
         pass
     @overload
-    def step(self, arg0: float) -> None: ...
+    def step(self, dt: float, car: Car) -> None: ...
 
-    angular_velocity: vec3
-    gravity: vec3
-    position: vec3
+    angular_velocity: rlutilities.linear_algebra.vec3
+    position: rlutilities.linear_algebra.vec3
     time: float
-    velocity: vec3
+    velocity: rlutilities.linear_algebra.vec3
+    pass
+class BoostPad():
+
+    def __init__(self) -> None: ...
+
+    position: rlutilities.linear_algebra.vec3
+    state: BoostPadState
+    timer: float
+    type: BoostPadType
+    pass
+class BoostPadState():
+    Available: rlutilities.simulation.BoostPadState
+    Unavailable: rlutilities.simulation.BoostPadState
+    __entries: dict
+    __members__: dict
+
+    def __eq__(self, arg0: object) -> bool: ...
+    def __getstate__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    def __init__(self, arg0: int) -> None: ...
+    def __int__(self) -> int: ...
+    def __ne__(self, arg0: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __setstate__(self, arg0: int) -> None: ...
+
+    name: None
+    pass
+class BoostPadType():
+    Full: rlutilities.simulation.BoostPadType
+    Partial: rlutilities.simulation.BoostPadType
+    __entries: dict
+    __members__: dict
+
+    def __eq__(self, arg0: object) -> bool: ...
+    def __getstate__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    def __init__(self, arg0: int) -> None: ...
+    def __int__(self) -> int: ...
+    def __ne__(self, arg0: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __setstate__(self, arg0: int) -> None: ...
+
+    name: None
     pass
 class Car():
 
     @overload
-    def __init__(self, arg0: Car) -> None: 
+    def __init__(self) -> None: 
         pass
     @overload
-    def __init__(self) -> None: ...
+    def __init__(self, arg0: Car) -> None: ...
     def extrapolate(self, arg0: float) -> None: ...
-    def forward(self) -> vec3: ...
+    def forward(self) -> rlutilities.linear_algebra.vec3: ...
     def hitbox(self) -> obb: ...
-    def left(self) -> vec3: ...
-    def step(self, arg0: Input, arg1: float) -> None: ...
-    def up(self) -> vec3: ...
+    def left(self) -> rlutilities.linear_algebra.vec3: ...
+    def step(self, controls: Input, dt: float) -> None: ...
+    def up(self) -> rlutilities.linear_algebra.vec3: ...
 
-    angular_velocity: vec3
+    angular_velocity: rlutilities.linear_algebra.vec3
     boost: int
     controls: Input
     demolished: bool
-    dodge_rotation: mat2
     dodge_timer: float
     double_jumped: bool
-    gravity: vec3
+    hitbox_offset: rlutilities.linear_algebra.vec3
+    hitbox_widths: rlutilities.linear_algebra.vec3
     id: int
     jump_timer: float
     jumped: bool
     on_ground: bool
-    orientation: mat3
-    position: vec3
-    quaternion: vec4
-    rotator: vec3
+    orientation: rlutilities.linear_algebra.mat3
+    position: rlutilities.linear_algebra.vec3
     supersonic: bool
     team: int
     time: float
-    velocity: vec3
+    velocity: rlutilities.linear_algebra.vec3
     pass
 class ControlPoint():
 
     @overload
-    def __init__(self, arg0: vec3, arg1: vec3, arg2: vec3) -> None: 
+    def __init__(self) -> None: 
         pass
     @overload
-    def __init__(self) -> None: ...
+    def __init__(self, arg0: rlutilities.linear_algebra.vec3, arg1: rlutilities.linear_algebra.vec3, arg2: rlutilities.linear_algebra.vec3) -> None: ...
 
-    n: vec3
-    p: vec3
-    t: vec3
+    n: rlutilities.linear_algebra.vec3
+    p: rlutilities.linear_algebra.vec3
+    t: rlutilities.linear_algebra.vec3
     pass
 class Curve():
 
     @overload
-    def __init__(self, arg0: List[vec3]) -> None: 
+    def __init__(self, arg0: List[rlutilities.linear_algebra.vec3]) -> None: 
         pass
     @overload
     def __init__(self, arg0: List[ControlPoint]) -> None: ...
     def calculate_distances(self) -> None: ...
-    def calculate_max_speeds(self, arg0: float, arg1: float) -> float: ...
+    def calculate_max_speeds(self, v0: float, vf: float) -> float: ...
     def calculate_tangents(self) -> None: ...
     def curvature_at(self, arg0: float) -> float: ...
-    def find_nearest(self, arg0: vec3) -> float: ...
+    def find_nearest(self, arg0: rlutilities.linear_algebra.vec3) -> float: ...
     def max_speed_at(self, arg0: float) -> float: ...
-    def point_at(self, arg0: float) -> vec3: ...
+    def point_at(self, arg0: float) -> rlutilities.linear_algebra.vec3: ...
     def pop_front(self) -> None: ...
-    def tangent_at(self, arg0: float) -> vec3: ...
+    def tangent_at(self, arg0: float) -> rlutilities.linear_algebra.vec3: ...
     def write_to_file(self, arg0: str) -> None: ...
 
     length: float
-    points: List[vec3]
+    points: List[rlutilities.linear_algebra.vec3]
     pass
 class Field():
-    mode = 'Uninitialized'
-    triangles = []
-    walls = []
+    mode: str
+    triangles: list
 
     @staticmethod
     @overload
-    def collide(arg0: sphere) -> ray: 
+    def collide(arg0: obb) -> ray: 
         pass
     @staticmethod
     @overload
-    def collide(arg0: obb) -> ray: ...
+    def collide(arg0: sphere) -> ray: ...
     @staticmethod
     def raycast_any(arg0: ray) -> ray: ...
     @staticmethod
-    def snap(arg0: vec3) -> ray: ...
+    def raycast_nearest(arg0: ray) -> ray: ...
 
     pass
 class Game():
-    frametime = 0.008333333767950535
-    map = 'map_not_set'
+    gravity: rlutilities.linear_algebra.vec3
+    map: str
 
     def __init__(self) -> None: ...
-    def read_game_information(self, arg0: object, arg1: object) -> None: ...
+    def read_field_info(self, field_info: object) -> None: ...
+    def read_packet(self, packet: object) -> None: ...
     @staticmethod
-    def set_mode(arg0: str) -> None: ...
+    def set_mode(mode: str) -> None: ...
 
     ball: Ball
-    cars: List[Car[64]]
+    cars: List[Car]
     frame: int
-    frame_delta: int
-    kickoff_pause: bool
-    match_ended: bool
-    num_cars: int
-    overtime: bool
-    pads: List[Pad]
-    round_active: bool
+    goals: List[Goal]
+    pads: List[BoostPad]
+    state: GameState
     time: float
     time_delta: float
     time_remaining: float
+    pass
+class GameState():
+    Active: rlutilities.simulation.GameState
+    Countdown: rlutilities.simulation.GameState
+    Ended: rlutilities.simulation.GameState
+    GoalScored: rlutilities.simulation.GameState
+    Inactive: rlutilities.simulation.GameState
+    Kickoff: rlutilities.simulation.GameState
+    Paused: rlutilities.simulation.GameState
+    Replay: rlutilities.simulation.GameState
+    __entries: dict
+    __members__: dict
+
+    def __eq__(self, arg0: object) -> bool: ...
+    def __getstate__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    def __init__(self, arg0: int) -> None: ...
+    def __int__(self) -> int: ...
+    def __ne__(self, arg0: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __setstate__(self, arg0: int) -> None: ...
+
+    name: None
     pass
 class Goal():
 
     def __init__(self) -> None: ...
 
-    direction: vec3
-    location: vec3
+    direction: rlutilities.linear_algebra.vec3
+    height: float
+    position: rlutilities.linear_algebra.vec3
     team: int
+    width: float
     pass
 class Input():
 
@@ -176,57 +242,57 @@ class Input():
     roll: float
     steer: float
     throttle: float
+    use_item: bool
     yaw: float
     pass
-class Pad():
+class Navigator():
+    nodes: list
 
-    def __init__(self) -> None: ...
+    def __init__(self, arg0: Car) -> None: ...
+    def analyze_surroundings(self, time_budget: float) -> None: ...
+    def path_to(self, destination: rlutilities.linear_algebra.vec3, tangent: rlutilities.linear_algebra.vec3, offset: float) -> Curve: ...
 
-    is_active: bool
-    is_full_boost: bool
-    position: vec3
-    timer: float
     pass
 class obb():
 
     def __init__(self) -> None: ...
 
-    center: vec3
-    half_width: vec3
-    orientation: mat3
+    center: rlutilities.linear_algebra.vec3
+    half_width: rlutilities.linear_algebra.vec3
+    orientation: rlutilities.linear_algebra.mat3
     pass
 class ray():
 
     @overload
-    def __init__(self, arg0: vec3, arg1: vec3) -> None: 
+    def __init__(self, start: rlutilities.linear_algebra.vec3, direction: rlutilities.linear_algebra.vec3) -> None: 
         pass
     @overload
     def __init__(self) -> None: ...
 
-    direction: vec3
-    start: vec3
+    direction: rlutilities.linear_algebra.vec3
+    start: rlutilities.linear_algebra.vec3
     pass
 class sphere():
 
     @overload
-    def __init__(self) -> None: 
+    def __init__(self, center: rlutilities.linear_algebra.vec3, radius: float) -> None: 
         pass
     @overload
-    def __init__(self, arg0: vec3, arg1: float) -> None: ...
+    def __init__(self) -> None: ...
 
-    center: vec3
+    center: rlutilities.linear_algebra.vec3
     radius: float
     pass
 class tri():
 
-    def __getitem__(self, arg0: int) -> vec3: ...
+    def __getitem__(self, arg0: int) -> rlutilities.linear_algebra.vec3: ...
     def __init__(self) -> None: ...
-    def __setitem__(self, arg0: int, arg1: vec3) -> None: ...
+    def __setitem__(self, arg0: int, arg1: rlutilities.linear_algebra.vec3) -> None: ...
 
     pass
 @overload
-def intersect(arg0: obb, arg1: sphere) -> bool:
+def intersect(arg0: sphere, arg1: obb) -> bool:
     pass
 @overload
-def intersect(arg0: sphere, arg1: obb) -> bool:
+def intersect(arg0: obb, arg1: sphere) -> bool:
     pass
