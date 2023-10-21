@@ -3,7 +3,7 @@ from maneuvers.jumps.half_flip import HalfFlip
 from maneuvers.maneuver import Maneuver
 from rlutilities.linear_algebra import vec3, norm, dot, vec2
 from rlutilities.mechanics import Wavedash, Dodge
-from rlutilities.simulation import Car
+from rlutilities.simulation import Car, Game
 from tools.arena import Arena
 from tools.drawing import DrawingTool
 from tools.intercept import estimate_time
@@ -63,7 +63,7 @@ class Travel(Maneuver):
                 and car.position[2] < 200
                 and car_speed < 2000
                 and angle_to(car, target, backwards=forward_speed < 0) < 0.1
-                and car.gravity[2] < -500  # don't dodge in low gravity
+                and Game.gravity[2] < -500  # don't dodge in low gravity
             ):
                 # if going forward, use a dodge or a wavedash
                 if forward_speed > 0:
@@ -72,7 +72,8 @@ class Travel(Maneuver):
                     if car_speed > 1200 and not use_boost_instead:
                         if time_left > self.DODGE_DURATION:
                             dodge = Dodge(car)
-                            dodge.duration = 0.07
+                            dodge.jump_duration = 0.07
+                            dodge.delay
                             dodge.direction = vec2(direction(car, target))
                             self.action = dodge
                             self.driving = False

@@ -51,7 +51,7 @@ class Arrive(Maneuver):
             shift = clamp(ground_distance(car.position, target) * self.lerp_t, 0, clamp(car_speed, 1500, 2300) * 1.6)
 
             # if we're too close to the target, aim for the actual target so we don't miss it
-            if shift - self.additional_shift * 0.4 < Drive.turn_radius(clamp(car_speed, 500, 2300)) * 1.1:
+            if shift - self.additional_shift * 0.5 < Drive.turn_radius(clamp(car_speed, 500, 2300)) * 1.1:
                 shift = 0
             else:
                 shift += self.additional_shift
@@ -72,7 +72,7 @@ class Arrive(Maneuver):
         time_left = nonzero(shifted_arrival_time - car.time)
         target_speed = clamp(dist_to_target / time_left, 0, 2300)
 
-        if target_speed < 800 and dist_to_target > 500 and angle_to(self.car, shifted_target) < 0.1:
+        if target_speed < 800 and dist_to_target > 1000 and angle_to(self.car, shifted_target) < 0.1:
             target_speed = 0
 
         # if self.asap:
@@ -83,13 +83,13 @@ class Arrive(Maneuver):
 
         # dodges and wavedashes can mess up correctly arriving, so we use them only if we really need them
         if (
-            (
-                self.allow_dodges_and_wavedashes
-                and norm(car.velocity) < target_speed - 600
-                and car.boost < 20
-                and not self.backwards
-            )
-            or not self.travel.driving  # a dodge/wavedash is in progress
+                (
+                        self.allow_dodges_and_wavedashes
+                        and norm(car.velocity) < target_speed - 600
+                        and car.boost < 20
+                        and not self.backwards
+                )
+                or not self.travel.driving  # a dodge/wavedash is in progress
         ):
             self.action = self.travel
         else:

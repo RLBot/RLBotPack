@@ -1,8 +1,9 @@
 from maneuvers.general_defense import GeneralDefense
 from maneuvers.recovery import Recovery
-from maneuvers.refuel import Refuel
+from maneuvers.pickup_boostpad import PickupBoostPad
 from rlutilities.simulation import Car
 from strategy import offense, kickoffs, defense
+from strategy.boost_management import choose_boostpad_to_pickup
 from tools.game_info import GameInfo
 from tools.intercept import Intercept
 from tools.vector_math import align, ground, distance, ground_distance
@@ -22,12 +23,14 @@ def choose_maneuver(info: GameInfo, my_car: Car):
     # kickoff
     if ball.position[0] == 0 and ball.position[1] == 0:
 
-        # if I'm nearest to the ball, go for kickoff
-        if min(my_team, key=lambda car: distance(car, ball)) is my_car:
+        # if I'm nearest (or tied) to the ball, go for kickoff
+        if distance(my_car, ball) == min(distance(car, ball) for car in my_team):
             return kickoffs.choose_kickoff(info, my_car)
 
     if my_car.boost < 20:
-        return Refuel(my_car, info)
+        best_boostpad = choose_boostpad_to_pickup(info, my_car)
+        if best_boostpad is not None:
+            return PickupBoostPad(my_car, best_boostpad)
 
     info.predict_ball()
 
@@ -40,6 +43,8 @@ def choose_maneuver(info: GameInfo, my_car: Car):
         best_intercept = min(good_intercepts, key=lambda intercept: intercept.time)
     else:
         best_intercept = min(our_intercepts, key=lambda i: distance(i.car, my_goal))
+        if ground_distance(my_car, my_goal) < 2000:
+            best_intercept = my_intercept
 
     if best_intercept is my_intercept:
         # if not completely out of position, go for a shot

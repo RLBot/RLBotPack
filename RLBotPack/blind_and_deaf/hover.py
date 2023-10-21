@@ -1,6 +1,6 @@
 from rlutilities.simulation import Game, Input, Car
 from rlutilities.linear_algebra import vec3, normalize, look_at, norm
-from rlutilities.mechanics import AerialTurn
+from rlutilities.mechanics import Reorient
 
 
 
@@ -13,7 +13,7 @@ class Hover:
     D = 3.0
 
     def __init__(self, car: Car):
-        self.turn = AerialTurn(car)
+        self.turn = Reorient(car)
         self.target: vec3 = None
         self.car: Car = car
         self.up: vec3 = None
@@ -31,11 +31,7 @@ class Hover:
             1000
         ))
 
-        # reinitialize the AerialTurn object every frame, because it bugs out sometimes
-        # TODO: actually fix this in RLU
-        self.turn = AerialTurn(self.car)
-
-        self.turn.target = look_at(target_direction, self.up)
+        self.turn.target_orientation = look_at(target_direction, self.up)
 
         self.turn.step(dt)
         self.controls = self.turn.controls

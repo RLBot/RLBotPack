@@ -2,9 +2,8 @@ from typing import List, Tuple
 
 from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
 
-from rlutilities.simulation import Game, Car, Ball, Pad, Input
 from rlutilities.linear_algebra import vec3, vec2, norm, normalize, cross, rotation, dot, xy
-
+from rlutilities.simulation import Game, Car, Ball, BoostPad, BoostPadType
 from tools.vector_math import distance
 
 
@@ -41,32 +40,28 @@ class GameInfo(Game):
         self.about_to_be_scored_on = False
         self.time_of_goal = -1
 
-        self.large_boost_pads: List[Pad] = []
-        self.small_boost_pads: List[Pad] = []
+        self.large_boost_pads: List[BoostPad] = []
+        self.small_boost_pads: List[BoostPad] = []
 
-    def read_packet(self, packet: GameTickPacket, field_info: FieldInfoPacket):
-        self.read_game_information(packet, field_info)
-        self.large_boost_pads = self._get_large_boost_pads(field_info)
-        self.small_boost_pads = self._get_small_boost_pads(field_info)
+    def read_field_info(self, field_info: FieldInfoPacket):
+        super().read_field_info(field_info)
+        self.large_boost_pads = [pad for pad in self.pads if pad.type == BoostPadType.Full]
+        self.small_boost_pads = [pad for pad in self.pads if pad.type == BoostPadType.Partial]
+
+    def read_packet(self, packet: GameTickPacket):
+        super().read_packet(packet)
 
         # invert large boost pad timers
         for pad in self.large_boost_pads:
             pad.timer = 10.0 - pad.timer
         for pad in self.small_boost_pads:
             pad.timer = 4.0 - pad.timer
-        
-    def _get_large_boost_pads(self, field_info: FieldInfoPacket) -> List[Pad]:
-        return [self.pads[i] for i in range(field_info.num_boosts) if field_info.boost_pads[i].is_full_boost]
 
-    def _get_small_boost_pads(self, field_info: FieldInfoPacket) -> List[Pad]:
-        return [self.pads[i] for i in range(field_info.num_boosts) if not field_info.boost_pads[i].is_full_boost]
-
-    def get_teammates(self, car: Car) -> List[Car]:
-        return [self.cars[i] for i in range(self.num_cars)
-                if self.cars[i].team == self.team and self.cars[i].id != car.id]
+    def get_teammates(self, my_car: Car) -> List[Car]:
+        return [car for car in self.cars if car.team == self.team and car.id != my_car.id]
 
     def get_opponents(self) -> List[Car]:
-        return [self.cars[i] for i in range(self.num_cars) if self.cars[i].team != self.team]
+        return [car for car in self.cars if car.team != self.team]
 
     def predict_ball(self, duration=5.0, dt=1 / 120):
         self.about_to_score = False
@@ -76,14 +71,7 @@ class GameInfo(Game):
         self.ball_predictions = []
         prediction = Ball(self.ball)
 
-        # nearest_opponent = Car(min(self.get_opponents(), key=lambda opponent: distance(opponent, prediction)))
-
         while prediction.time < self.time + duration:
-            # if prediction.time < self.time + 1.0:
-            #     nearest_opponent.step(Input(), dt)
-            #     nearest_opponent.velocity[2] = 0
-            #     prediction.step(dt, nearest_opponent)
-            # else:
             prediction.step(dt)
             self.ball_predictions.append(Ball(prediction))
 
@@ -95,9 +83,9 @@ class GameInfo(Game):
                     self.about_to_score = True
                     self.time_of_goal = prediction.time
 
-    def predict_car_drive(self, index, time_limit=2.0, dt=1/60) -> List[vec3]:
+    @staticmethod
+    def predict_car_drive(car: Car, time_limit=2.0, dt=1 / 60) -> List[vec3]:
         """Simple prediction of a driving car assuming no acceleration."""
-        car = self.cars[index]
         time_steps = int(time_limit / dt)
         speed = norm(car.velocity)
         ang_vel_z = car.angular_velocity[2]
@@ -121,10 +109,10 @@ class GameInfo(Game):
         indices of cars and the last is time from now until the collision.
         """
         time_steps = int(time_limit / dt)
-        predictions = [self.predict_car_drive(i, time_limit=time_limit, dt=dt) for i in range(self.num_cars)]
+        predictions = [self.predict_car_drive(car, time_limit=time_limit, dt=dt) for car in self.cars]
         collisions = []
-        for i in range(self.num_cars):
-            for j in range(self.num_cars):
+        for i in range(len(self.cars)):
+            for j in range(len(self.cars)):
                 if i >= j: 
                     continue
 

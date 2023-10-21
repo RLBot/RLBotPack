@@ -37,18 +37,24 @@ class MyBot(BaseAgent):
     def initialize_agent(self):
         self.controls = SimpleControllerState()
 
-        self.info = Game(self.team)
-        self.car = self.info.cars[self.index]
+        self.info = Game()
+        self.info.set_mode("soccar")
+        self.info.read_field_info(self.get_field_info())
 
-        self.hover = GetToAirPoint(self.car, self.info)
-        self.kickoff = Kickoff(self.car, self.info)
+        self.car = None
+        self.hover = None
+        self.kickoff = None
 
         self.sign = 2 * self.team - 1  # 1 if orange, else -1
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        self.info.read_game_information(packet, self.get_field_info())
+        self.info.read_packet(packet)
+        if self.car is None:
+            self.car = self.info.cars[self.index]
+            self.hover = GetToAirPoint(self.car, self.info)
+            self.kickoff = Kickoff(self.car, self.info)
 
-        if self.info.kickoff_pause and dist(self.info.ball.position, self.car.position) < 4000:
+        if packet.game_info.is_kickoff_pause and dist(self.info.ball.position, self.car.position) < 4000:
             self.kickoff.step(self.info.time_delta)
             self.controls = self.kickoff.controls
             return self.controls
