@@ -6,8 +6,6 @@ from rlbot.utils.structures.bot_input_struct import PlayerInput
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 from maneuvers.kickoffs.kickoff import Kickoff
-from maneuvers.general_defense import GeneralDefense
-from maneuvers.refuel import Refuel
 from rlutilities.linear_algebra import vec3
 from strategy import teamplay_strategy
 from strategy.hivemind_strategy import HivemindStrategy
@@ -15,8 +13,8 @@ from tools.drawing import DrawingTool
 from tools.drone import Drone
 from tools.game_info import GameInfo
 
-
 RELEASE = True
+
 
 class Beehive(PythonHivemind):
     def __init__(self, *args):
@@ -24,7 +22,7 @@ class Beehive(PythonHivemind):
         self.info: GameInfo = None
         self.team: int = None
         self.draw: DrawingTool = None
-        self.drones: List[Drone] = []
+        self.drones: List[Drone] = None
         self.strategy: HivemindStrategy = None
 
         self.last_latest_touch_time = 0.0
@@ -35,16 +33,19 @@ class Beehive(PythonHivemind):
 
         self.info = GameInfo(self.team)
         self.info.set_mode("soccar")
+        self.info.read_field_info(self.get_field_info())
         self.strategy = HivemindStrategy(self.info, self.logger)
         self.draw = DrawingTool(self.renderer, self.team)
-        self.drones = [Drone(self.info.cars[i], i) for i in self.drone_indices]
 
         self.logger.handlers[0].setLevel(logging.NOTSET)  # override handler level
         self.logger.setLevel(logging.INFO if RELEASE else logging.DEBUG)
         self.logger.info("Beehive initialized")
 
     def get_outputs(self, packet: GameTickPacket) -> Dict[int, PlayerInput]:
-        self.info.read_packet(packet, self.get_field_info())
+        self.info.read_packet(packet)
+
+        if self.drones is None:
+            self.drones = [Drone(self.info.cars[i], i) for i in self.drone_indices]
 
         # if a kickoff is happening and none of the drones have a Kickoff maneuver active, reset all drone maneuvers
         if (

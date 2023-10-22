@@ -4,7 +4,6 @@ from maneuvers.maneuver import Maneuver
 from maneuvers.strikes.aerial_strike import AerialStrike
 from rlutilities.linear_algebra import vec3
 from rlutilities.mechanics import Aerial
-from tools import intercept
 from tools.drawing import DrawingTool
 from tools.vector_math import direction, distance
 
@@ -28,10 +27,10 @@ class DoubleTouch(Maneuver):
         for i in range(0, len(self.info.ball_predictions), 5):
             ball = self.info.ball_predictions[i]
             if ball.position[2] < 500: break
-            self.aerial.target = ball.position - direction(ball, self.aerial_strike.target) * 80
+            self.aerial.target_position = ball.position - direction(ball, self.aerial_strike.target) * 80
             self.aerial.arrival_time = ball.time
             final_car = AerialStrike.simulate_flight(self.car, self.aerial, self._flight_path)
-            if distance(final_car, self.aerial.target) < 50:
+            if distance(final_car, self.aerial.target_position) < 50:
                 return
 
         self.finished = True
@@ -59,7 +58,7 @@ class DoubleTouch(Maneuver):
     def render(self, draw: DrawingTool):
         if self.aerial_strike.finished:
             draw.color(draw.pink)
-            draw.crosshair(self.aerial.target)
+            draw.crosshair(self.aerial.target_position)
             draw.color(draw.lime)
             draw.polyline(self._flight_path)
         else:

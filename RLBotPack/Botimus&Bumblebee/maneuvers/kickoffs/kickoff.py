@@ -1,6 +1,6 @@
 from maneuvers.driving.drive import Drive
 from maneuvers.maneuver import Maneuver
-from rlutilities.linear_algebra import vec3
+from rlutilities.linear_algebra import vec3, sgn
 from rlutilities.simulation import Car
 from tools.drawing import DrawingTool
 from tools.game_info import GameInfo
@@ -14,6 +14,7 @@ class Kickoff(Maneuver):
     Just write your phase logic in your step function, set the 'self.action' attribute and call super().step().
     If you don't want that, just override step() normally.
     """
+
     def __init__(self, car: Car, info: GameInfo):
         super().__init__(car)
         self.info: GameInfo = info
@@ -35,7 +36,7 @@ class Kickoff(Maneuver):
 
     def step(self, dt: float):
         if self.phase == "anti-fake-kickoff":
-            self.drive.target_pos = vec3(80, 0, 0)
+            self.drive.target_pos = vec3(120 * sgn(self.car.position.x), 0, 0)
             self.finished = self.info.ball.position[1] != 0
 
         self.action.step(dt)

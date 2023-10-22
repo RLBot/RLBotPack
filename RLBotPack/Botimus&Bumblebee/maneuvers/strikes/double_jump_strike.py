@@ -1,12 +1,11 @@
-from rlutilities.simulation import Car, Input
-from rlutilities.linear_algebra import vec3, dot, normalize, look_at
-from rlutilities.mechanics import AerialTurn
-from maneuvers.strikes.strike import Strike
 from maneuvers.driving.drive import Drive
+from maneuvers.strikes.strike import Strike
+from rlutilities.linear_algebra import vec3, dot, normalize, look_at
+from rlutilities.mechanics import Reorient
+from rlutilities.simulation import Car, Input
 from tools.game_info import GameInfo
 from tools.intercept import Intercept
 from tools.vector_math import ground_distance, ground, ground_direction, direction
-
 
 MIN_ALIGNMENT = 0.9
 MIN_DIST_BEFORE_SPEED_CONTROL = 1500
@@ -21,7 +20,7 @@ class DoubleJumpStrike(Strike):
 
     def __init__(self, car: Car, info: GameInfo, target=None):
         self.drive = Drive(car)
-        self.aerial_turn = AerialTurn(car)
+        self.reorient = Reorient(car)
 
         self.jumping = False
         self.time_for_jump = float("inf")
@@ -82,9 +81,9 @@ class DoubleJumpStrike(Strike):
             # after jump (when the car is in the air)
             else:
                 # face the ball for some additional height
-                self.aerial_turn.target = look_at(direction(self.car.position, self.info.ball), vec3(0, 0, 1))
-                self.aerial_turn.step(dt)
-                self.controls = self.aerial_turn.controls
+                self.reorient.target_orientation = look_at(direction(self.car.position, self.info.ball), vec3(0, 0, 1))
+                self.reorient.step(dt)
+                self.controls = self.reorient.controls
 
     @staticmethod
     def double_jump_time_needed(height):

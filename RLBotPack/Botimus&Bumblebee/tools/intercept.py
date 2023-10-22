@@ -11,7 +11,7 @@ from tools.vector_math import distance, direction, ground, ground_distance
 
 
 class Intercept:
-    def __init__(self, car: Car, ball_predictions, predicate: callable = None, backwards=False):
+    def __init__(self, car: Car, ball_predictions, predicate: callable = None, ignore_time_estimate=False, backwards=False):
         self.ball: Optional[Ball] = None
         self.car: Car = car
         self.is_viable = True
@@ -20,7 +20,7 @@ class Intercept:
         for i in range(0, len(ball_predictions), 3):
             ball = ball_predictions[i]
             time = estimate_time(car, ball.position, -1 if backwards else 1)
-            if time < ball.time - car.time:
+            if time < ball.time - car.time or ignore_time_estimate:
                 if predicate is None or predicate(car, ball):
                     self.ball = ball
                     break

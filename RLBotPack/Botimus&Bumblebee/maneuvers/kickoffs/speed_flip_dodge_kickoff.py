@@ -11,6 +11,7 @@ class SpeedFlipDodgeKickoff(Kickoff):
     """
     Speed flip and then dodge into the ball. Works only on corner kickoffs.
     """
+
     def __init__(self, car: Car, info: GameInfo):
         super().__init__(car, info)
         self.drive.target_pos = self.info.my_goal.center * 0.05
@@ -34,6 +35,7 @@ class SpeedFlipDodgeKickoff(Kickoff):
             if ground_distance(self.car, vec3(0, 0, 0)) < 500:
                 self.action = AirDodge(car, 0.1, vec3(0, 0, 0))
                 self.phase = 4
+                self.counter_fake_kickoff()
 
         if self.phase == 4:
             if self.action.finished:
