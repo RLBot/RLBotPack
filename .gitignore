@@ -6,3 +6,7 @@ RLBot_Core_Interface.dll
 rlbot.cfg
 RefreshEnv.cmd
 .git/
+*.pdb
+*.cs
+*.csproj
+*.sln

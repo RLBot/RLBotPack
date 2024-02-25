@@ -1,13 +1,13 @@
-from maneuvers.driving.travel import Travel
-from maneuvers.driving.stop import Stop
 from maneuvers.driving.drive import Drive
+from maneuvers.driving.stop import Stop
+from maneuvers.driving.travel import Travel
 from maneuvers.maneuver import Maneuver
-from rlutilities.linear_algebra import vec3, dot
-from rlutilities.simulation import Car
+from rlutilities.linear_algebra import vec3
+from rlutilities.simulation import Car, BoostPadState
 from tools.arena import Arena
 from tools.drawing import DrawingTool
 from tools.game_info import GameInfo
-from tools.vector_math import nearest_point, farthest_point, ground_distance, ground_direction, ground, angle_to,\
+from tools.vector_math import nearest_point, farthest_point, ground_distance, ground_direction, ground, angle_to, \
     distance, angle_between
 
 
@@ -37,7 +37,10 @@ class GeneralDefense(Maneuver):
         near_goal = abs(car.position[1] - info.my_goal.center[1]) < 3000
         side_shift = 400 if near_goal else 1800
         points = target_pos + vec3(side_shift, 0, 0), target_pos - vec3(side_shift, 0, 0)
-        target_pos = nearest_point(face_target, points) if near_goal or force_nearest else farthest_point(face_target, points)
+        if abs(self.car.position.x) > 3000:
+            force_nearest = True
+        target_pos = nearest_point(face_target, points) if near_goal or force_nearest else farthest_point(face_target,
+                                                                                                          points)
         if abs(face_target[0]) < 1000 or ground_distance(car, face_target) < 1000:
             target_pos = nearest_point(car.position, points)
         target_pos = Arena.clamp(target_pos, 500)
@@ -81,8 +84,8 @@ class GeneralDefense(Maneuver):
                     to_pad = ground_direction(self.car, pad)
 
                     if (
-                        pad.is_active and distance(self.car, pad) < self.BOOST_LOOK_RADIUS
-                        and angle_between(to_target, to_pad) < self.BOOST_LOOK_ANGLE
+                            pad.state == BoostPadState.Available and distance(self.car, pad) < self.BOOST_LOOK_RADIUS
+                            and angle_between(to_target, to_pad) < self.BOOST_LOOK_ANGLE
                     ):
                         self.pad = pad
                         self.drive.target_pos = pad.position
@@ -107,4 +110,3 @@ class GeneralDefense(Maneuver):
         if self.pad:
             draw.color(draw.blue)
             draw.circle(self.pad.position, 50)
-

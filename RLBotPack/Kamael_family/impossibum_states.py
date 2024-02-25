@@ -4566,19 +4566,18 @@ def newTeamStateManager(agent):
 
                 agent.currentHit = fastesthit
                 agent.ballDelay = fastesthit.time_difference()
-                # if agentType != Kickoff_Boosties and agent.team == 0:
-                #     agent.activeState = Kickoff_Boosties(agent)
-                #     return
-                # else:
-                #     #print("not locked in?")
-                if agentType != BlessingOfSafety:
-                    agent.activeState = BlessingOfSafety(agent)
+                if man == 2:
+                    if agentType != Kickoff_Boosties:
+                        agent.activeState = Kickoff_Boosties(agent)
+                else:
+                    if agentType != BlessingOfSafety:
+                        agent.activeState = BlessingOfSafety(agent)
                 return
-            # elif agent.team == 0:
-            #     TMCP_rotations_sorter(agent)
+                # if agentType != BlessingOfSafety:
+                #     agent.activeState = BlessingOfSafety(agent)
+                # return
 
             else:
-                # ally_dists = []
                 man = 1
                 if (
                     (agent.me.location[1] * sign(agent.team)) + 25 * sign(agent.team)

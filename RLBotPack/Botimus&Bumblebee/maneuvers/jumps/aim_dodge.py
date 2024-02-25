@@ -1,6 +1,6 @@
 from maneuvers.jumps.air_dodge import AirDodge
 from rlutilities.linear_algebra import vec3, normalize, look_at
-from rlutilities.mechanics import AerialTurn
+from rlutilities.mechanics import Reorient
 from rlutilities.simulation import Car
 from tools.vector_math import direction
 
@@ -13,7 +13,7 @@ class AimDodge(AirDodge):
 
     def __init__(self, car: Car, duration: float, target: vec3):
         super().__init__(car, duration, target)
-        self.turn = AerialTurn(car)
+        self.reorient = Reorient(car)
 
     def step(self, dt):
         super().step(dt)
@@ -23,8 +23,8 @@ class AimDodge(AirDodge):
             up = target_direction * (-1)
             up[2] = 1
             up = normalize(up)
-            self.turn.target = look_at(target_direction, up)
-            self.turn.step(dt)
-            self.controls.pitch = self.turn.controls.pitch
-            self.controls.yaw = self.turn.controls.yaw
-            self.controls.roll = self.turn.controls.roll
+            self.reorient.target_orientation = look_at(target_direction, up)
+            self.reorient.step(dt)
+            self.controls.pitch = self.reorient.controls.pitch
+            self.controls.yaw = self.reorient.controls.yaw
+            self.controls.roll = self.reorient.controls.roll

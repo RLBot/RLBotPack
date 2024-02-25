@@ -1,13 +1,14 @@
 from typing import List, Optional, Dict
 
-from maneuvers.recovery import Recovery
+from maneuvers.general_defense import GeneralDefense
 from maneuvers.kickoffs.drive_backwards_to_goal import DriveBackwardsToGoal
 from maneuvers.kickoffs.half_flip_pickup import HalfFlipPickup
-from maneuvers.refuel import Refuel
-from maneuvers.general_defense import GeneralDefense
+from maneuvers.recovery import Recovery
+from maneuvers.pickup_boostpad import PickupBoostPad
 from rlutilities.linear_algebra import norm
-from rlutilities.simulation import Pad
+from rlutilities.simulation import BoostPad
 from strategy import offense, defense, kickoffs
+from strategy.boost_management import choose_boostpad_to_pickup
 from tools.drawing import DrawingTool
 from tools.drone import Drone
 from tools.game_info import GameInfo
@@ -24,7 +25,7 @@ class HivemindStrategy:
         self.drone_going_for_ball: Optional[Drone] = None
         self.defending_drone: Optional[Drone] = None
 
-        self.boost_reservations: Dict[Drone, Pad] = {}
+        self.boost_reservations: Dict[Drone, BoostPad] = dict()
 
     def set_kickoff_maneuvers(self, drones: List[Drone]):
         nearest_drone = min(drones, key=lambda drone: ground_distance(drone.car, self.info.ball))
@@ -44,9 +45,15 @@ class HivemindStrategy:
 
         for drone in drones:
             if drone not in corner_drones + [self.defending_drone] + [self.drone_going_for_ball]:
-                reserved_pads = {self.boost_reservations[d] for d in self.boost_reservations}
-                drone.maneuver = Refuel(drone.car, self.info, forbidden_pads=reserved_pads)
-                self.boost_reservations[drone] = drone.maneuver.pad
+                self.send_drone_for_boost(drone)
+
+    def send_drone_for_boost(self, drone: Drone):
+        reserved_pads = set(self.boost_reservations.values())
+        best_boostpad = choose_boostpad_to_pickup(self.info, drone.car, forbidden_pads=reserved_pads)
+        if best_boostpad is None:
+            return
+        drone.maneuver = PickupBoostPad(drone.car, best_boostpad)
+        self.boost_reservations[drone] = best_boostpad  # reserve chosen boost pad
 
     def set_maneuvers(self, drones: List[Drone]):
         info = self.info
@@ -101,16 +108,14 @@ class HivemindStrategy:
 
         # clear expired boost reservations
         for drone in drones:
-            if not isinstance(drone.maneuver, Refuel) and drone in self.boost_reservations:
+            if not isinstance(drone.maneuver, PickupBoostPad) and drone in self.boost_reservations:
                 del self.boost_reservations[drone]
 
         # drones that need boost go for boost
         for drone in drones:
             if drone.maneuver is None:
                 if drone.car.boost < 30:
-                    reserved_pads = {self.boost_reservations[drone] for drone in self.boost_reservations}
-                    drone.maneuver = Refuel(drone.car, info, forbidden_pads=reserved_pads)
-                    self.boost_reservations[drone] = drone.maneuver.pad  # reserve chosen boost pad
+                    self.send_drone_for_boost(drone)
 
         # pick one drone that will stay far back
         unemployed_drones = [drone for drone in drones if drone.maneuver is None]

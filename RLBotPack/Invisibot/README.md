@@ -2,7 +2,7 @@
 
 Invisibot is Rocket League bot that has invisiblity powers. 
 
-It is powered by Kamael and RLUtilities.
+It is powered by Nexto and RLUtilities.
 
 # How does it work?
 
@@ -30,6 +30,6 @@ give other bots invisibility powers. Here are the requirements:
 The bot is working pretty well. Sometimes the simulation is not perfect and it results
 in the bot not being in the place that the "controlling" bot expects. This results in
 invisibot performing worse than the "controlling" bot. Since the controlling bot is
-Kamael though, a bad Kamael still performs pretty well.
+Nexto though, a bad Nexto still performs pretty well.
 
 

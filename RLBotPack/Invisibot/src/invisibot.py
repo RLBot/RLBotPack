@@ -8,7 +8,7 @@ from os import path
 
 from rlbot.utils.class_importer import import_agent
 
-botlib = import_agent(path.abspath('../Kamael/Kamael.py'))
+botlib = import_agent(path.abspath('../Necto/Nexto/bot.py'))
 BaseBot = botlib.get_loaded_class()
 
 from rlbot.agents.base_agent import SimpleControllerState

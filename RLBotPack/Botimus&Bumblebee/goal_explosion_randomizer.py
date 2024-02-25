@@ -7,10 +7,14 @@ from rlbot.matchconfig.loadout_config import LoadoutConfig
 SELECTION = [
     4373,  # Tactical Nuke
     3645,  # Lantern Rift
-    4524,  # Meteor Storm
     3974,  # Force Razor
     4179,  # Voxel
-    2702,  # Toon
+    7485,  # Elemental
+    7542,  # Shield Breaker
+    5134,  # Spatial Rift
+    9163,  # Optimus Prime :)
+    8837,  # Chemergy
+    5975,  # Phoenix Cannon
 ]
 
 

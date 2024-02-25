@@ -1,9 +1,9 @@
 from typing import List, Optional
 
 from maneuvers.maneuver import Maneuver
-from rlutilities.linear_algebra import vec3, dot, norm, angle_between, normalize, cross, mat3, look_at, xy
-from rlutilities.mechanics import AerialTurn
-from rlutilities.simulation import Car, Input, sphere, Field
+from rlutilities.linear_algebra import vec3, dot, norm, angle_between, normalize, cross, look_at
+from rlutilities.mechanics import Reorient
+from rlutilities.simulation import Car, sphere, Field
 from tools.drawing import DrawingTool
 from tools.vector_math import forward, three_vec3_to_mat3
 
@@ -16,7 +16,7 @@ class Recovery(Maneuver):
 
         self.jump_when_upside_down = jump_when_upside_down
         self.landing = False
-        self.aerial_turn = AerialTurn(self.car)
+        self.reorient = Reorient(self.car)
 
         self.trajectory: List[vec3] = []
         self.landing_pos: Optional[vec3] = None
@@ -27,8 +27,8 @@ class Recovery(Maneuver):
     def step(self, dt):
         self.simulate_landing()
 
-        self.aerial_turn.step(dt)
-        self.controls = self.aerial_turn.controls
+        self.reorient.step(dt)
+        self.controls = self.reorient.controls
 
         self.controls.boost = angle_between(self.car.forward(), vec3(0, 0, -1)) < 1.5 and not self.landing
         self.controls.throttle = 1  # in case we're turtling
@@ -74,10 +74,10 @@ class Recovery(Maneuver):
             u = collision_normal
             f = normalize(vel - dot(vel, u) * u)
             l = normalize(cross(u, f))
-            self.aerial_turn.target = three_vec3_to_mat3(f, l, u)
+            self.reorient.target_orientation = three_vec3_to_mat3(f, l, u)
         else:
             target_direction = normalize(normalize(self.car.velocity) - vec3(0, 0, 3))
-            self.aerial_turn.target = look_at(target_direction, vec3(0, 0, 1))
+            self.reorient.target_orientation = look_at(target_direction, vec3(0, 0, 1))
 
     def render(self, draw: DrawingTool):
         if self.landing:
@@ -88,7 +88,7 @@ class Recovery(Maneuver):
                 draw.crosshair(self.landing_pos)
 
         draw.color(draw.green)
-        draw.vector(self.car.position, forward(self.aerial_turn.target) * 200)
+        draw.vector(self.car.position, forward(self.reorient.target_orientation) * 200)
 
         draw.color(draw.red)
         draw.vector(self.car.position, self.car.forward() * 200)
