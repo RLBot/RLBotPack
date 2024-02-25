@@ -3,24 +3,9 @@ import math
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 
-from tensorflow.python.client import device_lib
-import tensorflow as tf
 import numpy
 
-import sys
-import time
-
-#attempt to limit GPU usages
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-  try:
-    for gpu in gpus:
-      tf.config.experimental.set_memory_growth(gpu, True)
-  except RuntimeError as e:
-    print("Whelp TensorFlow GPU RUNTIME ERROR :(")
-    print(e)
-    
-
+import torch as th
 
 class MyBot(BaseAgent):
 
@@ -29,11 +14,13 @@ class MyBot(BaseAgent):
         # This runs once before the bot starts up
         self.controller_state = SimpleControllerState()
         if(self.team == 0): #blue
-            modelDir = "src/blueModel"
+            modelDir = "src/blueTorchModel.pt"
         elif(self.team == 1): #orange
-            modelDir = "src/orangeModel"
+            modelDir = "src/orangeTorchModel.pt"
             
-        self.model = tf.keras.models.load_model(modelDir) 
+        self.model = th.load(modelDir)
+        self.model.eval()
+
         self.isKickoff = True  
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:    
@@ -109,18 +96,20 @@ class MyBot(BaseAgent):
             stateList.append(packet.game_ball.physics.velocity.y / 6000.0)
             stateList.append(packet.game_ball.physics.velocity.z / 6000.0)
                  
-            stateTensor = numpy.array(stateList)
-            stateTensor = stateTensor[numpy.newaxis, :]
+            stateTensor = th.Tensor(numpy.array(stateList))
+            stateTensor = th.unsqueeze(stateTensor, 0)
+            #print(type(stateTensor))
+            #print(stateTensor)
             
             steerTensor, eulerTensor, jumpTensor, boostTensor = self.model(stateTensor)
             
             
-            self.controller_state.throttle = tf.clip_by_value(steerTensor[0][0], -1, 1)
-            self.controller_state.steer = tf.clip_by_value(steerTensor[0][1], -1, 1)
+            self.controller_state.throttle = th.clip(steerTensor[0][0], -1, 1)
+            self.controller_state.steer = th.clip(steerTensor[0][1], -1, 1)
             
-            self.controller_state.pitch = tf.clip_by_value(eulerTensor[0][0], -1, 1)
-            self.controller_state.yaw = tf.clip_by_value(eulerTensor[0][1], -1, 1)
-            self.controller_state.roll = tf.clip_by_value(eulerTensor[0][2], -1, 1)
+            self.controller_state.pitch = th.clip(eulerTensor[0][0], -1, 1)
+            self.controller_state.yaw = th.clip(eulerTensor[0][1], -1, 1)
+            self.controller_state.roll = th.clip(eulerTensor[0][2], -1, 1)
             
 
             if(boostTensor[0][0] > .5):
