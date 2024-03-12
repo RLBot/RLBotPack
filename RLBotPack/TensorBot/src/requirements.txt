@@ -1,7 +1,7 @@
 # Include everything the framework requires
 # You will automatically get updates for all versions starting with "1.".
 rlbot==1.*
-torch>=1.9.1+cpu
+--find-links https://download.pytorch.org/whl/torch_stable.html torch==2.2.1+cpu
 onnx2pytorch
 numpy
 
