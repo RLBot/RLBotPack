@@ -7,7 +7,7 @@ from util.boost_pad_tracker import BoostPadTracker
 from util.drive import steer_toward_target
 from util.sequence import Sequence, ControlStep
 from util.vec import Vec3
-import math
+import math, time
 
 class MyBot(BaseAgent):
 
@@ -16,11 +16,12 @@ class MyBot(BaseAgent):
         self.active_sequence: Sequence = None
         self.boost_pad_tracker = BoostPadTracker()
         self.prev_rot = [0, 0, 0]
+        self.prev_jump = False
 
     def initialize_agent(self):
         self.boost_pad_tracker.initialize_boosts(self.get_field_info())
         settings = self.get_match_settings()
-        self.jump_time = 0
+        self.jump_time = time.time() + 0
         self.map = settings.GameMap()
         if self.map == 35:
             self.map_size = [3581, 2966.7]
@@ -39,30 +40,6 @@ class MyBot(BaseAgent):
             controls = self.active_sequence.tick(packet)
             if controls is not None:
                 return controls
-        # Update the send location to hit ball past others
-        def hit_past(tl):
-            angles = [-math.pi / 3, math.pi / 3]
-            for car in packet.game_cars:
-                test_pos = Vec3(car.physics.location) + Vec3(car.physics.velocity) * friendly_time
-                test_pos = Vec3(test_pos.x, test_pos.y, 0)
-                gap = Vec3(tl.x, tl.y, 0) - Vec3(car_location.x, car_location.y, 0)
-                gapL = Vec3(gap.y, -gap.x, 0)
-                gapR = Vec3(-gap.y, gap.x, 0)
-                a1 = get_angle(Vec3(tl.x, tl.y, 0) - Vec3(car_location.x, car_location.y, 0), Vec3(test_pos.x, test_pos.y, 0) - Vec3(tl.x, tl.y, 0))
-                a1 = a1 * sign((gapL + car_location - test_pos).length() - (gapR + car_location - test_pos).length())
-                if -math.pi / 3 < a1 < math.pi / 3:
-                    for i in range(len(angles) - 1):
-                        if angles[i] < a1 < angles[i + 1]:
-                            angles.insert(a1, i + 1)
-            if len(angles) > 2:
-                furthest_gap = 0
-                best_gap = 0
-                for i in range(len(angles) - 1):
-                    if angles[i + 1] - angles[i] > furthest_gap:
-                        best_gap = i
-                        furthest_gap = angles[i + 1] - angles[i]
-                new_angle = (angles[best_gap + 1] + angles[best_gap]) / 2
-                return (angles[best_gap + 1] + angles[best_gap]) / 2
         # Get the distance from the nearest surface (walls, floor, roof, etc.)
         def distance_from_surface(pos):
             min_dist = math.inf
@@ -129,13 +106,6 @@ class MyBot(BaseAgent):
                         best_score = score
                         best_pad = pad
             return best_pad
-        # Get the yaw based on position
-        def get_yaw(x, y):
-            a = math.acos(x / Vec3(x, y, 0).length())
-            if abs(a) < math.pi:
-                return a * sign(y)
-            else:
-                return math.pi
         # Get the angle between two places
         def get_angle(p1, p2):
             d = (p1 * safe_div(p1.length()) - p2 * safe_div(p2.length())).length()
@@ -277,26 +247,6 @@ class MyBot(BaseAgent):
                         best_time = time_taken
                         nearest = packet.game_cars[i]
             return nearest, best_time
-        # Get the list of moments when the ball should be hit
-        def opportunities():
-            li = []
-            prev_pos = ball_location
-            for i in range(1, 101):
-                time_location = predict_ball(i / 20)
-                if time_location.z <= 300:
-                    li.append([i / 20, (time_location - car_location).length() * 20 / i])
-                prev_pos = time_location
-            return li
-        # ???
-        def plane_dist(pos, dist):
-            if Vec3(pos.x, pos.y, 0).length() <= dist:
-                return True
-            elif Vec3(pos.x, 0, pos.z).length() <= dist:
-                return True
-            elif Vec3(0, pos.y, pos.z).length() <= dist:
-                return True
-            else:
-                return False
         # Get the ball's position and velocity at a specific time
         def predict_ball(t):
             ball_in_future = find_slice_at_time(ball_prediction, packet.game_info.seconds_elapsed + t)
@@ -333,15 +283,16 @@ class MyBot(BaseAgent):
             tl = Vec3(predict_ball(t).physics.location)
             tl = tl - (send_location - tl).rescale(92.75)
             aerial_front = tl - air_pos(car_location, car_velocity, t)
+            to_jump = True
             # Prepare to jump
-            if self.jump_time < 0:
+            if self.jump_time - time.time() < 0 and self.prev_jump == False:
                 if my_car.has_wheel_contact == True:
                     if 1.02 > (align_on_surface(car_location, tl).dist(distance_from_surface(car_location)) - min(align_on_surface(car_location, tl).dist(tl) - 92.75, 500)) * safe_div(car_velocity.length() * t) > safe_div(1.02) and my_car.boost > t * 100 / 3 and car_direction.ang_to(align_on_surface(car_location, tl) - distance_from_surface(car_location)) <= 0.3 and not hold_off:
-                        self.jump_time = 12 / 60
+                        self.jump_time = time.time() + 12 / 60
                 else:
                     if roof_direction.ang_to(aerial_front) < math.pi / 2 - 0.3 * min(t, 1) and tl.dist(car_location) * safe_div((car_velocity - ball_velocity).length()) > 1:
-                        self.jump_time = 12 / 60
-                        self.jump_dir = Vec3(0, 0, 0)
+                        self.jump_time = time.time() + 12 / 60
+                        to_jump = False
             controls.throttle = sign((align_on_surface(car_location, tl).dist(distance_from_surface(car_location)) - min(align_on_surface(car_location, tl).dist(tl) - 92.75, 500)) * safe_div(car_velocity.length() * t) - 1 * bool(my_car.has_wheel_contact == True and car_direction.ang_to(tl - car_location) < math.pi / 2))
             controls.steer = steer_toward_target(my_car, tl * sign(math.pi / 2 - car_velocity.ang_to(car_direction)) + car_location * (1 - sign(math.pi / 2 - car_velocity.ang_to(car_direction))))
             # Air controls
@@ -353,7 +304,10 @@ class MyBot(BaseAgent):
                     c_pitch, c_yaw = c_pitch / abs(c_pitch), c_yaw / abs(c_pitch)
                 elif abs(c_yaw) > abs(c_pitch):
                     c_pitch, c_yaw = c_pitch / abs(c_yaw), c_yaw / abs(c_yaw)
-                controls.pitch, controls.yaw = c_pitch, c_yaw
+                if to_jump == True:
+                    controls.pitch, controls.yaw = c_pitch, c_yaw
+                else:
+                    controls.pitch, controls.yaw = 0, 0
                 controls.boost = True
             if my_car.boost > t * 100 / 3 and car_direction.ang_to(align_on_surface(car_location, tl) - distance_from_surface(car_location)) <= 0.3:
                 self.renderer.draw_string_3d(car_location, 1, 1, "Aerial", self.renderer.green())
@@ -412,7 +366,7 @@ class MyBot(BaseAgent):
                 override = self.flip(packet, dir_x, dir_y, not my_car.jumped)
         # Jump over cars to prevent collision
         def avoid_bump():
-            if my_car.has_wheel_contact == True and self.jump_time < 0:
+            if my_car.has_wheel_contact == True and self.jump_time - time.time() < 0:
                 for i in range(len(packet.game_cars)):
                     if (ball_location - car_location).length() > (Vec3(packet.game_cars[i].physics.location) - car_location).length():
                         if i != self.index and packet.game_cars[i].physics.location.z > 0:
@@ -427,8 +381,8 @@ class MyBot(BaseAgent):
                                     on_course = True
                             else:
                                 on_course = True
-                            if on_course == True and dist <= 118.01 + (vel - vel2).length() / 2 and (vel.length() * math.cos(vel.ang_to(ball_location - car_location)) <= vel2.length() * math.cos(vel2.ang_to(ball_location - Vec3(packet.game_cars[i].physics.location))) or packet.game_cars[i].team != self.team):
-                                self.jump_time = 1 / 60
+                            if on_course == True and dist <= 118.01 + (vel - vel2).length() / 2 and (vel.length() * math.cos(vel.ang_to(ball_location - car_location)) <= vel2.length() * math.cos(vel2.ang_to(ball_location - Vec3(packet.game_cars[i].physics.location))) or packet.game_cars[i].team != self.team) and self.prev_jump == False:
+                                self.jump_time = time.time() + 1 / 60
                                 double_jumping = False
 
         # Modes
@@ -458,22 +412,18 @@ class MyBot(BaseAgent):
                     controls.pitch = 0
                     controls.yaw = 0
                     controls.roll = 0
-                    self.jump_time = 0.2
+                    self.jump_time = time.time() + 0.2
                     controls.boost = False
                 else:
                     jump_attack()
                 # Double jump
-                if double_jumping == True and self.jump_time < 0 and my_car.jumped == True:
+                if double_jumping == True and self.jump_time - time.time() < 0 and self.prev_jump == False and my_car.jumped == True:
                     controls.pitch = 0
                     controls.yaw = 0
                     controls.roll = 0
-                    self.jump_time = 1/60
+                    self.jump_time = time.time() + 1/60
                 if my_car.has_wheel_contact == False:
                     controls.boost = False
-                # Catch the ball when in the air
-                if abs(target_location.z - car_location.z) <= 92.75 * 0.75 and get_angle(target_location - car_location, car_velocity) >= math.atan(200 * safe_div(car_velocity.length())) and my_car.jumped == True and my_car.double_jumped == False and False:
-                    controls.yaw = sign((target_location - car_location - Vec3(car_velocity.y, -car_velocity.x, car_velocity.z)).length() - (target_location - car_location - Vec3(-car_velocity.y, car_velocity.x, car_velocity.z)).length())
-                    self.jump_time = 1/60
                 # Draw
                 self.renderer.draw_line_3d(car_location, target_location, self.renderer.red())
                 self.renderer.draw_rect_3d(target_location, 8, 8, True, self.renderer.red(), centered=True)
@@ -552,45 +502,14 @@ class MyBot(BaseAgent):
             return target_location
 
         def defend():
-            if not in_goal and False:
-                target_ball = predict_ball(earliest_intersection)
-                target_location = Vec3(target_ball.physics.location)
-                nearest_surface = (target_location - car_location) / (target_location - car_location).length() * 140
-                nearest_surface_r = Vec3(-nearest_surface.y, nearest_surface.x, nearest_surface.z)
-                nearest_surface_l = Vec3(nearest_surface.y, -nearest_surface.x, nearest_surface.z)
-                if False:
-                    side = -sign((nearest_surface_l - send_location).length() - (nearest_surface_r - send_location).length())
-                else:
-                    side = -sign(((nearest_surface_l - ball_location) - ball_velocity).length() - ((nearest_surface_r - ball_location) - ball_velocity).length())
-                nearest_surface = Vec3(-nearest_surface.y * side, nearest_surface.x * side, nearest_surface.z)
-                if abs(target_location.x + nearest_surface.x) >= self.map_size[1] or get_angle(car_location - send_location, car_location - target_location) > math.pi / 3 * 2 or ball_location.z > 130:
-                    target_location = -send_location
-                else:
-                    target_location = target_location + nearest_surface / 140 * car_velocity.length()
-                controls.boost = enemy_time < 1 and abs(steer_toward_target(my_car, target_location)) <= 0.1
-                # Jump
-                h = (Vec3(target_ball.physics.location) - distance_from_surface(Vec3(target_ball.physics.location))).length()
-                if jump_ready(h, double_jumping) >= earliest_intersection and steer_toward_target(my_car, target_location) < 1:
-                    controls.pitch = 0
-                    controls.yaw = 0
-                    controls.roll = 0
-                    self.jump_time = 0.2
-                    controls.boost = False
-                else:
-                    jump_attack()
-                # Draw
-                self.renderer.draw_line_3d(car_location, ball_location + nearest_surface, self.renderer.cyan())
-                self.renderer.draw_rect_3d(ball_location + nearest_surface, 8, 8, True, self.renderer.cyan(), centered=True)
-                controls.throttle = 1
-            else:
-                target_location = -send_location
-                if my_car.has_wheel_contact == True:
-                    if (target_location - car_location).length() > car_velocity.length() * 1.3 + 292 * 1.2 and car_velocity.length() > 1000:
-                        if get_angle(car_direction, car_velocity) > math.pi / 2:
-                            override = self.reverse_flip(packet)
-                        elif car_velocity.length() < 2290 and get_angle(target_location - car_location, car_direction) <= 0.1:
-                            override = self.flip(packet, 0, -1, 0.1)
-                controls.throttle = sign((math.pi / 2 - get_angle(-send_location - car_location, car_direction)) - car_velocity.length() / 2300 * sign(math.pi / 2 - get_angle(-send_location - car_location, car_direction)))
+            target_location = -send_location
+            if my_car.has_wheel_contact == True:
+                if (target_location - car_location).length() > car_velocity.length() * 1.3 + 292 * 1.2 and car_velocity.length() > 1000:
+                    if get_angle(car_direction, car_velocity) > math.pi / 2:
+                        override = self.reverse_flip(packet)
+                    elif car_velocity.length() < 2290 and get_angle(target_location - car_location, car_direction) <= 0.1:
+                        override = self.flip(packet, 0, -1, 0.1)
+            controls.throttle = sign((math.pi / 2 - get_angle(-send_location - car_location, car_direction)) - car_velocity.length() / 2300 * sign(math.pi / 2 - get_angle(-send_location - car_location, car_direction)))
             return target_location
 
         def recovery():
@@ -628,7 +547,7 @@ class MyBot(BaseAgent):
         double_jumping = enemy_time <= 1.5
         ball_offset = 92.75 + 42.1 * bool(not double_jumping)
         aerial_time, aerial_dir = intersect_aerial(car_location, car_velocity)
-        next_jump_offset = 1460 / (60 - bool(self.jump_time <= 0) * 55)
+        next_jump_offset = 1460 / (60 - bool(self.jump_time - time.time() <= 0) * 55)
         aerial_time_j, aerial_dir_j = intersect_aerial(car_location, car_velocity + roof_direction * next_jump_offset)
         earliest_intersection, easiest_intersection = intersect_time(True)
         emergency = predict_future_goal(ball_prediction)
@@ -663,9 +582,6 @@ class MyBot(BaseAgent):
                     mode = "Refuel"
             else:
                 mode = "Goalie"
-        # Demolition
-        if mode == "Demo":
-            target_location = demo()
         # Attack the ball
         if mode == "Attack":
             avoid_bump()
@@ -696,14 +612,8 @@ class MyBot(BaseAgent):
         else:
             controls.steer = steer_toward_target(my_car, target_location) * clamp(get_angle(car_direction, -car_velocity) * 5, 0, 1)
 
-        controls.jump = self.jump_time > 0
-        self.jump_time = clamp(self.jump_time - 1 / 60, -1 / 60, math.inf)
-
+        controls.jump = self.jump_time - time.time() > 0
         # Draw
-        if False:
-            self.renderer.draw_string_2d(800, 200, 1, 1, "X: " + str(packet.game_cars[1 - self.index].physics.location.x), self.renderer.white())
-            self.renderer.draw_string_2d(800, 220, 1, 1, "Y: " + str(packet.game_cars[1 - self.index].physics.location.y), self.renderer.white())
-            self.renderer.draw_string_2d(1400, 200, 1, 1, "Map: " + str(self.map), self.renderer.white())
         self.renderer.draw_string_2d(50, 680 + car_index * 20 * (0.5 - self.team) * 2, 1, 1, "Noob Bot " + str(car_index) + ": " + str(mode) + ", double jump: " + str(double_jumping), self.renderer.white())
         self.renderer.draw_line_3d(target_location, distance_from_surface(target_location), self.renderer.yellow())
         self.renderer.draw_line_3d(car_location, car_location + aerial_dir * 1000, self.renderer.red())
@@ -713,6 +623,7 @@ class MyBot(BaseAgent):
         controls.yaw = clamp(controls.yaw, -1, 1)
         
         self.prev_rot = [car_rotation.pitch, car_rotation.yaw, car_rotation.roll]
+        self.prev_jump = controls.jump
         if override:
             return override
         else:
