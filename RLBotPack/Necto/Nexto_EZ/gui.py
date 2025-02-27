@@ -109,7 +109,7 @@ class Nexto_EZ_GUI(BotHelperProcess):
             # percentage label
             value_label = ttk.Label(
                 root,
-                text=format_value(memory.buf[0] / 255),
+                text=format_value((255 - memory.buf[0]) / 255),
             )
             value_label.grid(
                 column=1,
@@ -128,7 +128,7 @@ class Nexto_EZ_GUI(BotHelperProcess):
                 root,
                 from_=0,
                 to=1,
-                value=memory.buf[0] / 255,
+                value=(255 - memory.buf[0]) / 255,
                 orient='horizontal',
                 command=lambda val: update_slider(val),
             ).grid(
