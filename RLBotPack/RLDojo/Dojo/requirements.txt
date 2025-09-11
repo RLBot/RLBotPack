@@ -1,0 +1,12 @@
+# Include everything the framework requires
+# You will automatically get updates for all versions starting with "1.".
+numpy
+keyboard
+
+# This will cause pip to auto-upgrade and stop scaring people with warning messages
+pip
+
+matplotlib
+rlbot
+pydantic==2.11.5
+pydantic_core==2.33.2
