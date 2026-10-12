@@ -1,0 +1,15 @@
+# The main rlbot framework
+# You will automatically get updates for all versions starting with "1.".
+rlbot==1.*
+
+# Used to allow python to communicate with the browser that's running scratch
+websockets
+
+# Used to automatically launch web browsers and run the scratch code on them
+selenium
+
+# Provides an up-to-date version of chromedriver.exe to assist selenium
+webdriver_manager
+
+# This will cause pip to auto-upgrade and stop scaring people with warning messages
+pip
